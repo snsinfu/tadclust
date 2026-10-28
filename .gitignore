@@ -6,3 +6,8 @@ _*
 
 !__init__.py
 !__main__.py
+
+__pycache__/
+*.egg-info/
+out/
+dist/

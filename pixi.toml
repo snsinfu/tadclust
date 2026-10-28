@@ -1,0 +1,36 @@
+[workspace]
+authors = ["snsinfu <snsinfu@gmail.com>"]
+channels = ["conda-forge", "bioconda"]
+name = "tadclust"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks]
+test = "pytest -q tests"
+format = "ruff format src tests"
+typecheck = "pyright src tests"
+tadclust = "python -m tadclust"
+
+[dependencies]
+python = "3.12.*"
+numpy = "2.*"
+polars = "1.*"
+pyarrow = "*"
+scipy = ">=1.11,<2"
+h5py = ">=3.10,<4"
+scikit-learn = ">=1.5,<2"
+cooler = ">=0.10.4,<0.11"
+threadpoolctl = ">=3"
+
+[feature.dev.dependencies]
+pytest = "*"
+pyright = "*"
+ruff = "*"
+pandas = "*"
+
+[environments]
+default = { features = ["dev"], solve-group = "default" }
+
+[activation.env]
+PYTHONPATH = "$PIXI_PROJECT_ROOT/src"
+PATH = "$PIXI_PROJECT_ROOT/bin:$PATH"
