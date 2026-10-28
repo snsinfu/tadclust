@@ -35,3 +35,14 @@ class InputError(TadclustError):
 class McoolError(TadclustError):
     path: str | None = None
     resolution: int | None = None
+
+
+@dataclass(eq=False)
+class ComputationError(TadclustError):
+    chrom: str | None = None
+    matrix: str | None = None
+
+
+@dataclass(eq=False)
+class NoPositiveModeError(ComputationError):
+    pass
