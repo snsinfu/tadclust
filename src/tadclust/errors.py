@@ -29,3 +29,9 @@ class ConfigError(TadclustError):
 class InputError(TadclustError):
     path: str | None = None
     row: int | None = None
+
+
+@dataclass(eq=False)
+class McoolError(TadclustError):
+    path: str | None = None
+    resolution: int | None = None
