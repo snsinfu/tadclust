@@ -80,6 +80,18 @@ def test_comment_line_is_skipped_and_rows_keep_data_order(tmp_path) -> None:
     assert tads.rows["start"].to_list() == [10, 200]
 
 
+def test_comments_between_rows_are_skipped(tmp_path) -> None:
+    path = write_text(
+        tmp_path,
+        "chr1\t0\t100\n# between rows\nchr1\t100\t200\n",
+    )
+
+    tads = read_tads(path)
+
+    assert tads.rows["source_row"].to_list() == [0, 1]
+    assert tads.rows["start"].to_list() == [0, 100]
+
+
 def test_non_tab_separated_table_is_rejected(tmp_path) -> None:
     path = write_text(
         tmp_path,

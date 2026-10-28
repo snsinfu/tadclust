@@ -10,11 +10,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TextIO
 
 import numpy as np
 import polars as pl
 
+from .bedlike import read_bedlike
 from .errors import InputError
 
 REQUIRED_COLUMNS = ("chrom", "start", "end")
@@ -56,8 +56,20 @@ def read_tads(path: str | Path) -> TadTable:
             notes=("check the TAD table path",),
         )
 
-    table, has_header = _read_table(source)
-    table = _select_and_validate(table, has_header, source)
+    try:
+        bedlike = read_bedlike(
+            source,
+            header_names=REQUIRED_COLUMNS,
+            schema_overrides=_make_schema,
+        )
+    except Exception as exc:
+        raise InputError(
+            f"cannot read TAD table: {source}",
+            path=str(source),
+            notes=("the table must be non-empty and parseable",),
+        ) from exc
+
+    table = _select_and_validate(bedlike.table, bedlike.has_header, source)
     return TadTable(rows=table)
 
 
@@ -95,40 +107,7 @@ def check_against_chromsizes(
         )
 
 
-def _read_table(path: Path) -> tuple[pl.DataFrame, bool]:
-    """Inspect the first data line, then parse the table with polars."""
-    try:
-        with path.open("r", encoding="utf-8", newline="") as handle:
-            has_header = _has_required_header(handle)
-            if has_header is None:
-                raise InputError(
-                    f"TAD table is empty: {path}",
-                    path=str(path),
-                )
-
-            handle.seek(0)
-            table = pl.read_csv(
-                handle,
-                separator="\t",
-                has_header=has_header,
-                comment_prefix="#",
-                infer_schema_length=0,
-                schema_overrides=_make_schema(has_header),
-                truncate_ragged_lines=False,
-            )
-    except InputError:
-        raise
-    except Exception as exc:
-        raise InputError(
-            f"cannot read TAD table: {path}",
-            path=str(path),
-            notes=("the table must be non-empty and parseable",),
-        ) from exc
-
-    return table, has_header
-
-
-def _make_schema(has_header: bool) -> dict[str, type]:
+def _make_schema(has_header: bool, width: int) -> dict[str, type]:
     if has_header:
         return {
             "chrom": pl.String,
@@ -140,16 +119,6 @@ def _make_schema(has_header: bool) -> dict[str, type]:
         "column_2": pl.Int64,
         "column_3": pl.Int64,
     }
-
-
-def _has_required_header(handle: TextIO) -> bool | None:
-    for line in handle:
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        names = {token.strip() for token in stripped.split("\t")}
-        return set(REQUIRED_COLUMNS).issubset(names)
-    return None
 
 
 def _add_source_row(table: pl.DataFrame) -> pl.DataFrame:

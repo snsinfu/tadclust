@@ -9,6 +9,9 @@ import numpy as np
 from .clustering import kmeans_labels
 from .errors import ComputationError
 
+AB_NODE_PURITY = 0.8
+AB_SPLIT_CHOICES = ("kmeans2", "kmeans3")
+
 
 @dataclass
 class TreeNode:
@@ -27,6 +30,10 @@ class TreeNode:
     sse: float = 0.0
     split_gain: float | None = None
     stop_reason: str | None = None
+    ab_label: str | None = None
+    ab_frac_a: float | None = None
+    ab_purity: float | None = None
+    ab_rank_mean: float | None = None
 
     @property
     def is_leaf(self) -> bool:
@@ -50,6 +57,21 @@ class CisForest:
     trees: list[BranchingTree]
     node_offsets: list[int]
     groups: list[np.ndarray]
+
+
+@dataclass
+class AbAnnotation:
+    """Per-domain A/B labels, ranks, and continuous scores."""
+
+    labels: np.ndarray
+    rank: np.ndarray
+    split: str
+    fallback: bool
+    fallback_reason: str | None
+    scores: np.ndarray
+    margins: np.ndarray
+    a_indices: np.ndarray
+    b_indices: np.ndarray
 
 
 def format_path_label(root_label: str, path: list[int]) -> str:
@@ -369,4 +391,227 @@ def _make_cis_forest(
         trees=trees,
         node_offsets=offsets,
         groups=groups,
+    )
+
+
+def annotate_ab(
+    features: np.ndarray,
+    rank: np.ndarray,
+    n_domains: int,
+    ab_split: str,
+    seed: int,
+) -> AbAnnotation:
+    """Assign per-domain A/B labels and boundary scores.
+
+    The feature matrix must end with the standardized signal rank.
+    """
+    values = np.asarray(features, dtype=np.float64)
+    ranks = np.asarray(rank, dtype=np.float64)
+    if ranks.shape[0] != n_domains:
+        raise ComputationError("A/B rank length does not match the domain count")
+    if values.shape[0] != n_domains:
+        raise ComputationError("A/B feature length does not match the domain count")
+    if values.ndim != 2 or values.shape[1] == 0:
+        raise ComputationError("A/B features must have at least one column")
+    if ab_split not in AB_SPLIT_CHOICES:
+        raise ComputationError(f"unknown A/B split policy: {ab_split!r}")
+
+    labels = np.full(n_domains, None, dtype=object)
+    scores = np.full(n_domains, np.nan, dtype=np.float64)
+    margins = np.full(n_domains, np.nan, dtype=np.float64)
+    empty = np.zeros(0, dtype=np.int64)
+
+    if n_domains < 2:
+        return AbAnnotation(
+            labels=labels,
+            rank=ranks,
+            split=ab_split,
+            fallback=True,
+            fallback_reason="ab_too_few_domains",
+            scores=scores,
+            margins=margins,
+            a_indices=empty,
+            b_indices=empty,
+        )
+
+    partition = _ab_partition(values, n_domains, ab_split, seed)
+    if partition is None:
+        return AbAnnotation(
+            labels=labels,
+            rank=ranks,
+            split=ab_split,
+            fallback=True,
+            fallback_reason="ab_degenerate",
+            scores=scores,
+            margins=margins,
+            a_indices=empty,
+            b_indices=empty,
+        )
+
+    partition_labels, partition_scores, partition_margins, a_indices, b_indices = (
+        partition
+    )
+    return AbAnnotation(
+        labels=partition_labels,
+        rank=ranks,
+        split=ab_split,
+        fallback=False,
+        fallback_reason=None,
+        scores=partition_scores,
+        margins=partition_margins,
+        a_indices=a_indices,
+        b_indices=b_indices,
+    )
+
+
+def _ab_partition(
+    features: np.ndarray,
+    n_domains: int,
+    ab_split: str,
+    seed: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None:
+    n_clusters = 2 if ab_split == "kmeans2" else 3
+    cluster_labels, _ = kmeans_labels(
+        features,
+        min(n_clusters, n_domains),
+        features.shape[1],
+        seed,
+    )
+    unique, inverse = np.unique(cluster_labels, return_inverse=True)
+    if unique.size < 2:
+        return None
+
+    centroids = np.asarray(
+        [features[inverse == cluster].mean(axis=0) for cluster in range(unique.size)]
+    )
+    rank_means = np.asarray(
+        [features[inverse == cluster, -1].mean() for cluster in range(unique.size)]
+    )
+    order = np.argsort(rank_means, kind="stable")
+
+    if ab_split == "kmeans2" or unique.size == 2:
+        a_clusters = [int(order[-1])]
+        b_clusters = [int(order[0])]
+    else:
+        a_clusters = [int(order[-1]), int(order[-2])]
+        b_clusters = [int(order[0])]
+
+    a_indices = np.flatnonzero(np.isin(inverse, a_clusters))
+    b_indices = np.flatnonzero(np.isin(inverse, b_clusters))
+    if a_indices.size == 0 or b_indices.size == 0:
+        return None
+
+    a_centroids = centroids[a_clusters]
+    b_centroid = centroids[b_clusters[0]]
+    labels = np.full(n_domains, None, dtype=object)
+    labels[a_indices] = "A"
+    labels[b_indices] = "B"
+    scores = np.empty(n_domains, dtype=np.float64)
+    margins = np.empty(n_domains, dtype=np.float64)
+
+    for domain in range(n_domains):
+        a_distance = np.min(np.linalg.norm(a_centroids - features[domain], axis=1))
+        b_distance = np.linalg.norm(b_centroid - features[domain])
+        score = b_distance - a_distance
+        scores[domain] = score
+        margins[domain] = abs(score)
+
+    return labels, scores, margins, a_indices, b_indices
+
+
+def annotate_cis_forest(
+    forest: CisForest,
+    labels: np.ndarray,
+    rank: np.ndarray,
+    purity: float = AB_NODE_PURITY,
+) -> None:
+    """Attach per-node A/B composition fields to every node."""
+    for tree, group in zip(forest.trees, forest.groups):
+        for node in tree.nodes:
+            domain_ids = group[node.domain_indices]
+            domain_ranks = rank[domain_ids]
+            node.ab_rank_mean = (
+                float(domain_ranks.mean()) if domain_ranks.size else None
+            )
+
+            domain_labels = labels[domain_ids]
+            known = np.asarray(
+                [label is not None for label in domain_labels],
+                dtype=bool,
+            )
+            if not known.any():
+                node.ab_label = None
+                node.ab_frac_a = None
+                node.ab_purity = None
+                continue
+
+            n_a = int(np.sum(domain_labels[known] == "A"))
+            frac_a = n_a / int(known.sum())
+            node.ab_frac_a = frac_a
+            node.ab_purity = max(frac_a, 1.0 - frac_a)
+            if frac_a >= purity:
+                node.ab_label = "A"
+            elif frac_a <= 1.0 - purity:
+                node.ab_label = "B"
+            else:
+                node.ab_label = "mixed"
+
+
+def build_ab_forest(
+    chrom: str,
+    pcs: np.ndarray,
+    domain_bins: np.ndarray,
+    *,
+    annotation: AbAnnotation,
+    n_pcs: int,
+    branch_k: int,
+    seed: int,
+    node_base: int = 0,
+) -> CisForest:
+    """Build an A/B-rooted forest, or a fallback single-root forest."""
+    values = np.asarray(pcs)
+    bins = np.asarray(domain_bins, dtype=np.int64)
+
+    if annotation.fallback:
+        tree = build_branching_tree(
+            values,
+            bins,
+            n_pcs=n_pcs,
+            seed=seed,
+            branch_k=branch_k,
+            root_label="root",
+        )
+        if annotation.fallback_reason is not None:
+            tree.nodes[tree.root_id].stop_reason = annotation.fallback_reason
+        groups = [np.arange(values.shape[0], dtype=np.int64)]
+        return _make_cis_forest(
+            chrom,
+            trees=[tree],
+            groups=groups,
+            node_base=node_base,
+        )
+
+    a_indices = annotation.a_indices
+    b_indices = annotation.b_indices
+    a_tree = build_branching_tree(
+        values[a_indices],
+        bins[a_indices],
+        n_pcs=n_pcs,
+        seed=seed,
+        branch_k=branch_k,
+        root_label="A",
+    )
+    b_tree = build_branching_tree(
+        values[b_indices],
+        bins[b_indices],
+        n_pcs=n_pcs,
+        seed=seed,
+        branch_k=branch_k,
+        root_label="B",
+    )
+    return _make_cis_forest(
+        chrom,
+        trees=[a_tree, b_tree],
+        groups=[a_indices, b_indices],
+        node_base=node_base,
     )

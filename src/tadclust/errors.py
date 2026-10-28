@@ -46,3 +46,9 @@ class ComputationError(TadclustError):
 @dataclass(eq=False)
 class NoPositiveModeError(ComputationError):
     pass
+
+
+@dataclass(eq=False)
+class TrackError(TadclustError):
+    path: str | None = None
+    chrom: str | None = None
