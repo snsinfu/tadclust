@@ -23,3 +23,9 @@ class TadclustError(Exception):
 @dataclass(eq=False)
 class ConfigError(TadclustError):
     field: str | None = None
+
+
+@dataclass(eq=False)
+class InputError(TadclustError):
+    path: str | None = None
+    row: int | None = None
