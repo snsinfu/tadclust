@@ -3,6 +3,7 @@ _*
 !.gitattributes
 !.gitignore
 !.gitmodules
+!.github/
 
 !__init__.py
 !__main__.py
