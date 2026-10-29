@@ -11,6 +11,7 @@ import h5py
 import numpy as np
 from threadpoolctl import threadpool_limits
 
+from .config import TRANS_NULL_CHOICES
 from .domains import SelectedDomain
 from .errors import ComputationError, McoolError, NoPositiveModeError
 from .matrix import (
@@ -148,7 +149,7 @@ def trans_matrix(
     The pair null is not coverage-aware; chromosome territory and coverage
     effects can remain in the trans axes.
     """
-    if null not in {"pair", "grand"}:
+    if null not in TRANS_NULL_CHOICES:
         raise ComputationError(f"unknown trans null: {null!r}")
     if workers < 1:
         raise ComputationError("workers must be at least 1")

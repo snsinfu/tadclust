@@ -7,10 +7,10 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from .clustering import derive_seed, kmeans_labels
+from .config import AB_SPLIT_CHOICES
 from .errors import ComputationError
 
 AB_NODE_PURITY = 0.8
-AB_SPLIT_CHOICES = ("kmeans2", "kmeans3")
 _TREE_SEED_NAMESPACE = 0
 _AB_SEED_NAMESPACE = 1
 
