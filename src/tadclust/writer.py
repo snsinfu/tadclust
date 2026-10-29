@@ -38,58 +38,73 @@ def write_outputs(
     cli_args: list[str] | None = None,
     overwrite: bool = False,
 ) -> dict[str, Path]:
-    """Write parquet tables and the manifest, manifest last."""
+    """Write parquet tables and the manifest, committing them together."""
     output_dir = Path(config.output_dir)
     _prepare_output_dir(output_dir, overwrite)
-    written: dict[str, Path] = {}
 
     include_trans = "trans_path" in result.cis_leaves.columns
     include_ab = result.cis_leaves_ab is not None
+    staged: list[tuple[Path, Path]] = []
 
-    written["cis_leaves.parquet"] = _write_parquet(
-        result.cis_leaves,
-        output_dir / "cis_leaves.parquet",
-        _cis_leaves_schema(config.tree_n_pcs, include_trans),
-    )
-    written["cis_nodes.parquet"] = _write_parquet(
-        result.cis_nodes,
-        output_dir / "cis_nodes.parquet",
-        _cis_nodes_schema(include_ab),
-    )
-
-    if result.cis_leaves_ab is not None:
-        written["cis_leaves_ab.parquet"] = _write_parquet(
-            result.cis_leaves_ab,
-            output_dir / "cis_leaves_ab.parquet",
-            _cis_leaves_ab_schema(),
+    try:
+        staged.append(
+            _stage_parquet(
+                result.cis_leaves,
+                output_dir / "cis_leaves.parquet",
+                _cis_leaves_schema(config.tree_n_pcs, include_trans),
+            )
         )
-    if result.cis_nodes_ab is not None:
-        written["cis_nodes_ab.parquet"] = _write_parquet(
-            result.cis_nodes_ab,
-            output_dir / "cis_nodes_ab.parquet",
-            _cis_nodes_schema(True),
-        )
-    if result.trans_nodes is not None:
-        written["trans_nodes.parquet"] = _write_parquet(
-            result.trans_nodes,
-            output_dir / "trans_nodes.parquet",
-            _trans_nodes_schema(),
+        staged.append(
+            _stage_parquet(
+                result.cis_nodes,
+                output_dir / "cis_nodes.parquet",
+                _cis_nodes_schema(include_ab),
+            )
         )
 
-    manifest = {
-        "schema_version": SCHEMA_VERSION,
-        "tadclust_version": __version__,
-        "created_utc": _utc_now(),
-        "inputs": result.inputs,
-        "cli": None if cli_args is None else {"argv": list(cli_args)},
-        "params": result.params,
-        "qc": result.qc,
-        "output_files": [*result.output_files, "manifest.json"],
-    }
-    manifest_path = output_dir / "manifest.json"
-    _write_json(manifest, manifest_path)
-    written["manifest.json"] = manifest_path
-    return written
+        if result.cis_leaves_ab is not None:
+            staged.append(
+                _stage_parquet(
+                    result.cis_leaves_ab,
+                    output_dir / "cis_leaves_ab.parquet",
+                    _cis_leaves_ab_schema(),
+                )
+            )
+        if result.cis_nodes_ab is not None:
+            staged.append(
+                _stage_parquet(
+                    result.cis_nodes_ab,
+                    output_dir / "cis_nodes_ab.parquet",
+                    _cis_nodes_schema(True),
+                )
+            )
+        if result.trans_nodes is not None:
+            staged.append(
+                _stage_parquet(
+                    result.trans_nodes,
+                    output_dir / "trans_nodes.parquet",
+                    _trans_nodes_schema(),
+                )
+            )
+
+        manifest = {
+            "schema_version": SCHEMA_VERSION,
+            "tadclust_version": __version__,
+            "created_utc": _utc_now(),
+            "inputs": result.inputs,
+            "cli": None if cli_args is None else {"argv": list(cli_args)},
+            "params": result.params,
+            "qc": result.qc,
+            "output_files": [*result.output_files, "manifest.json"],
+        }
+        staged.append(
+            _stage_json(manifest, output_dir / "manifest.json"),
+        )
+        _commit_outputs(output_dir, staged)
+    finally:
+        _cleanup_staged(staged)
+
+    return {final.name: final for _, final in staged}
 
 
 def _prepare_output_dir(output_dir: Path, overwrite: bool) -> None:
@@ -106,44 +121,78 @@ def _prepare_output_dir(output_dir: Path, overwrite: bool) -> None:
             path=str(output_dir),
         )
 
-    if overwrite:
-        for name in KNOWN_OUTPUTS:
-            path = output_dir / name
-            if path.is_file():
-                path.unlink()
-
 
 def _temporary_path(path: Path) -> Path:
     return path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
 
 
-def _write_parquet(
+def _stage_parquet(
     table: pl.DataFrame,
     path: Path,
     schema: Schema,
-) -> Path:
+) -> tuple[Path, Path]:
     frame = table.select([pl.col(name).cast(dtype) for name, dtype in schema.items()])
     temporary = _temporary_path(path)
     try:
         frame.write_parquet(temporary)
-        os.replace(temporary, path)
-    finally:
+    except Exception:
         if temporary.exists():
             temporary.unlink()
-    return path
+        raise
+    return temporary, path
 
 
-def _write_json(payload: dict, path: Path) -> None:
+def _stage_json(payload: dict, path: Path) -> tuple[Path, Path]:
     temporary = _temporary_path(path)
     try:
         temporary.write_text(
             json.dumps(payload, indent=2) + "\n",
             encoding="utf-8",
         )
-        os.replace(temporary, path)
-    finally:
+    except Exception:
         if temporary.exists():
             temporary.unlink()
+        raise
+    return temporary, path
+
+
+def _cleanup_staged(staged: list[tuple[Path, Path]]) -> None:
+    for temporary, _ in staged:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def _commit_outputs(output_dir: Path, staged: list[tuple[Path, Path]]) -> None:
+    new_names = {final.name for _, final in staged}
+    stale = [
+        output_dir / name for name in KNOWN_OUTPUTS if name not in new_names
+    ]
+    affected = [final for _, final in staged if final.is_file()]
+    affected.extend(path for path in stale if path.is_file())
+
+    backups: list[tuple[Path, Path]] = []
+    committed: list[Path] = []
+    try:
+        for final in affected:
+            backup = _temporary_path(final)
+            os.replace(final, backup)
+            backups.append((backup, final))
+
+        for temporary, final in staged:
+            os.replace(temporary, final)
+            committed.append(final)
+    except Exception:
+        for final in committed:
+            if final.exists():
+                final.unlink()
+        for backup, final in backups:
+            if backup.exists():
+                os.replace(backup, final)
+        raise
+    else:
+        for backup, _ in backups:
+            if backup.exists():
+                backup.unlink()
 
 
 def _utc_now() -> str:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 import polars as pl
 import pytest
@@ -201,6 +202,44 @@ def test_nonempty_output_dir_requires_overwrite(mcool, tmp_path) -> None:
 
     write_outputs(result, config, overwrite=True)
     assert unrelated.read_text() == "keep"
+
+
+def test_write_outputs_restores_old_outputs_on_failure(
+    mcool,
+    tmp_path,
+    monkeypatch,
+) -> None:
+    tads = base_tads(tmp_path)
+    config = make_config(mcool, tads, tmp_path)
+    result = cluster(config)
+    write_outputs(result, config)
+
+    out = tmp_path / "out"
+    leaves = out / "cis_leaves.parquet"
+    sentinel = b"old leaves"
+    leaves.write_bytes(sentinel)
+    old_nodes = (out / "cis_nodes.parquet").read_bytes()
+    old_manifest = (out / "manifest.json").read_bytes()
+
+    real_replace = os.replace
+    failed = False
+
+    def fail_once(source, destination):
+        nonlocal failed
+        if not failed and destination == out / "cis_nodes.parquet":
+            failed = True
+            raise OSError("simulated write failure")
+        return real_replace(source, destination)
+
+    monkeypatch.setattr("tadclust.writer.os.replace", fail_once)
+
+    with pytest.raises(OSError):
+        write_outputs(result, config, overwrite=True)
+
+    assert leaves.read_bytes() == sentinel
+    assert (out / "cis_nodes.parquet").read_bytes() == old_nodes
+    assert (out / "manifest.json").read_bytes() == old_manifest
+    assert not list(out.glob("*.tmp"))
 
 
 def test_overwrite_removes_stale_optional_tables(
