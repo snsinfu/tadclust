@@ -62,7 +62,6 @@ def make_uniform_config(mcool, tmp_path, **overrides):
         "working_binsize": 500,
         "tree_n_pcs": 2,
         "tree_branch_k": 2,
-        "uniform_bins": True,
     }
     values.update(overrides)
     return ClusterConfig(**values)
@@ -106,6 +105,7 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
 
     assert result.params["working_binsize"] == 500
     assert result.params["working_binsize_mode"] == "explicit"
+    assert result.params["input_mode"] == "annotation"
     assert result.params["chromosomes"] == ["chr1", "chr2"]
     assert result.inputs["mcool"] == str(mcool)
     assert result.inputs["signal_track"] is None
@@ -126,7 +126,7 @@ def test_cluster_uniform_bins(mcool, tmp_path) -> None:
     assert result.qc["n_tads"] == 0
     assert result.qc["n_bin_domains"] == 8
     assert result.qc["n_residuals"] == 0
-    assert result.params["uniform_bins"] is True
+    assert result.params["input_mode"] == "uniform_bins"
     assert result.params["annotation_path"] is None
     assert result.params["working_binsize"] == 500
     assert result.params["working_binsize_mode"] == "explicit"

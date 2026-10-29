@@ -159,7 +159,6 @@ def main(argv: Sequence[str] | None = None) -> None:
             ab_split=args.ab_split,
             workers=args.workers,
             seed=args.seed,
-            uniform_bins=args.uniform_bins,
         )
         result = cluster(config)
         written = write_outputs(

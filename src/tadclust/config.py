@@ -15,10 +15,10 @@ TRANS_NULL_CHOICES = ("pair", "grand")
 class ClusterConfig:
     """All inputs and technical parameters for one clustering run.
 
-    Paths are stored exactly as supplied. The mcool path must exist. The
-    annotation path must exist when annotation domains are used; uniform-bin
-    mode uses mcool bins instead. The output directory is created by the
-    writer.
+    Paths are stored exactly as supplied. The mcool path must exist. When the
+    annotation path is supplied it must exist. When it is omitted, uniform
+    working-resolution mcool bins are used and working_binsize is required.
+    The output directory is created by the writer.
     """
 
     mcool_path: str | Path
@@ -41,7 +41,6 @@ class ClusterConfig:
     ab_split: str | None = None
     workers: int = 1
     seed: int = 0
-    uniform_bins: bool = False
 
     def __post_init__(self) -> None:
         if not Path(self.mcool_path).is_file():
@@ -60,21 +59,10 @@ class ClusterConfig:
                 field="annotation_path",
             )
 
-        if self.uniform_bins:
-            if self.annotation_path is not None:
-                raise ConfigError(
-                    "uniform_bins cannot be combined with annotation_path",
-                    field="uniform_bins",
-                )
-            if self.working_binsize is None:
-                raise ConfigError(
-                    "uniform_bins requires working_binsize",
-                    field="working_binsize",
-                )
-        elif self.annotation_path is None:
+        if self.annotation_path is None and self.working_binsize is None:
             raise ConfigError(
-                "annotation_path is required unless uniform_bins is enabled",
-                field="annotation_path",
+                "working_binsize is required when annotation_path is omitted",
+                field="working_binsize",
             )
 
         if self.chromosomes is not None:

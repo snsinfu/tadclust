@@ -63,7 +63,6 @@ def make_uniform_config(mcool, tmp_path, **overrides):
         "working_binsize": 500,
         "tree_n_pcs": 3,
         "tree_branch_k": 2,
-        "uniform_bins": True,
     }
     values.update(overrides)
     return ClusterConfig(**values)
@@ -230,7 +229,7 @@ def test_uniform_bins_golden_schema(mcool, tmp_path) -> None:
 
     manifest = json.loads((out / "manifest.json").read_text())
     assert manifest["inputs"]["annotation"] is None
-    assert manifest["params"]["uniform_bins"] is True
+    assert manifest["params"]["input_mode"] == "uniform_bins"
     assert manifest["params"]["annotation_path"] is None
     assert manifest["qc"]["n_bin_domains"] == 8
     assert manifest["qc"]["n_tads"] == 0
