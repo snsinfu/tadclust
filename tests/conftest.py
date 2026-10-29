@@ -100,3 +100,18 @@ def three_chrom_mcool(tmp_path):
             ("chr2", "chr3"): 20,
         },
     )
+
+
+def write_tads(tmp_path, rows, name="tads.tsv"):
+    path = tmp_path / name
+    lines = ["chrom\tstart\tend"]
+    lines.extend(f"{chrom}\t{start}\t{end}" for chrom, start, end in rows)
+    path.write_text("\n".join(lines) + "\n")
+    return path
+
+
+def write_track(tmp_path, rows, name="track.bedGraph"):
+    path = tmp_path / name
+    lines = [f"{chrom}\t{start}\t{end}\t{value}" for chrom, start, end, value in rows]
+    path.write_text("\n".join(lines) + "\n")
+    return path

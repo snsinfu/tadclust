@@ -278,6 +278,26 @@ def canonicalize_pc1_sign(embedding: np.ndarray) -> np.ndarray:
     return values
 
 
+def orient_pc1_to_signal(
+    pcs: np.ndarray,
+    rank: np.ndarray,
+) -> np.ndarray:
+    """Flip PC1 so negative PC1 is the high-signal (A) side."""
+    values = np.array(pcs, dtype=np.float64, copy=True)
+    ranks = np.asarray(rank, dtype=np.float64)
+    if values.ndim != 2:
+        raise ComputationError("domain PCs must be a two-dimensional array")
+    if values.shape[0] != ranks.shape[0]:
+        raise ComputationError("PC and signal-rank lengths differ")
+    if values.shape[1] == 0 or values.shape[0] < 2:
+        return values
+    if np.std(values[:, 0]) == 0 or np.std(ranks) == 0:
+        return values
+    if np.corrcoef(values[:, 0], ranks)[0, 1] > 0:
+        values[:, 0] *= -1.0
+    return values
+
+
 def compute_fine_unit_matrices(
     cooler_object: Any,
     chrom: str,

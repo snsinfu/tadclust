@@ -15,6 +15,7 @@ from tadclust.matrix import (
     distance_bin_edges,
     expected_by_distance,
     log2_ratio,
+    orient_pc1_to_signal,
     pcs_from_log_oe,
     scaled_pseudocount,
     symmetrize_matrix,
