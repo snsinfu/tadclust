@@ -140,7 +140,6 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
             tads,
             tmp_path,
             ab_signal_track=track,
-            ab_split="kmeans2",
         )
     )
 

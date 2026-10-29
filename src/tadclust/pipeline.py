@@ -225,9 +225,6 @@ def _build_cis_results(
     track: SignalTrack | None,
 ) -> list[_ChromosomeResult]:
     ab_split = config.ab_split
-    if track is not None and ab_split is None:
-        raise ComputationError("A/B split is required when a signal track is given")
-
     results: list[_ChromosomeResult] = []
     cis_node_base = 0
     ab_node_base = 0
@@ -241,7 +238,6 @@ def _build_cis_results(
         if track is None:
             pcs = base_pcs
         else:
-            assert ab_split is not None
             values = overlap_weighted_values(
                 track,
                 selection.domain_selection.domains,

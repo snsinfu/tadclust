@@ -136,7 +136,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     if args.ab_signal_track is None and args.ab_split is not None:
         raise SystemExit("tadclust: error: --ab-split requires --ab-signal-track")
-    ab_split = args.ab_split or "kmeans2" if args.ab_signal_track is not None else None
+    ab_split = args.ab_split or "kmeans2"
 
     try:
         config = ClusterConfig(
