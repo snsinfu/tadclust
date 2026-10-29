@@ -13,6 +13,7 @@ import h5py
 import numpy as np
 from threadpoolctl import threadpool_limits
 
+from .clustering import informative_mask
 from .config import TRANS_NULL_CHOICES
 from .domains import SelectedDomain
 from .errors import ComputationError, McoolError
@@ -130,6 +131,7 @@ class TransTreeResult:
     eigenvalues: np.ndarray
     variance_fraction: np.ndarray
     tree: BranchingTree
+    domain_indices: np.ndarray
 
 
 def trans_matrix(
@@ -422,9 +424,16 @@ def build_trans_tree(
     )
 
     pcs = canonicalize_pc1_sign(pcs)
+    indices = np.flatnonzero(informative_mask(pcs, n_pcs))
+    if indices.size == 0:
+        if n_domains == 1:
+            indices = np.arange(1, dtype=np.int64)
+        else:
+            raise ComputationError("trans tree has no informative domains")
+
     tree = build_branching_tree(
-        pcs,
-        bins,
+        pcs[indices],
+        bins[indices],
         n_pcs=n_pcs,
         seed=seed,
         branch_k=branch_k,
@@ -434,6 +443,7 @@ def build_trans_tree(
         eigenvalues=eigenvalues,
         variance_fraction=fractions,
         tree=tree,
+        domain_indices=indices,
     )
 
 

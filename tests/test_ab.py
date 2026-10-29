@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
+from sklearn.exceptions import ConvergenceWarning
 
 from tadclust.errors import ComputationError
 from tadclust.track import ab_feature_matrix
@@ -52,6 +55,35 @@ def test_annotate_ab_kmeans3_merges_two_highest_signal_clusters() -> None:
         annotation.rank[annotation.a_indices].mean()
         > annotation.rank[annotation.b_indices].mean()
     )
+
+
+def test_annotate_ab_excludes_uninformative_domains() -> None:
+    pcs = np.array([[0.0], [1.0], [2.0], [3.0]])
+    rank = np.array([0.0, 0.2, 0.8, 1.0])
+    features = ab_feature_matrix(pcs, rank, 1)
+    clusterable = np.array([False, True, True, True])
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", ConvergenceWarning)
+        annotation = annotate_ab(
+            features,
+            rank,
+            4,
+            "kmeans2",
+            0,
+            clusterable=clusterable,
+        )
+
+    assert annotation.labels[0] is None
+    assert np.isnan(annotation.scores[0])
+    assert np.isnan(annotation.margins[0])
+    assert 0 not in annotation.a_indices.tolist()
+    assert 0 not in annotation.b_indices.tolist()
+    assert set(annotation.a_indices.tolist() + annotation.b_indices.tolist()) == {
+        1,
+        2,
+        3,
+    }
 
 
 def test_annotate_ab_rejects_too_few_domains() -> None:
@@ -159,7 +191,7 @@ def test_build_ab_forest_degenerate_fallback() -> None:
     )
     forest = build_ab_forest(
         "chr1",
-        np.array([[0.0], [1.0]]),
+        np.array([[1.0], [2.0]]),
         np.array([1, 1], dtype=np.int64),
         annotation=annotation,
         n_pcs=1,

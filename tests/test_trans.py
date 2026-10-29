@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
+import warnings
+
 import h5py
 import numpy as np
 import pytest
+from sklearn.exceptions import ConvergenceWarning
 
 from tadclust.domains import SelectedDomain
 from tadclust.errors import ComputationError, McoolError, NoPositiveModeError
 from tadclust.mcool import open_cooler
 from tadclust.trans import (
     PairInfo,
+    TransInfo,
     TransInput,
+    TransMatrix,
     build_pixel_map,
     build_trans_tree,
     trans_matrix,
@@ -194,6 +199,50 @@ def test_build_trans_tree_positive(three_chrom_mcool) -> None:
         1,
         2,
     ]
+    assert result.domain_indices.tolist() == [0, 1, 2]
+
+
+def test_build_trans_tree_excludes_uninformative_domains() -> None:
+    info = TransInfo(
+        null="pair",
+        alpha_mode="pair",
+        grand_mean=1.0,
+        alpha=1.0,
+        min_bins=1.0,
+        total=2.0,
+        pair_count=2,
+        n_chrom=2,
+        pair_means={},
+        pair_alphas={},
+        pair_counts={},
+    )
+    trans = TransMatrix(
+        log_oe=np.array(
+            [
+                [0.0, 1.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0],
+            ]
+        ),
+        info=info,
+        domain_chrom=np.array([0, 0, 1], dtype=np.int64),
+        col_sums=np.array([1, 1, 0], dtype=np.int64),
+        chrom_names=["chr1", "chr2"],
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", ConvergenceWarning)
+        result = build_trans_tree(
+            trans,
+            np.array([1, 1, 1], dtype=np.int64),
+            n_pcs=1,
+            branch_k=3,
+            seed=0,
+        )
+
+    assert result.domain_indices.tolist() == [0, 1]
+    root = result.tree.nodes[result.tree.root_id]
+    assert root.domain_indices.tolist() == [0, 1]
 
 
 def test_trans_no_positive_mode_raises(three_chrom_mcool) -> None:

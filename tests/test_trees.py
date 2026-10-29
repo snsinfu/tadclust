@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
+from sklearn.exceptions import ConvergenceWarning
 
 from tadclust.clustering import derive_seed, kmeans_labels
 from tadclust.errors import ComputationError
@@ -79,6 +82,59 @@ def test_kmeans_labels_clamps_and_handles_single_cluster() -> None:
 
     with pytest.raises(ComputationError):
         kmeans_labels(np.empty((0, 1)), 2, 1, 0)
+
+
+def test_kmeans_labels_clamps_duplicate_rows_without_warning() -> None:
+    pcs = np.array([[0.0], [1.0], [1.0], [0.0]])
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", ConvergenceWarning)
+        labels, centers = kmeans_labels(pcs, 3, 1, 0)
+
+    assert len(set(labels.tolist())) == 2
+    assert centers.shape == (2, 1)
+
+
+def test_build_cis_forest_excludes_uninformative_domains() -> None:
+    pcs = np.array([[0.0], [0.0], [1.0], [2.0], [3.0]])
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", ConvergenceWarning)
+        forest = build_cis_forest(
+            "chr1",
+            pcs,
+            np.ones(5, dtype=np.int64),
+            n_pcs=1,
+            branch_k=3,
+            seed=0,
+        )
+
+    assert forest.groups[0].tolist() == [2, 3, 4]
+    referenced = {
+        int(domain)
+        for tree in forest.trees
+        for node in tree.nodes
+        for domain in node.domain_indices.tolist()
+    }
+    assert referenced == {0, 1, 2}
+
+
+def test_build_cis_forest_keeps_single_informative_domain() -> None:
+    pcs = np.array([[0.0], [2.0], [0.0]])
+
+    forest = build_cis_forest(
+        "chr1",
+        pcs,
+        np.ones(3, dtype=np.int64),
+        n_pcs=1,
+        branch_k=3,
+        seed=0,
+    )
+
+    assert forest.groups[0].tolist() == [1]
+    root = forest.trees[0].nodes[forest.trees[0].root_id]
+    assert root.is_leaf
+    assert root.domain_indices.tolist() == [0]
 
 
 def test_single_domain_is_root_leaf() -> None:

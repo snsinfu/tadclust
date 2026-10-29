@@ -14,6 +14,17 @@ def derive_seed(base_seed: int, *key: int) -> int:
     return int(np.random.SeedSequence(sequence).generate_state(1)[0])
 
 
+def informative_mask(features: np.ndarray, n_features: int) -> np.ndarray:
+    """Return True for rows with at least one non-zero clustering feature."""
+    values = np.asarray(features, dtype=np.float64)
+    if values.ndim != 2:
+        raise ComputationError("features must be a two-dimensional array")
+    if values.shape[1] == 0:
+        return np.zeros(values.shape[0], dtype=bool)
+    n_features = max(1, min(int(n_features), values.shape[1]))
+    return np.any(values[:, :n_features] != 0.0, axis=1)
+
+
 def kmeans_labels(
     pcs: np.ndarray,
     k: int,
@@ -34,6 +45,11 @@ def kmeans_labels(
         if n_features
         else np.zeros((n_rows, 1), dtype=np.float64)
     )
+
+    # Identical profiles cannot form distinct clusters. Uninformative rows are
+    # filtered before this point; this is a safeguard for duplicate features.
+    if n_clusters > 1:
+        n_clusters = min(n_clusters, int(np.unique(data, axis=0).shape[0]))
 
     if n_clusters == 1:
         return (

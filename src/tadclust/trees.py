@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from .clustering import derive_seed, kmeans_labels
+from .clustering import derive_seed, informative_mask, kmeans_labels
 from .config import AB_SPLIT_CHOICES
 from .errors import ComputationError
 
@@ -328,23 +328,55 @@ def build_cis_forest(
     branch_k: int,
     seed: int,
     node_base: int = 0,
+    clusterable: np.ndarray | None = None,
 ) -> CisForest:
     """Build a single-root cis forest for one chromosome."""
+    values = np.asarray(pcs)
+    bins = np.asarray(domain_bins, dtype=np.int64)
+    mask = _resolve_clusterable(values, n_pcs, clusterable)
+    indices = np.flatnonzero(mask)
+    if indices.size == 0:
+        if values.shape[0] == 1:
+            indices = np.arange(1, dtype=np.int64)
+        else:
+            return _make_cis_forest(
+                chrom,
+                trees=[],
+                groups=[],
+                node_base=node_base,
+            )
+
     tree = build_branching_tree(
-        pcs,
-        domain_bins,
+        values[indices],
+        bins[indices],
         n_pcs=n_pcs,
         seed=seed,
         branch_k=branch_k,
         root_label="root",
     )
-    n_domains = np.asarray(pcs).shape[0]
     return _make_cis_forest(
         chrom,
         trees=[tree],
-        groups=[np.arange(n_domains, dtype=np.int64)],
+        groups=[indices],
         node_base=node_base,
     )
+
+
+def _resolve_clusterable(
+    values: np.ndarray,
+    n_features: int,
+    clusterable: np.ndarray | None,
+) -> np.ndarray:
+    """Return a validated domain mask of rows used for clustering."""
+    if clusterable is None:
+        return informative_mask(values, n_features)
+
+    mask = np.asarray(clusterable, dtype=bool)
+    if mask.ndim != 1 or mask.shape[0] != values.shape[0]:
+        raise ComputationError(
+            "clusterable mask length does not match the domain count"
+        )
+    return mask
 
 
 def _make_cis_forest(
@@ -377,6 +409,7 @@ def annotate_ab(
     n_domains: int,
     ab_split: str,
     seed: int,
+    clusterable: np.ndarray | None = None,
 ) -> AbAnnotation:
     """Assign per-domain A/B labels and boundary scores.
 
@@ -397,11 +430,12 @@ def annotate_ab(
     scores = np.full(n_domains, np.nan, dtype=np.float64)
     margins = np.full(n_domains, np.nan, dtype=np.float64)
     empty = np.zeros(0, dtype=np.int64)
+    mask = _resolve_clusterable(values, values.shape[1], clusterable)
 
     if n_domains < 2:
         raise ComputationError("A/B split requires at least two domains")
 
-    partition = _ab_partition(values, n_domains, ab_split, seed)
+    partition = _ab_partition(values, n_domains, ab_split, seed, mask)
     if partition is None:
         return AbAnnotation(
             labels=labels,
@@ -436,11 +470,17 @@ def _ab_partition(
     n_domains: int,
     ab_split: str,
     seed: int,
+    clusterable: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None:
+    indices = np.flatnonzero(clusterable)
+    if indices.size < 2:
+        return None
+
+    subset = features[indices]
     n_clusters = 2 if ab_split == "kmeans2" else 3
     cluster_labels, _ = kmeans_labels(
-        features,
-        min(n_clusters, n_domains),
+        subset,
+        min(n_clusters, indices.size),
         features.shape[1],
         derive_seed(seed, _AB_SEED_NAMESPACE),
     )
@@ -449,10 +489,10 @@ def _ab_partition(
         return None
 
     centroids = np.asarray(
-        [features[inverse == cluster].mean(axis=0) for cluster in range(unique.size)]
+        [subset[inverse == cluster].mean(axis=0) for cluster in range(unique.size)]
     )
     rank_means = np.asarray(
-        [features[inverse == cluster, -1].mean() for cluster in range(unique.size)]
+        [subset[inverse == cluster, -1].mean() for cluster in range(unique.size)]
     )
     order = np.argsort(rank_means, kind="stable")
 
@@ -463,8 +503,8 @@ def _ab_partition(
         a_clusters = [int(order[-1]), int(order[-2])]
         b_clusters = [int(order[0])]
 
-    a_indices = np.flatnonzero(np.isin(inverse, a_clusters))
-    b_indices = np.flatnonzero(np.isin(inverse, b_clusters))
+    a_indices = indices[np.flatnonzero(np.isin(inverse, a_clusters))]
+    b_indices = indices[np.flatnonzero(np.isin(inverse, b_clusters))]
     if a_indices.size == 0 or b_indices.size == 0:
         return None
 
@@ -473,10 +513,10 @@ def _ab_partition(
     labels = np.full(n_domains, None, dtype=object)
     labels[a_indices] = "A"
     labels[b_indices] = "B"
-    scores = np.empty(n_domains, dtype=np.float64)
-    margins = np.empty(n_domains, dtype=np.float64)
+    scores = np.full(n_domains, np.nan, dtype=np.float64)
+    margins = np.full(n_domains, np.nan, dtype=np.float64)
 
-    for domain in range(n_domains):
+    for domain in indices:
         a_distance = np.min(np.linalg.norm(a_centroids - features[domain], axis=1))
         b_distance = np.linalg.norm(b_centroid - features[domain])
         # Positive score is the A side, matching the track convention A > B.
@@ -535,15 +575,28 @@ def build_ab_forest(
     branch_k: int,
     seed: int,
     node_base: int = 0,
+    clusterable: np.ndarray | None = None,
 ) -> CisForest:
     """Build an A/B-rooted forest, or a fallback single-root forest."""
     values = np.asarray(pcs)
     bins = np.asarray(domain_bins, dtype=np.int64)
 
     if annotation.fallback:
+        mask = _resolve_clusterable(values, n_pcs, clusterable)
+        indices = np.flatnonzero(mask)
+        if indices.size == 0:
+            if values.shape[0] == 1:
+                indices = np.arange(1, dtype=np.int64)
+            else:
+                return _make_cis_forest(
+                    chrom,
+                    trees=[],
+                    groups=[],
+                    node_base=node_base,
+                )
         tree = build_branching_tree(
-            values,
-            bins,
+            values[indices],
+            bins[indices],
             n_pcs=n_pcs,
             seed=seed,
             branch_k=branch_k,
@@ -551,11 +604,10 @@ def build_ab_forest(
         )
         if annotation.fallback_reason is not None:
             tree.nodes[tree.root_id].stop_reason = annotation.fallback_reason
-        groups = [np.arange(values.shape[0], dtype=np.int64)]
         return _make_cis_forest(
             chrom,
             trees=[tree],
-            groups=groups,
+            groups=[indices],
             node_base=node_base,
         )
 
