@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
+import cooler
 import h5py
 import numpy as np
 
@@ -64,8 +65,6 @@ def list_resolutions(path: str | Path) -> list[int]:
 
 def open_cooler(path: str | Path, resolution: int) -> Any:
     """Open one resolution of an mcool file and require balancing weights."""
-    import cooler
-
     source = Path(path)
     uri = f"{source}::/resolutions/{resolution}"
     try:
