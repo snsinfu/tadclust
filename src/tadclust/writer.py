@@ -20,7 +20,7 @@ from .pipeline import ClusterResult
 SchemaValue = pl.DataType | type[pl.DataType]
 Schema = dict[str, SchemaValue]
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "2.0"
 KNOWN_OUTPUTS = (
     "cis_leaves.parquet",
     "cis_nodes.parquet",
@@ -165,9 +165,8 @@ def _cis_leaves_schema(
         "source_row": pl.Int64,
         "n_bins": pl.Int64,
         "self_oe": pl.Float64,
+        "pcs": pl.Array(pl.Float64, n_pcs),
     }
-    for index in range(1, n_pcs + 1):
-        schema[f"pc{index}"] = pl.Float64
     schema.update(
         {
             "root_label": pl.String,

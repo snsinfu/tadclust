@@ -373,13 +373,15 @@ def _cis_leaf_rows(
                 "source_row": domain.source_row,
                 "n_bins": domain.n_bins,
                 "self_oe": float(matrices.self_oe[local_index]),
+                "pcs": [
+                    float(value)
+                    for value in result.pcs[local_index, : config.tree_n_pcs]
+                ],
                 "root_label": root_label,
                 "path": path,
                 "path_label": format_path_label(root_label, path),
                 "depth": depth,
             }
-            for pc_index in range(config.tree_n_pcs):
-                row[f"pc{pc_index + 1}"] = float(result.pcs[local_index, pc_index])
             if trans_leaf is not None:
                 trans_root, trans_path, trans_depth = trans_leaf[global_id]
                 row["trans_root_label"] = trans_root
@@ -392,7 +394,9 @@ def _cis_leaf_rows(
             rows.append(row)
             global_id += 1
 
-    return pl.DataFrame(rows)
+    return pl.DataFrame(rows).with_columns(
+        pl.col("pcs").cast(pl.Array(pl.Float64, config.tree_n_pcs))
+    )
 
 
 def _cis_node_rows(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import polars as pl
 import pytest
 
 from tadclust.config import ClusterConfig
@@ -67,7 +68,7 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
 
     assert result.cis_leaves.height == 4
     assert result.cis_leaves["domain_id"].to_list() == [0, 1, 2, 3]
-    assert result.cis_leaves["pc1"].dtype == result.cis_leaves["self_oe"].dtype
+    assert result.cis_leaves["pcs"].dtype == pl.Array(pl.Float64, 2)
     assert result.cis_leaves["root_label"].unique().to_list() == ["root"]
     assert result.cis_leaves["source_row"].to_list() == [0, 1, 2, 3]
     assert "ab_label" not in result.cis_leaves.columns
@@ -281,8 +282,8 @@ def test_cluster_parallel_matches_serial(mcool, tmp_path) -> None:
     ]
     assert serial.cis_leaves.select(columns).equals(parallel.cis_leaves.select(columns))
     assert np.allclose(
-        serial.cis_leaves.select(["pc1", "pc2"]).to_numpy(),
-        parallel.cis_leaves.select(["pc1", "pc2"]).to_numpy(),
+        np.vstack(serial.cis_leaves["pcs"].to_list()),
+        np.vstack(parallel.cis_leaves["pcs"].to_list()),
     )
     node_columns = [
         "chrom",

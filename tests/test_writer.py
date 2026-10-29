@@ -126,8 +126,7 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
         "source_row",
         "n_bins",
         "self_oe",
-        "pc1",
-        "pc2",
+        "pcs",
         "root_label",
         "path",
         "path_label",
@@ -136,6 +135,7 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     assert leaves.schema["path"] == pl.List(pl.Int64)
     assert leaves.schema["depth"] == pl.Int64
     assert leaves.schema["self_oe"] == pl.Float64
+    assert leaves.schema["pcs"] == pl.Array(pl.Float64, 2)
     assert nodes.schema["parent_id"] == pl.Int64
     assert nodes.schema["children"] == pl.List(pl.Int64)
     assert nodes.schema["is_leaf"] == pl.Boolean
