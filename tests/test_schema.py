@@ -48,7 +48,7 @@ def make_config(mcool, tads, tmp_path, **overrides):
         "mcool_path": mcool,
         "annotation_path": tads,
         "output_dir": tmp_path / "out",
-        "resolution": 500,
+        "working_binsize": 500,
         "tree_n_pcs": 3,
         "tree_branch_k": 2,
     }
@@ -229,8 +229,8 @@ def test_manifest_contract(mcool, tmp_path) -> None:
         "signal_track": None,
     }
     assert manifest["cli"] is None
-    assert manifest["params"]["resolution"] == 500
-    assert manifest["params"]["resolution_mode"] == "explicit"
+    assert manifest["params"]["working_binsize"] == 500
+    assert manifest["params"]["working_binsize_mode"] == "explicit"
     assert manifest["qc"]["n_domains"] == 4
     assert manifest["output_files"] == [
         "cis_leaves.parquet",

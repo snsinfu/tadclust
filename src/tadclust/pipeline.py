@@ -90,7 +90,7 @@ def cluster(config: ClusterConfig) -> ClusterResult:
     choice = choose_resolution(
         resolutions,
         tads.lengths,
-        resolution=config.resolution,
+        resolution=config.working_binsize,
         percentile=config.tad_size_percentile,
         min_bins_per_tad=config.min_bins_per_tad,
     )
@@ -544,8 +544,8 @@ def _build_params(
         value = params[key]
         params[key] = str(value) if value is not None else None
 
-    params["resolution"] = choice.value
-    params["resolution_mode"] = choice.mode
+    params["working_binsize"] = choice.value
+    params["working_binsize_mode"] = choice.mode
     params["chromosomes"] = chromosomes
     params["dp_lambda_resolved"] = {
         result.chrom: result.selection.dp_lambda for result in results
@@ -565,8 +565,8 @@ def _build_qc(
     n_residuals = sum(domain.kind == "residual" for domain in domains)
 
     return {
-        "resolution": choice.value,
-        "resolution_mode": choice.mode,
+        "working_binsize": choice.value,
+        "working_binsize_mode": choice.mode,
         "n_chromosomes": len(results),
         "n_domains": len(domains),
         "n_tads": n_tads,

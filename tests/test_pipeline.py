@@ -45,7 +45,7 @@ def make_config(mcool, tads, tmp_path, **overrides):
         "mcool_path": mcool,
         "annotation_path": tads,
         "output_dir": tmp_path / "out",
-        "resolution": 500,
+        "working_binsize": 500,
         "tree_n_pcs": 2,
         "tree_branch_k": 2,
     }
@@ -89,8 +89,8 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert result.qc["ab"] == {"enabled": False}
     assert set(result.qc["cis"]["per_chromosome"]) == {"chr1", "chr2"}
 
-    assert result.params["resolution"] == 500
-    assert result.params["resolution_mode"] == "explicit"
+    assert result.params["working_binsize"] == 500
+    assert result.params["working_binsize_mode"] == "explicit"
     assert result.params["chromosomes"] == ["chr1", "chr2"]
     assert result.inputs["mcool"] == str(mcool)
     assert result.inputs["signal_track"] is None
@@ -216,12 +216,12 @@ def test_cluster_adaptive_resolution(mcool, tmp_path) -> None:
             mcool,
             tads,
             tmp_path,
-            resolution=None,
+            working_binsize=None,
         )
     )
 
-    assert result.params["resolution"] == 500
-    assert result.params["resolution_mode"] == "adaptive"
+    assert result.params["working_binsize"] == 500
+    assert result.params["working_binsize_mode"] == "adaptive"
 
 
 def test_cluster_rejects_unknown_chromosome(mcool, tmp_path) -> None:

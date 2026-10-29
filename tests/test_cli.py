@@ -68,7 +68,7 @@ def test_cli_cis_run(mcool, tmp_path) -> None:
     out = tmp_path / "out"
     manifest = json.loads((out / "manifest.json").read_text())
     assert manifest["cli"]["argv"] == args
-    assert manifest["params"]["resolution"] == 500
+    assert manifest["params"]["working_binsize"] == 500
     assert manifest["qc"]["n_domains"] == 4
     assert (out / "cis_leaves.parquet").exists()
     assert not (out / "trans_nodes.parquet").exists()

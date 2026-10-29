@@ -49,7 +49,7 @@ def make_config(mcool, tads, tmp_path, **overrides):
         "mcool_path": mcool,
         "annotation_path": tads,
         "output_dir": tmp_path / "out",
-        "resolution": 500,
+        "working_binsize": 500,
         "tree_n_pcs": 2,
         "tree_branch_k": 2,
     }
@@ -93,7 +93,7 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     assert manifest["created_utc"].endswith("Z")
     assert manifest["inputs"] == result.inputs
     assert manifest["cli"] == {"argv": ["--mcool", str(mcool)]}
-    assert manifest["params"]["resolution"] == 500
+    assert manifest["params"]["working_binsize"] == 500
     assert manifest["qc"]["n_domains"] == 4
     assert manifest["output_files"] == [
         "cis_leaves.parquet",

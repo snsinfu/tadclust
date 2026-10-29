@@ -23,7 +23,7 @@ class ClusterConfig:
     annotation_path: str | Path
     output_dir: str | Path
     chromosomes: list[str] | None = None
-    resolution: int | None = None
+    working_binsize: int | None = None
     tad_size_percentile: float = 10.0
     min_bins_per_tad: int = 3
     oe_distance_bins: int = 60
@@ -66,10 +66,10 @@ class ClusterConfig:
                     field="chromosomes",
                 )
 
-        if self.resolution is not None and self.resolution <= 0:
+        if self.working_binsize is not None and self.working_binsize <= 0:
             raise ConfigError(
-                "resolution must be positive",
-                field="resolution",
+                "working_binsize must be positive",
+                field="working_binsize",
             )
         if not 0 < self.tad_size_percentile <= 100:
             raise ConfigError(
