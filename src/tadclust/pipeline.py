@@ -330,7 +330,6 @@ def _run_trans(
         clip_max=config.oe_clip_max,
         balance=True,
         null=config.trans_null,
-        max_dense_domains=config.max_dense_domains,
         workers=config.workers,
     )
     domain_bins = np.concatenate([result.domain_bins for result in results])

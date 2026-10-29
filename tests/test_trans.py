@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from tadclust.domains import SelectedDomain
-from tadclust.errors import ComputationError
+from tadclust.errors import ComputationError, McoolError
 from tadclust.mcool import open_cooler
 from tadclust.trans import (
     TransInput,
@@ -248,20 +248,32 @@ def test_trans_chunking_matches(monkeypatch, three_chrom_mcool) -> None:
     assert np.allclose(chunked.log_oe, whole.log_oe)
 
 
-def test_dense_domain_limit_is_configurable(three_chrom_mcool) -> None:
-    cooler_object = open_cooler(three_chrom_mcool, 500)
-    inputs = one_domain_inputs(("chr1", "chr2", "chr3"))
+def test_trans_matrix_has_no_dense_domain_limit(tmp_path) -> None:
+    inputs = [
+        TransInput(
+            chrom="chr1",
+            domains=[
+                make_domain("chr1", i * 1000, (i + 1) * 1000, i) for i in range(3001)
+            ],
+        ),
+        TransInput(
+            chrom="chr2",
+            domains=[
+                make_domain("chr2", i * 1000, (i + 1) * 1000, 3001 + i)
+                for i in range(3000)
+            ],
+        ),
+    ]
 
-    with pytest.raises(ComputationError):
+    with pytest.raises(McoolError):
         trans_matrix(
-            three_chrom_mcool,
+            tmp_path / "missing.mcool",
             500,
-            cooler_object,
+            None,
             inputs,
             pseudocount=1.0,
             clip_min=-10.0,
             clip_max=10.0,
-            max_dense_domains=1,
         )
 
 

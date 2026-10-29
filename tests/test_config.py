@@ -43,7 +43,6 @@ def test_default_config_is_valid(tmp_path) -> None:
         {"tree_branch_k": 1},
         {"tree_n_pcs": 0},
         {"workers": 0},
-        {"max_dense_domains": 0},
         {"trans_null": "uniform"},
         {"ab_split": "kmeans2"},
     ],

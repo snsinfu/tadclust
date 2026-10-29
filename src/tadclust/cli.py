@@ -120,12 +120,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default="pair",
         help="trans null model",
     )
-    advanced.add_argument(
-        "--max-dense-domains",
-        type=int,
-        default=6_000,
-        help="dense trans-matrix domain limit",
-    )
     return parser.parse_args(argv)
 
 
@@ -162,7 +156,6 @@ def main(argv: Sequence[str] | None = None) -> None:
             ab_signal_track=args.ab_signal_track,
             ab_split=ab_split,
             workers=args.workers,
-            max_dense_domains=args.max_dense_domains,
             seed=args.seed,
         )
         result = cluster(config)

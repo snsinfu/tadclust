@@ -25,7 +25,6 @@ from .trees import (
 )
 
 CHUNK_ROWS = 10_000_000
-DEFAULT_MAX_DENSE_DOMAINS = 6_000
 
 
 @dataclass(frozen=True)
@@ -102,7 +101,6 @@ def trans_matrix(
     clip_max: float,
     balance: bool = True,
     null: str = "pair",
-    max_dense_domains: int = DEFAULT_MAX_DENSE_DOMAINS,
     workers: int = 1,
 ) -> TransMatrix:
     """Build the genome-wide trans log2 O/E matrix from the pixel table.
@@ -118,10 +116,6 @@ def trans_matrix(
     n_domains = sum(len(item.domains) for item in inputs)
     if n_domains == 0:
         raise ComputationError("trans clustering has no selected domains")
-    if n_domains > max_dense_domains:
-        raise ComputationError(
-            f"{n_domains} domains exceed the dense-matrix limit ({max_dense_domains})"
-        )
 
     chrom_names = [item.chrom for item in inputs]
     alpha_mode = "global" if null == "grand" else "per_pair"

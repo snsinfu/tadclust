@@ -38,7 +38,6 @@ class ClusterConfig:
     ab_signal_track: str | Path | None = None
     ab_split: str | None = None
     workers: int = 1
-    max_dense_domains: int = 6_000
     seed: int = 0
 
     def __post_init__(self) -> None:
@@ -121,11 +120,6 @@ class ClusterConfig:
             raise ConfigError(
                 "workers must be at least 1",
                 field="workers",
-            )
-        if self.max_dense_domains < 1:
-            raise ConfigError(
-                "max_dense_domains must be at least 1",
-                field="max_dense_domains",
             )
 
         if self.ab_split is not None and self.ab_split not in AB_SPLIT_CHOICES:
