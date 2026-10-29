@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import multiprocessing as mp
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
 import h5py
 import numpy as np
+from threadpoolctl import threadpool_limits
 
 from .domains import SelectedDomain
 from .errors import ComputationError, McoolError, NoPositiveModeError
@@ -101,6 +103,7 @@ def trans_matrix(
     balance: bool = True,
     null: str = "pair",
     max_dense_domains: int = DEFAULT_MAX_DENSE_DOMAINS,
+    workers: int = 1,
 ) -> TransMatrix:
     """Build the genome-wide trans log2 O/E matrix from the pixel table.
 
@@ -109,6 +112,8 @@ def trans_matrix(
     """
     if null not in {"pair", "grand"}:
         raise ComputationError(f"unknown trans null: {null!r}")
+    if workers < 1:
+        raise ComputationError("workers must be at least 1")
 
     n_domains = sum(len(item.domains) for item in inputs)
     if n_domains == 0:
@@ -150,7 +155,7 @@ def trans_matrix(
             resolution=resolution,
         ) from exc
 
-    with handle:
+    try:
         group = handle.get(f"resolutions/{resolution}")
         if not isinstance(group, h5py.Group):
             raise McoolError(
@@ -162,27 +167,37 @@ def trans_matrix(
         pixel_map = build_pixel_map(cooler_object, group, inputs)
         weight = _read_weights(group) if balance else None
         tasks = _pixel_tasks(pixel_map, inputs)
-        observed_upper = np.zeros(
-            (pixel_map.n_domains, pixel_map.n_domains),
-            dtype=np.float64,
-        )
-        pair_totals: dict[tuple[int, int], float] = {}
-        total = 0.0
-
-        for start, end in tasks:
-            blocks, chunk_total, pair_sums = _scan_chunk(
-                group,
+        if workers > 1:
+            chunks = _scan_parallel(
+                mcool_path,
+                resolution,
                 pixel_map,
                 weight,
-                start,
-                end,
+                tasks,
+                workers,
             )
-            total += chunk_total
-            for i, j, pair_sum in pair_sums:
-                pair_totals[(i, j)] = pair_totals.get((i, j), 0.0) + pair_sum
-            for i, j, block in blocks:
-                oa, ob, ma, mb = pixel_map.pair_info[(i, j)]
-                observed_upper[oa : oa + ma, ob : ob + mb] += block
+        else:
+            chunks = [
+                _scan_chunk(group, pixel_map, weight, start, end)
+                for start, end in tasks
+            ]
+    finally:
+        handle.close()
+
+    observed_upper = np.zeros(
+        (pixel_map.n_domains, pixel_map.n_domains),
+        dtype=np.float64,
+    )
+    pair_totals: dict[tuple[int, int], float] = {}
+    total = 0.0
+
+    for blocks, chunk_total, pair_sums in chunks:
+        total += chunk_total
+        for i, j, pair_sum in pair_sums:
+            pair_totals[(i, j)] = pair_totals.get((i, j), 0.0) + pair_sum
+        for i, j, block in blocks:
+            oa, ob, ma, mb = pixel_map.pair_info[(i, j)]
+            observed_upper[oa : oa + ma, ob : ob + mb] += block
 
     observed = observed_upper + observed_upper.T
     grand_mean = total / pixel_map.pair_count if pixel_map.pair_count > 0 else 0.0
@@ -382,6 +397,82 @@ def build_trans_tree(
         variance_fraction=fractions,
         tree=tree,
         single_node=False,
+    )
+
+
+_SCAN_FILE = None
+_SCAN_GROUP = None
+_SCAN_MAP = None
+_SCAN_WEIGHT = None
+_SCAN_LIMITER = None
+
+
+def _scan_parallel(
+    mcool_path: str | Path,
+    resolution: int,
+    pixel_map: PixelMap,
+    weight: np.ndarray | None,
+    tasks: list[tuple[int, int]],
+    workers: int,
+) -> list[
+    tuple[
+        list[tuple[int, int, np.ndarray]],
+        float,
+        list[tuple[int, int, float]],
+    ]
+]:
+    context = mp.get_context("spawn")
+    with context.Pool(
+        processes=workers,
+        initializer=_init_scan_worker,
+        initargs=(mcool_path, resolution, pixel_map, weight),
+    ) as pool:
+        return list(
+            pool.imap(
+                _scan_worker,
+                tasks,
+                chunksize=1,
+            )
+        )
+
+
+def _init_scan_worker(
+    mcool_path: str | Path,
+    resolution: int,
+    pixel_map: PixelMap,
+    weight: np.ndarray | None,
+) -> None:
+    global _SCAN_FILE, _SCAN_GROUP, _SCAN_MAP, _SCAN_WEIGHT, _SCAN_LIMITER
+
+    _SCAN_LIMITER = threadpool_limits(limits=1)
+    _SCAN_FILE = h5py.File(mcool_path, "r")
+    group = _SCAN_FILE.get(f"resolutions/{resolution}")
+    if not isinstance(group, h5py.Group):
+        raise McoolError(
+            f"{mcool_path}: resolution {resolution} not found",
+            path=str(mcool_path),
+            resolution=resolution,
+        )
+    _SCAN_GROUP = group
+    _SCAN_MAP = pixel_map
+    _SCAN_WEIGHT = weight
+
+
+def _scan_worker(
+    task: tuple[int, int],
+) -> tuple[
+    list[tuple[int, int, np.ndarray]],
+    float,
+    list[tuple[int, int, float]],
+]:
+    assert _SCAN_GROUP is not None
+    assert _SCAN_MAP is not None
+    return _scan_chunk(
+        _SCAN_GROUP,
+        _SCAN_MAP,
+        _SCAN_WEIGHT,
+        task[0],
+        task[1],
     )
 
 

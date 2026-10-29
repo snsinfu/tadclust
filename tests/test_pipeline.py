@@ -248,3 +248,51 @@ def test_cluster_rejects_chromosome_without_tad_rows(mcool, tmp_path) -> None:
                 chromosomes=["chr1"],
             )
         )
+
+
+def test_cluster_parallel_matches_serial(mcool, tmp_path) -> None:
+    tads = base_tads(tmp_path)
+    serial = cluster(
+        make_config(
+            mcool,
+            tads,
+            tmp_path,
+            output_dir=tmp_path / "serial",
+            workers=1,
+        )
+    )
+    parallel = cluster(
+        make_config(
+            mcool,
+            tads,
+            tmp_path,
+            output_dir=tmp_path / "parallel",
+            workers=2,
+        )
+    )
+
+    columns = [
+        "domain_id",
+        "chrom",
+        "start",
+        "end",
+        "kind",
+        "source_row",
+        "n_bins",
+    ]
+    assert serial.cis_leaves.select(columns).equals(parallel.cis_leaves.select(columns))
+    assert np.allclose(
+        serial.cis_leaves.select(["pc1", "pc2"]).to_numpy(),
+        parallel.cis_leaves.select(["pc1", "pc2"]).to_numpy(),
+    )
+    node_columns = [
+        "chrom",
+        "node_id",
+        "parent_id",
+        "depth",
+        "path",
+        "is_leaf",
+    ]
+    assert serial.cis_nodes.select(node_columns).equals(
+        parallel.cis_nodes.select(node_columns)
+    )

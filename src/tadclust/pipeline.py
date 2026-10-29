@@ -10,28 +10,17 @@ import numpy as np
 import polars as pl
 
 from .config import ClusterConfig
-from .domains import (
-    ChromosomeTree,
-    DomainSelection,
-    assign_bin_counts,
-    build_chromosome_tree,
-    map_bins_to_fine,
-    select_domains,
-)
+from .domains import ChromosomeTree, DomainSelection
 from .errors import ComputationError, InputError
-from .matrix import (
-    canonicalize_pc1_sign,
-    compute_fine_unit_matrices,
-    orient_pc1_to_signal,
-)
+from .matrix import orient_pc1_to_signal
 from .mcool import (
     ResolutionChoice,
-    bin_centers,
     choose_resolution,
     chrom_sizes,
     list_resolutions,
     open_cooler,
 )
+from .parallel import ChromosomeSelection, run_cis_parallel, run_cis_serial
 from .tads import TadTable, check_against_chromsizes, read_tads
 from .track import (
     SignalTrack,
@@ -126,6 +115,7 @@ def cluster(config: ClusterConfig) -> ClusterResult:
         chromosomes,
         config,
         track,
+        choice.value,
     )
     trans_run = _run_trans(config, choice, cooler_object, results)
 
@@ -207,6 +197,32 @@ def _run_cis(
     chromosomes: list[str],
     config: ClusterConfig,
     track: SignalTrack | None,
+    resolution: int,
+) -> list[_ChromosomeResult]:
+    selections = (
+        run_cis_parallel(
+            config,
+            tads,
+            sizes,
+            chromosomes,
+            resolution,
+        )
+        if config.workers > 1
+        else run_cis_serial(
+            config,
+            tads,
+            sizes,
+            chromosomes,
+            cooler_object,
+        )
+    )
+    return _build_cis_results(selections, config, track)
+
+
+def _build_cis_results(
+    selections: list[ChromosomeSelection],
+    config: ClusterConfig,
+    track: SignalTrack | None,
 ) -> list[_ChromosomeResult]:
     ab_split = config.ab_split
     if track is not None and ab_split is None:
@@ -216,39 +232,9 @@ def _run_cis(
     cis_node_base = 0
     ab_node_base = 0
 
-    for chrom in chromosomes:
-        tree = build_chromosome_tree(tads, chrom, sizes[chrom])
-        centers = bin_centers(cooler_object, chrom)
-        assign_bin_counts(tree, centers)
-        bin_map = map_bins_to_fine(tree, centers)
-        fine = compute_fine_unit_matrices(
-            cooler_object,
-            chrom,
-            bin_map,
-            tree.n_fine,
-            n_distance_bins=config.oe_distance_bins,
-            pseudocount=config.oe_pseudocount,
-            clip_min=config.oe_clip_min,
-            clip_max=config.oe_clip_max,
-            n_pcs=config.tree_n_pcs,
-        )
-        selection = select_domains(
-            tree,
-            fine,
-            n_pcs=config.tree_n_pcs,
-            pseudocount=config.oe_pseudocount,
-            clip_min=config.oe_clip_min,
-            clip_max=config.oe_clip_max,
-            dp_lambda=config.dp_lambda,
-            tree_branch_k=config.tree_branch_k,
-            seed=config.seed,
-        )
-
-        base_pcs = canonicalize_pc1_sign(selection.matrices.pcs)
-        domain_bins = np.asarray(
-            [domain.n_bins for domain in selection.domains],
-            dtype=np.int64,
-        )
+    for selection in selections:
+        base_pcs = selection.pcs
+        domain_bins = selection.domain_bins
         annotation = None
         n_uncovered = 0
 
@@ -258,22 +244,22 @@ def _run_cis(
             assert ab_split is not None
             values = overlap_weighted_values(
                 track,
-                selection.domains,
-                chrom,
+                selection.domain_selection.domains,
+                selection.chrom,
             )
-            rank, n_uncovered = fill_and_rank(values, chrom)
+            rank, n_uncovered = fill_and_rank(values, selection.chrom)
             pcs = orient_pc1_to_signal(base_pcs, rank)
             features = ab_feature_matrix(pcs, rank, config.tree_n_pcs)
             annotation = annotate_ab(
                 features,
                 rank,
-                len(selection.domains),
+                len(selection.domain_selection.domains),
                 ab_split,
                 config.seed,
             )
 
         forest = build_cis_forest(
-            chrom,
+            selection.chrom,
             pcs,
             domain_bins,
             n_pcs=config.tree_n_pcs,
@@ -291,7 +277,7 @@ def _run_cis(
                 annotation.rank,
             )
             ab_forest = build_ab_forest(
-                chrom,
+                selection.chrom,
                 pcs,
                 domain_bins,
                 annotation=annotation,
@@ -309,9 +295,9 @@ def _run_cis(
 
         results.append(
             _ChromosomeResult(
-                chrom=chrom,
-                tree=tree,
-                selection=selection,
+                chrom=selection.chrom,
+                tree=selection.tree,
+                selection=selection.domain_selection,
                 pcs=pcs,
                 domain_bins=domain_bins,
                 forest=forest,
@@ -345,6 +331,7 @@ def _run_trans(
         balance=True,
         null=config.trans_null,
         max_dense_domains=config.max_dense_domains,
+        workers=config.workers,
     )
     domain_bins = np.concatenate([result.domain_bins for result in results])
     tree_result = build_trans_tree(

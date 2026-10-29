@@ -265,6 +265,37 @@ def test_dense_domain_limit_is_configurable(three_chrom_mcool) -> None:
         )
 
 
+def test_trans_parallel_matches_serial(three_chrom_mcool) -> None:
+    cooler_object = open_cooler(three_chrom_mcool, 500)
+    inputs = one_domain_inputs(("chr1", "chr2", "chr3"))
+
+    serial = trans_matrix(
+        three_chrom_mcool,
+        500,
+        cooler_object,
+        inputs,
+        pseudocount=1.0,
+        clip_min=-10.0,
+        clip_max=10.0,
+        null="grand",
+        workers=1,
+    )
+    parallel = trans_matrix(
+        three_chrom_mcool,
+        500,
+        cooler_object,
+        inputs,
+        pseudocount=1.0,
+        clip_min=-10.0,
+        clip_max=10.0,
+        null="grand",
+        workers=2,
+    )
+
+    assert np.allclose(serial.log_oe, parallel.log_oe)
+    assert serial.info.pair_means == parallel.info.pair_means
+
+
 def test_unknown_trans_null_is_rejected(three_chrom_mcool) -> None:
     cooler_object = open_cooler(three_chrom_mcool, 500)
     inputs = one_domain_inputs(("chr1", "chr2", "chr3"))
