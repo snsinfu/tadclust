@@ -15,12 +15,14 @@ TRANS_NULL_CHOICES = ("pair", "grand")
 class ClusterConfig:
     """All inputs and technical parameters for one clustering run.
 
-    Paths are stored exactly as supplied. The mcool and annotation paths must
-    exist; the output directory is created by the writer.
+    Paths are stored exactly as supplied. The mcool path must exist. The
+    annotation path must exist when annotation domains are used; uniform-bin
+    mode uses mcool bins instead. The output directory is created by the
+    writer.
     """
 
     mcool_path: str | Path
-    annotation_path: str | Path
+    annotation_path: str | Path | None
     output_dir: str | Path
     chromosomes: list[str] | None = None
     working_binsize: int | None = None
@@ -39,6 +41,7 @@ class ClusterConfig:
     ab_split: str | None = None
     workers: int = 1
     seed: int = 0
+    uniform_bins: bool = False
 
     def __post_init__(self) -> None:
         if not Path(self.mcool_path).is_file():
@@ -47,10 +50,30 @@ class ClusterConfig:
                 notes=("check the mcool_path supplied to ClusterConfig",),
                 field="mcool_path",
             )
-        if not Path(self.annotation_path).is_file():
+        if (
+            self.annotation_path is not None
+            and not Path(self.annotation_path).is_file()
+        ):
             raise ConfigError(
                 f"annotation not found: {self.annotation_path}",
                 notes=("check the annotation_path supplied to ClusterConfig",),
+                field="annotation_path",
+            )
+
+        if self.uniform_bins:
+            if self.annotation_path is not None:
+                raise ConfigError(
+                    "uniform_bins cannot be combined with annotation_path",
+                    field="uniform_bins",
+                )
+            if self.working_binsize is None:
+                raise ConfigError(
+                    "uniform_bins requires working_binsize",
+                    field="working_binsize",
+                )
+        elif self.annotation_path is None:
+            raise ConfigError(
+                "annotation_path is required unless uniform_bins is enabled",
                 field="annotation_path",
             )
 

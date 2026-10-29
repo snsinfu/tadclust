@@ -23,6 +23,20 @@ def make_config(tmp_path, **overrides):
     return ClusterConfig(**values)
 
 
+def make_uniform_config(tmp_path, **overrides):
+    mcool = tmp_path / "test.mcool"
+    mcool.write_text("")
+    values = {
+        "mcool_path": mcool,
+        "annotation_path": None,
+        "output_dir": tmp_path / "out",
+        "uniform_bins": True,
+        "working_binsize": 500,
+    }
+    values.update(overrides)
+    return ClusterConfig(**values)
+
+
 def test_package_version() -> None:
     assert tadclust.__version__ == "0.1.0"
 
@@ -55,6 +69,45 @@ def test_default_config_is_valid(tmp_path) -> None:
 def test_invalid_config_raises_config_error(tmp_path, overrides) -> None:
     with pytest.raises(ConfigError):
         make_config(tmp_path, **overrides)
+
+
+def test_uniform_config_is_valid(tmp_path) -> None:
+    config = make_uniform_config(tmp_path)
+
+    assert config.uniform_bins is True
+    assert config.annotation_path is None
+    assert config.working_binsize == 500
+
+
+def test_uniform_bins_requires_working_binsize(tmp_path) -> None:
+    with pytest.raises(ConfigError) as info:
+        make_uniform_config(tmp_path, working_binsize=None)
+
+    assert info.value.field == "working_binsize"
+
+
+def test_annotation_path_required_without_uniform_bins(tmp_path) -> None:
+    mcool = tmp_path / "test.mcool"
+    mcool.write_text("")
+
+    with pytest.raises(ConfigError) as info:
+        ClusterConfig(
+            mcool_path=mcool,
+            annotation_path=None,
+            output_dir=tmp_path / "out",
+        )
+
+    assert info.value.field == "annotation_path"
+
+
+def test_uniform_bins_rejects_annotation_path(tmp_path) -> None:
+    annotation = tmp_path / "domains.tsv"
+    annotation.write_text("")
+
+    with pytest.raises(ConfigError) as info:
+        make_uniform_config(tmp_path, annotation_path=annotation)
+
+    assert info.value.field == "uniform_bins"
 
 
 def test_error_can_be_matched_by_class_and_field(tmp_path) -> None:

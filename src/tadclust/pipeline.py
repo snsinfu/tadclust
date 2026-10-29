@@ -86,6 +86,7 @@ class _TransRun:
 
 def cluster(config: ClusterConfig) -> ClusterResult:
     """Run cis selection, optional A/B, and optional trans clustering."""
+    assert config.annotation_path is not None
     tads = read_tads(config.annotation_path)
     resolutions = list_resolutions(config.mcool_path)
     choice = choose_resolution(
