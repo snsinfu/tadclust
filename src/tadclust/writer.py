@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import polars as pl
@@ -164,9 +164,7 @@ def _cleanup_staged(staged: list[tuple[Path, Path]]) -> None:
 
 def _commit_outputs(output_dir: Path, staged: list[tuple[Path, Path]]) -> None:
     new_names = {final.name for _, final in staged}
-    stale = [
-        output_dir / name for name in KNOWN_OUTPUTS if name not in new_names
-    ]
+    stale = [output_dir / name for name in KNOWN_OUTPUTS if name not in new_names]
     affected = [final for _, final in staged if final.is_file()]
     affected.extend(path for path in stale if path.is_file())
 
@@ -196,9 +194,7 @@ def _commit_outputs(output_dir: Path, staged: list[tuple[Path, Path]]) -> None:
 
 
 def _utc_now() -> str:
-    return (
-        datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
-    )
+    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def _cis_leaves_schema(

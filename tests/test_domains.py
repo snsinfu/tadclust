@@ -13,8 +13,8 @@ from tadclust.domains import (
     build_chromosome_tree,
     is_disjoint,
     map_bins_to_fine,
-    selected_domains,
     select_domains,
+    selected_domains,
     total_weighted_variance,
 )
 from tadclust.errors import ComputationError, InputError

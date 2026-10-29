@@ -5,12 +5,11 @@ from __future__ import annotations
 import numpy as np
 import polars as pl
 import pytest
+from conftest import write_tads, write_track
 
 from tadclust.config import ClusterConfig
 from tadclust.errors import InputError, NoPositiveModeError
 from tadclust.pipeline import cluster
-
-from conftest import write_tads, write_track
 
 
 def base_tads(tmp_path):

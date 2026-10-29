@@ -7,4 +7,4 @@ from .pipeline import ClusterResult, cluster
 
 __version__ = "0.1.0"
 
-__all__ = ["ClusterConfig", "ClusterResult", "cluster", "__version__"]
+__all__ = ["ClusterConfig", "ClusterResult", "__version__", "cluster"]

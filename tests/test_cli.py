@@ -6,11 +6,10 @@ import json
 
 import polars as pl
 import pytest
+from conftest import write_tads, write_track
 
 from tadclust import __version__
 from tadclust.cli import main
-
-from conftest import write_tads, write_track
 
 
 def base_tads(tmp_path):

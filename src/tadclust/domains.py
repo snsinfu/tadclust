@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from itertools import pairwise
 
 import numpy as np
 import polars as pl
@@ -567,7 +568,7 @@ def _check_siblings(
             node.children,
             key=lambda child_id: nodes[child_id].start,
         )
-        for left_id, right_id in zip(ordered, ordered[1:]):
+        for left_id, right_id in pairwise(ordered):
             left = nodes[left_id]
             right = nodes[right_id]
             if left.end > right.start:
@@ -588,7 +589,7 @@ def _check_fine_units(
     if fine_units[0].start != 0 or fine_units[-1].end != chromsize:
         raise InputError(f"{chrom}: fine-unit tiling does not cover the chromosome")
 
-    for previous, current in zip(fine_units, fine_units[1:]):
+    for previous, current in pairwise(fine_units):
         if previous.end != current.start:
             raise InputError(f"{chrom}: fine-unit tiling is not contiguous")
 

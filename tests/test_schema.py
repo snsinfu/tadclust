@@ -6,13 +6,12 @@ import json
 from pathlib import Path
 
 import polars as pl
+from conftest import write_tads, write_track
 
 import tadclust
 from tadclust.config import ClusterConfig
 from tadclust.pipeline import cluster
 from tadclust.writer import SCHEMA_VERSION, write_outputs
-
-from conftest import write_tads, write_track
 
 
 def base_tads(tmp_path):

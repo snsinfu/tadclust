@@ -7,14 +7,13 @@ import os
 
 import polars as pl
 import pytest
+from conftest import write_tads, write_track
 
 import tadclust
 from tadclust.config import ClusterConfig
 from tadclust.errors import OutputError
 from tadclust.pipeline import cluster
 from tadclust.writer import SCHEMA_VERSION, _temporary_path, write_outputs
-
-from conftest import write_tads, write_track
 
 
 def base_tads(tmp_path):

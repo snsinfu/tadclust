@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import multiprocessing as mp
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple, Sequence
+from typing import NamedTuple
 
 import cooler
 import h5py

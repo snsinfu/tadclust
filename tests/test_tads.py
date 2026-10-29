@@ -5,12 +5,12 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
+from tadclust.errors import InputError
 from tadclust.tads import (
     TadTable,
     check_against_chromsizes,
     read_tads,
 )
-from tadclust.errors import InputError
 
 
 def write_text(tmp_path, text, name="domains.tsv"):
