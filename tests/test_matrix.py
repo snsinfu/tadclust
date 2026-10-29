@@ -122,6 +122,22 @@ def test_cosine_normalize_is_symmetric_and_keeps_zero_rows() -> None:
     assert np.all(normalized[:, 1] == 0)
 
 
+def test_cosine_normalize_uses_row_and_column_norms() -> None:
+    matrix = np.array(
+        [
+            [1.0, 2.0],
+            [3.0, 4.0],
+        ]
+    )
+    row_norm = np.linalg.norm(matrix, axis=1)
+    col_norm = np.linalg.norm(matrix, axis=0)
+
+    normalized = cosine_normalize(matrix)
+
+    expected = matrix / (row_norm[:, None] * col_norm[None, :])
+    assert np.allclose(normalized, expected)
+
+
 def test_top_pcs_pads_and_sorts() -> None:
     embedding, eigenvalues, fractions = compute_top_pcs(
         np.diag([5.0, 3.0, 0.0, 0.0]),

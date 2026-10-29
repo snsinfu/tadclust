@@ -164,11 +164,15 @@ def cosine_normalize(matrix: np.ndarray) -> np.ndarray:
         posinf=0.0,
         neginf=0.0,
     )
-    norm = np.linalg.norm(values, axis=1)
-    inverse = np.zeros_like(norm)
-    valid = norm > 0
-    inverse[valid] = 1.0 / norm[valid]
-    normalized = values * inverse[:, None] * inverse[None, :]
+    row_norm = np.linalg.norm(values, axis=1)
+    col_norm = np.linalg.norm(values, axis=0)
+    row_inverse = np.zeros_like(row_norm)
+    col_inverse = np.zeros_like(col_norm)
+    row_valid = row_norm > 0
+    col_valid = col_norm > 0
+    row_inverse[row_valid] = 1.0 / row_norm[row_valid]
+    col_inverse[col_valid] = 1.0 / col_norm[col_valid]
+    normalized = values * row_inverse[:, None] * col_inverse[None, :]
     return np.nan_to_num(
         normalized,
         nan=0.0,
