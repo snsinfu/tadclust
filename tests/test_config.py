@@ -32,6 +32,7 @@ def test_default_config_is_valid(tmp_path) -> None:
     assert config.tree_branch_k == 3
     assert config.trans_enabled is False
     assert config.dp_lambda_scale == 1.0
+    assert config.seed == 0
     assert config.ab_split is None
 
 
@@ -45,6 +46,7 @@ def test_default_config_is_valid(tmp_path) -> None:
         {"tree_branch_k": 1},
         {"tree_n_pcs": 0},
         {"workers": 0},
+        {"seed": -1},
         {"trans_null": "uniform"},
         {"ab_split": "kmeans2"},
     ],

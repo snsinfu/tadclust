@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from tadclust.clustering import kmeans_labels
+from tadclust.clustering import derive_seed, kmeans_labels
 from tadclust.errors import ComputationError
 from tadclust.trees import (
     build_branching_tree,
@@ -22,6 +22,41 @@ def leaf_by_domain(tree):
             for domain in node.domain_indices.tolist():
                 leaves[domain] = node
     return leaves
+
+
+def test_derive_seed_is_stable_and_keyed() -> None:
+    assert derive_seed(7, 0) == derive_seed(7, 0)
+    assert derive_seed(7, 0) != derive_seed(7, 1)
+    assert derive_seed(7, 0, 1) != derive_seed(7, 1, 0)
+
+
+def test_recursive_splits_use_distinct_seeds(monkeypatch) -> None:
+    seeds: list[int] = []
+
+    def capture(pcs, k, n_pcs, seed, n_init=10):
+        seeds.append(seed)
+        values = np.asarray(pcs)[:, 0]
+        labels = (values > np.median(values)).astype(np.int64)
+        centers = np.vstack(
+            [
+                values[labels == 0].mean(),
+                values[labels == 1].mean(),
+            ]
+        )[:, None]
+        return labels, centers
+
+    monkeypatch.setattr("tadclust.trees.kmeans_labels", capture)
+    pcs = np.arange(8, dtype=np.float64).reshape(-1, 1)
+    bins = np.ones(8, dtype=np.int64)
+
+    build_branching_tree(pcs, bins, n_pcs=1, seed=42, branch_k=2)
+    first = list(seeds)
+    seeds.clear()
+    build_branching_tree(pcs, bins, n_pcs=1, seed=42, branch_k=2)
+
+    assert len(first) == 3
+    assert len(first) == len(set(first))
+    assert seeds == first
 
 
 def test_kmeans_labels_clamps_and_handles_single_cluster() -> None:

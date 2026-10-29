@@ -8,6 +8,12 @@ from sklearn.cluster import KMeans
 from .errors import ComputationError
 
 
+def derive_seed(base_seed: int, *key: int) -> int:
+    """Return a stable 32-bit seed for one k-means call."""
+    sequence = [int(base_seed), len(key), *key]
+    return int(np.random.SeedSequence(sequence).generate_state(1)[0])
+
+
 def kmeans_labels(
     pcs: np.ndarray,
     k: int,

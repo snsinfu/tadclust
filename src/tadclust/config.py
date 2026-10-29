@@ -121,6 +121,11 @@ class ClusterConfig:
                 "workers must be at least 1",
                 field="workers",
             )
+        if self.seed < 0:
+            raise ConfigError(
+                "seed must be non-negative",
+                field="seed",
+            )
 
         if self.ab_split is not None and self.ab_split not in AB_SPLIT_CHOICES:
             raise ConfigError(

@@ -6,11 +6,13 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from .clustering import kmeans_labels
+from .clustering import derive_seed, kmeans_labels
 from .errors import ComputationError
 
 AB_NODE_PURITY = 0.8
 AB_SPLIT_CHOICES = ("kmeans2", "kmeans3")
+_TREE_SEED_NAMESPACE = 0
+_AB_SEED_NAMESPACE = 1
 
 
 @dataclass
@@ -153,12 +155,13 @@ def _split_recursive(
     seed: int,
 ) -> None:
     node = nodes[node_id]
+    node_seed = derive_seed(seed, _TREE_SEED_NAMESPACE, *node.path)
     parts = _split_member_domains(
         pcs,
         node.domain_indices,
         n_pcs=n_pcs,
         branch_k=branch_k,
-        seed=seed,
+        seed=node_seed,
     )
     if parts is None:
         node.stop_reason = "degenerate"
@@ -475,7 +478,7 @@ def _ab_partition(
         features,
         min(n_clusters, n_domains),
         features.shape[1],
-        seed,
+        derive_seed(seed, _AB_SEED_NAMESPACE),
     )
     unique, inverse = np.unique(cluster_labels, return_inverse=True)
     if unique.size < 2:
