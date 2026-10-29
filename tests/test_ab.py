@@ -8,6 +8,7 @@ import pytest
 from tadclust.errors import ComputationError
 from tadclust.track import ab_feature_matrix
 from tadclust.trees import (
+    AbAnnotation,
     annotate_ab,
     annotate_cis_forest,
     build_ab_forest,
@@ -53,21 +54,15 @@ def test_annotate_ab_kmeans3_merges_two_highest_signal_clusters() -> None:
     )
 
 
-def test_annotate_ab_too_few_domains() -> None:
-    annotation = annotate_ab(
-        np.zeros((1, 2)),
-        np.array([0.5]),
-        1,
-        "kmeans2",
-        0,
-    )
-
-    assert annotation.fallback
-    assert annotation.fallback_reason == "ab_too_few_domains"
-    assert annotation.labels.tolist() == [None]
-    assert np.all(np.isnan(annotation.scores))
-    assert annotation.a_indices.size == 0
-    assert annotation.b_indices.size == 0
+def test_annotate_ab_rejects_too_few_domains() -> None:
+    with pytest.raises(ComputationError):
+        annotate_ab(
+            np.zeros((1, 2)),
+            np.array([0.5]),
+            1,
+            "kmeans2",
+            0,
+        )
 
 
 def test_annotate_ab_degenerate(monkeypatch) -> None:
@@ -150,18 +145,22 @@ def test_build_ab_forest_two_roots() -> None:
     assert forest.trees[1].nodes[0].ab_label == "B"
 
 
-def test_build_ab_forest_fallback() -> None:
-    annotation = annotate_ab(
-        np.zeros((1, 2)),
-        np.array([0.5]),
-        1,
-        "kmeans2",
-        0,
+def test_build_ab_forest_degenerate_fallback() -> None:
+    annotation = AbAnnotation(
+        labels=np.array([None, None], dtype=object),
+        rank=np.array([0.5, 0.5]),
+        split="kmeans2",
+        fallback=True,
+        fallback_reason="ab_degenerate",
+        scores=np.full(2, np.nan),
+        margins=np.full(2, np.nan),
+        a_indices=np.zeros(0, dtype=np.int64),
+        b_indices=np.zeros(0, dtype=np.int64),
     )
     forest = build_ab_forest(
         "chr1",
-        np.array([[0.0]]),
-        np.array([1], dtype=np.int64),
+        np.array([[0.0], [1.0]]),
+        np.array([1, 1], dtype=np.int64),
         annotation=annotation,
         n_pcs=1,
         branch_k=2,
@@ -170,5 +169,5 @@ def test_build_ab_forest_fallback() -> None:
 
     assert len(forest.trees) == 1
     assert forest.trees[0].root_label == "root"
-    assert forest.trees[0].nodes[0].stop_reason == "ab_too_few_domains"
-    assert forest.groups[0].tolist() == [0]
+    assert forest.trees[0].nodes[0].stop_reason == "ab_degenerate"
+    assert forest.groups[0].tolist() == [0, 1]

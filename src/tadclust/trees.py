@@ -429,17 +429,7 @@ def annotate_ab(
     empty = np.zeros(0, dtype=np.int64)
 
     if n_domains < 2:
-        return AbAnnotation(
-            labels=labels,
-            rank=ranks,
-            split=ab_split,
-            fallback=True,
-            fallback_reason="ab_too_few_domains",
-            scores=scores,
-            margins=margins,
-            a_indices=empty,
-            b_indices=empty,
-        )
+        raise ComputationError("A/B split requires at least two domains")
 
     partition = _ab_partition(values, n_domains, ab_split, seed)
     if partition is None:
