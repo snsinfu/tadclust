@@ -117,7 +117,7 @@ def test_cli_ab_split_requires_track(mcool, tmp_path) -> None:
 
     with pytest.raises(SystemExit) as info:
         main(args)
-    assert "--ab-split requires --ab-signal-track" in str(info.value)
+    assert "ab_split requires ab_signal_track" in str(info.value)
 
 
 def test_cli_overwrite(mcool, tmp_path) -> None:

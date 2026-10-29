@@ -134,10 +134,6 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     logger = logging.getLogger("tadclust")
 
-    if args.ab_signal_track is None and args.ab_split is not None:
-        raise SystemExit("tadclust: error: --ab-split requires --ab-signal-track")
-    ab_split = args.ab_split
-
     try:
         config = ClusterConfig(
             mcool_path=args.mcool,
@@ -154,7 +150,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             trans_enabled=args.enable_trans,
             trans_null=args.trans_null,
             ab_signal_track=args.ab_signal_track,
-            ab_split=ab_split,
+            ab_split=args.ab_split,
             workers=args.workers,
             seed=args.seed,
         )
