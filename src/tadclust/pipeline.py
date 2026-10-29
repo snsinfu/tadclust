@@ -669,9 +669,11 @@ def _ab_qc(
             "rank_mean_a": (float(rank[a_mask].mean()) if a_mask.any() else None),
             "rank_mean_b": (float(rank[b_mask].mean()) if b_mask.any() else None),
             "n_roots": len(ab_forest.trees),
-            "n_nodes_a": chrom_nodes_a,
-            "n_nodes_b": chrom_nodes_b,
-            "n_nodes_mixed": chrom_nodes_mixed,
+            "unconstrained_forest": {
+                "n_nodes_a": chrom_nodes_a,
+                "n_nodes_b": chrom_nodes_b,
+                "n_nodes_mixed": chrom_nodes_mixed,
+            },
         }
 
     return {
@@ -682,9 +684,11 @@ def _ab_qc(
         "n_chroms_fallback": n_chroms_fallback,
         "n_domains_a": n_domains_a,
         "n_domains_b": n_domains_b,
-        "n_nodes_a": n_nodes_a,
-        "n_nodes_b": n_nodes_b,
-        "n_nodes_mixed": n_nodes_mixed,
+        "unconstrained_forest": {
+            "n_nodes_a": n_nodes_a,
+            "n_nodes_b": n_nodes_b,
+            "n_nodes_mixed": n_nodes_mixed,
+        },
     }
 
 
