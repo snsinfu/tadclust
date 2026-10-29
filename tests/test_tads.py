@@ -145,6 +145,9 @@ def test_too_few_columns_is_rejected(tmp_path) -> None:
         "chrom\tstart\tend\nchr1\t100\t100\n",
         "chrom\tstart\tend\nchr1\t200\t100\n",
         "chrom\tstart\tend\n\t0\t100\n",
+        "chrom\tstart\tend\nchr1\t\t100\n",
+        "chrom\tstart\tend\nchr1\t0\t\n",
+        "chrom\tstart\tend\nchr1\t0\n",
     ],
 )
 def test_invalid_rows_are_rejected(tmp_path, text) -> None:
@@ -193,6 +196,30 @@ def test_check_against_chromsizes_rejects_out_of_bounds(tmp_path) -> None:
 
     assert info.value.row == 0
     assert "exceeds chromosome size" in str(info.value)
+
+
+def test_check_against_chromsizes_rejects_missing_coordinates() -> None:
+    rows = pl.DataFrame(
+        {
+            "chrom": ["chr1"],
+            "start": [None],
+            "end": [100],
+            "source_row": [0],
+        },
+        schema={
+            "chrom": pl.String,
+            "start": pl.Int64,
+            "end": pl.Int64,
+            "source_row": pl.Int64,
+        },
+    )
+    tads = TadTable(rows=rows)
+
+    with pytest.raises(InputError) as info:
+        check_against_chromsizes(tads, {"chr1": 1000})
+
+    assert info.value.row == 0
+    assert "start and end" in str(info.value)
 
 
 def test_tad_table_can_be_constructed_directly() -> None:

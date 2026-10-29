@@ -88,6 +88,14 @@ def check_against_chromsizes(
             notes=("check the chromosome names in the TAD table",),
         )
 
+    missing = tads.rows.filter(pl.col("start").is_null() | pl.col("end").is_null())
+    if missing.height:
+        raise InputError(
+            "TAD start and end must be integers",
+            path=path,
+            row=int(missing["source_row"][0]),
+        )
+
     sizes = pl.DataFrame(
         {
             "chrom": list(chrom_sizes),
@@ -166,6 +174,15 @@ def _select_and_validate(
             "TAD table has an empty chromosome name",
             path=str(path),
             row=int(bad_chrom["source_row"][0]),
+        )
+
+    missing = table.filter(pl.col("start").is_null() | pl.col("end").is_null())
+    if missing.height:
+        raise InputError(
+            "TAD start and end must be integers",
+            path=str(path),
+            row=int(missing["source_row"][0]),
+            notes=("empty or missing coordinates are not allowed",),
         )
 
     negative = table.filter(pl.col("start") < 0)

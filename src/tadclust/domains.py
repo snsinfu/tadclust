@@ -547,6 +547,11 @@ def _check_interval(
     chrom: str,
     source_row: int,
 ) -> None:
+    if start is None or end is None:
+        raise InputError(
+            f"{chrom}: TAD interval has a missing coordinate",
+            row=source_row,
+        )
     if start < 0 or end > chromsize or end <= start:
         raise InputError(
             f"{chrom}: TAD {start}-{end} is outside [0, {chromsize})",

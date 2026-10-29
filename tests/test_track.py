@@ -111,6 +111,8 @@ def test_too_few_columns_is_rejected(tmp_path) -> None:
         "chr1\t100\t100\t1.0\n",
         "chr1\t-1\t100\t1.0\n",
         "\t0\t100\t1.0\n",
+        "chr1\t\t100\t1.0\n",
+        "chr1\t0\t\t1.0\n",
     ],
 )
 def test_invalid_track_rows_are_rejected(tmp_path, text) -> None:
@@ -142,6 +144,32 @@ def test_overlap_weighted_values() -> None:
     assert np.isnan(values[1])
     missing = overlap_weighted_values(track, domains, "chr2")
     assert np.all(np.isnan(missing))
+
+
+def test_overlap_weighted_values_rejects_missing_coordinates() -> None:
+    track = SignalTrack(
+        table=pl.DataFrame(
+            {
+                "chrom": ["chr1"],
+                "start": [None],
+                "end": [100],
+                "value": [1.0],
+            },
+            schema={
+                "chrom": pl.String,
+                "start": pl.Int64,
+                "end": pl.Int64,
+                "value": pl.Float64,
+            },
+        )
+    )
+
+    with pytest.raises(TrackError):
+        overlap_weighted_values(
+            track,
+            [SimpleNamespace(start=0, end=100)],
+            "chr1",
+        )
 
 
 def test_fill_and_rank() -> None:

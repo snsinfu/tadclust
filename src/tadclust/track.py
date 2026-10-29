@@ -85,6 +85,13 @@ def read_signal_track(path: str | Path) -> SignalTrack:
             path=str(source),
         )
 
+    missing = table.filter(pl.col("start").is_null() | pl.col("end").is_null())
+    if missing.height:
+        raise TrackError(
+            "signal track has a missing start or end",
+            path=str(source),
+        )
+
     bad_interval = table.filter(
         (pl.col("start") < 0) | (pl.col("end") <= pl.col("start"))
     )
@@ -129,6 +136,12 @@ def overlap_weighted_values(
             return values
         case starts, ends, track_values:
             pass
+
+    if not np.isfinite(starts).all() or not np.isfinite(ends).all():
+        raise TrackError(
+            f"{chrom}: signal track has a missing start or end",
+            chrom=chrom,
+        )
 
     for index, domain in enumerate(domains):
         overlap = np.minimum(ends, domain.end) - np.maximum(
