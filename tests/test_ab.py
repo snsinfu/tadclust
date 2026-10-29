@@ -28,6 +28,7 @@ def test_annotate_ab_kmeans2() -> None:
     assert annotation.b_indices.tolist() == [0, 1]
     assert np.all(annotation.scores[annotation.a_indices] > 0)
     assert np.all(annotation.scores[annotation.b_indices] < 0)
+    assert np.corrcoef(annotation.scores, rank)[0, 1] > 0
     assert np.allclose(
         annotation.margins,
         np.abs(annotation.scores),

@@ -122,27 +122,27 @@ def test_binary_tree_paths_and_gain() -> None:
     assert root.split_gain == pytest.approx(0.8)
     assert len(root.children) == 2
 
-    left = tree.nodes[root.children[0]]
-    right = tree.nodes[root.children[1]]
-    assert left.domain_indices.tolist() == [0, 1]
-    assert right.domain_indices.tolist() == [2, 3]
-    assert left.path == [0]
-    assert right.path == [1]
-    assert format_path_label(tree.root_label, left.path) == "root.0"
-    assert format_path_label(tree.root_label, right.path) == "root.1"
-    assert left.centroid.tolist() == [-2.0]
-    assert right.centroid.tolist() == [2.0]
-    assert left.n_bins == 30
-    assert right.n_bins == 70
+    high = tree.nodes[root.children[0]]
+    low = tree.nodes[root.children[1]]
+    assert high.domain_indices.tolist() == [2, 3]
+    assert low.domain_indices.tolist() == [0, 1]
+    assert high.path == [0]
+    assert low.path == [1]
+    assert format_path_label(tree.root_label, high.path) == "root.0"
+    assert format_path_label(tree.root_label, low.path) == "root.1"
+    assert high.centroid.tolist() == [2.0]
+    assert low.centroid.tolist() == [-2.0]
+    assert high.n_bins == 70
+    assert low.n_bins == 30
 
     leaves = leaf_by_domain(tree)
     assert [
         format_path_label(tree.root_label, leaves[domain].path) for domain in range(4)
     ] == [
-        "root.0.0",
-        "root.0.1",
-        "root.1.0",
         "root.1.1",
+        "root.1.0",
+        "root.0.1",
+        "root.0.0",
     ]
     assert [leaves[domain].depth for domain in range(4)] == [2, 2, 2, 2]
     assert sorted(leaves) == [0, 1, 2, 3]
@@ -163,7 +163,7 @@ def test_child_order_is_mean_pc1() -> None:
         pcs[tree.nodes[child].domain_indices, 0].mean() for child in root.children
     ]
     assert len(root.children) == 3
-    assert mean_values == sorted(mean_values)
+    assert mean_values == sorted(mean_values, reverse=True)
 
 
 @pytest.mark.parametrize("branch_k", [2, 3, 4])
@@ -192,9 +192,9 @@ def test_singleton_split_orders_by_pc1() -> None:
 
     root = tree.nodes[tree.root_id]
     assert [tree.nodes[child].domain_indices.tolist() for child in root.children] == [
-        [2],
-        [1],
         [0],
+        [1],
+        [2],
     ]
     assert [tree.nodes[child].path for child in root.children] == [[0], [1], [2]]
     assert root.split_gain == pytest.approx(1.0)
@@ -257,10 +257,10 @@ def test_build_cis_forest_groups_and_offsets() -> None:
         format_path_label(forest.trees[0].root_label, leaves[domain].path)
         for domain in range(4)
     ] == [
-        "root.0.0",
-        "root.0.1",
-        "root.1.0",
         "root.1.1",
+        "root.1.0",
+        "root.0.1",
+        "root.0.0",
     ]
 
 

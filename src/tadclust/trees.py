@@ -93,8 +93,8 @@ def build_branching_tree(
 ) -> BranchingTree:
     """Build a full tree by recursively splitting nodes with k-means.
 
-    Children are ordered by mean PC1. Callers should canonicalize the PC1 sign
-    before calling this function when deterministic paths matter.
+    Children are ordered by descending mean PC1. Callers should canonicalize
+    the PC1 sign before calling this function when deterministic paths matter.
     """
     values = np.asarray(pcs, dtype=np.float64)
     bins = np.asarray(domain_bins, dtype=np.int64)
@@ -225,7 +225,11 @@ def _sort_by_mean_pc1(
 ) -> list[np.ndarray]:
     if pcs.shape[1] == 0:
         return parts
-    return sorted(parts, key=lambda part: pcs[part, 0].mean())
+    return sorted(
+        parts,
+        key=lambda part: pcs[part, 0].mean(),
+        reverse=True,
+    )
 
 
 def _append_children(
@@ -515,6 +519,7 @@ def _ab_partition(
     for domain in range(n_domains):
         a_distance = np.min(np.linalg.norm(a_centroids - features[domain], axis=1))
         b_distance = np.linalg.norm(b_centroid - features[domain])
+        # Positive score is the A side, matching the track convention A > B.
         score = b_distance - a_distance
         scores[domain] = score
         margins[domain] = abs(score)

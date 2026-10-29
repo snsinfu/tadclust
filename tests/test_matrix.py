@@ -156,6 +156,16 @@ def test_pcs_from_oe_rejects_zero_matrix() -> None:
         pcs_from_log_oe(np.zeros((2, 2)), 2, label="cis")
 
 
+def test_orient_pc1_to_signal_makes_positive_a() -> None:
+    pcs = np.array([[2.0], [1.0], [-1.0], [-2.0]])
+    rank = np.array([0.1, 0.2, 0.8, 0.9])
+
+    result = orient_pc1_to_signal(pcs, rank)
+
+    assert np.corrcoef(result[:, 0], rank)[0, 1] > 0
+    assert np.all(result[2:, 0] > 0)
+
+
 def test_canonicalize_pc1_sign_flips_largest_magnitude() -> None:
     values = np.array([[-3.0, 1.0], [1.0, 2.0]])
 

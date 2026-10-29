@@ -282,7 +282,7 @@ def orient_pc1_to_signal(
     pcs: np.ndarray,
     rank: np.ndarray,
 ) -> np.ndarray:
-    """Flip PC1 so negative PC1 is the high-signal (A) side."""
+    """Flip PC1 so positive PC1 is the high-signal (A) side."""
     values = np.array(pcs, dtype=np.float64, copy=True)
     ranks = np.asarray(rank, dtype=np.float64)
     if values.ndim != 2:
@@ -293,7 +293,7 @@ def orient_pc1_to_signal(
         return values
     if np.std(values[:, 0]) == 0 or np.std(ranks) == 0:
         return values
-    if np.corrcoef(values[:, 0], ranks)[0, 1] > 0:
+    if np.corrcoef(values[:, 0], ranks)[0, 1] < 0:
         values[:, 0] *= -1.0
     return values
 
