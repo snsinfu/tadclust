@@ -122,6 +122,18 @@ def test_cluster_with_trans(three_chrom_mcool, trans_tads, tmp_path) -> None:
     assert result.qc["trans"]["enabled"] is True
     assert result.qc["trans"]["skipped"] is None
     assert result.qc["trans"]["n_domains"] == 6
+    assert result.qc["trans"]["alpha"] is not None
+    pair_alphas = result.qc["trans"]["pair_alphas"]
+    assert len(pair_alphas) == 3
+    assert {tuple(entry["pair"]) for entry in pair_alphas} == {
+        ("chr1", "chr2"),
+        ("chr1", "chr3"),
+        ("chr2", "chr3"),
+    }
+    assert all(
+        entry["alpha"] == pytest.approx(result.qc["trans"]["alpha"])
+        for entry in pair_alphas
+    )
 
     root = result.trans_nodes.filter(result.trans_nodes["node_id"] == 0).row(
         0, named=True

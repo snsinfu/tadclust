@@ -706,6 +706,10 @@ def _trans_qc(
     tree_result = trans_run.tree_result
     nodes = tree_result.tree.nodes
     pair_means = list(info.pair_means.values())
+    pair_alphas = [
+        {"pair": [chrom_a, chrom_b], "alpha": alpha}
+        for (chrom_a, chrom_b), alpha in sorted(info.pair_alphas.items())
+    ]
 
     return {
         "enabled": True,
@@ -713,7 +717,8 @@ def _trans_qc(
         "null": info.null,
         "alpha_mode": info.alpha_mode,
         "grand_mean": info.grand_mean,
-        "alpha": info.alpha,
+        "alpha": info.alpha if info.null == "grand" else None,
+        "pair_alphas": pair_alphas,
         "min_bins": info.min_bins,
         "total": info.total,
         "pair_count": info.pair_count,

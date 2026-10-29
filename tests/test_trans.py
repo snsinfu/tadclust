@@ -102,6 +102,9 @@ def test_trans_pair_null(three_chrom_mcool) -> None:
     assert trans.info.n_chrom == 3
     assert trans.info.alpha_mode == "per_pair"
     assert trans.info.grand_mean == pytest.approx(1936.0 / 48.0)
+    assert trans.info.pair_alphas[("chr1", "chr2")] == pytest.approx(1600.0)
+    assert trans.info.pair_alphas[("chr1", "chr3")] == pytest.approx(16.0)
+    assert trans.info.pair_alphas[("chr2", "chr3")] == pytest.approx(320.0)
     assert np.allclose(trans.log_oe, 0.0)
 
 
@@ -122,6 +125,10 @@ def test_trans_grand_null(three_chrom_mcool) -> None:
 
     assert trans.info.alpha_mode == "global"
     assert trans.info.alpha == pytest.approx(trans.info.grand_mean * 16.0)
+    assert all(
+        alpha == pytest.approx(trans.info.alpha)
+        for alpha in trans.info.pair_alphas.values()
+    )
     assert np.allclose(trans.log_oe, trans.log_oe.T)
     assert np.allclose(np.diag(trans.log_oe), 0.0)
     assert np.any(np.abs(trans.log_oe) > 0)
@@ -145,6 +152,7 @@ def test_trans_single_chromosome_has_no_pairs(mcool) -> None:
     assert np.all(trans.log_oe == 0)
     assert trans.info.pair_count == 0
     assert trans.info.pair_means == {}
+    assert trans.info.pair_alphas == {}
 
     result = build_trans_tree(
         trans,

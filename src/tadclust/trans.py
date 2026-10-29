@@ -105,6 +105,7 @@ class TransInfo:
     pair_count: int
     n_chrom: int
     pair_means: dict[tuple[str, str], float]
+    pair_alphas: dict[tuple[str, str], float]
     pair_counts: dict[tuple[str, str], int]
 
 
@@ -172,6 +173,7 @@ def trans_matrix(
                 pair_count=0,
                 n_chrom=len(inputs),
                 pair_means={},
+                pair_alphas={},
                 pair_counts={},
             ),
             domain_chrom=np.zeros(n_domains, dtype=np.int64),
@@ -251,6 +253,7 @@ def trans_matrix(
         pair_counts[key] = count
 
     values = np.zeros_like(observed, dtype=np.float64)
+    pair_alphas: dict[tuple[str, str], float] = {}
     if pixel_map.pair_count > 0 and total > 0:
         for (i, j), info in pixel_map.pair_info.items():
             key = (chrom_names[i], chrom_names[j])
@@ -261,6 +264,7 @@ def trans_matrix(
                 if null == "grand"
                 else pseudocount * pair_mean * min_bins * min_bins
             )
+            pair_alphas[key] = pair_alpha
             a0 = info.domain_offset_a
             b0 = info.domain_offset_b
             a1 = a0 + info.n_domains_a
@@ -288,6 +292,7 @@ def trans_matrix(
         pair_count=pixel_map.pair_count,
         n_chrom=pixel_map.n_chrom,
         pair_means=pair_means,
+        pair_alphas=pair_alphas,
         pair_counts=pair_counts,
     )
     return TransMatrix(
