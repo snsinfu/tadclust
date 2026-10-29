@@ -230,6 +230,7 @@ def test_manifest_contract(mcool, tmp_path) -> None:
     assert manifest["cli"] is None
     assert manifest["params"]["working_binsize"] == 500
     assert manifest["params"]["working_binsize_mode"] == "explicit"
+    assert manifest["params"]["ab_split"] is None
     assert manifest["qc"]["n_domains"] == 4
     assert manifest["output_files"] == [
         "cis_leaves.parquet",

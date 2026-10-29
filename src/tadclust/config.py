@@ -36,7 +36,7 @@ class ClusterConfig:
     trans_enabled: bool = False
     trans_null: str = "pair"
     ab_signal_track: str | Path | None = None
-    ab_split: str = "kmeans2"
+    ab_split: str | None = None
     workers: int = 1
     seed: int = 0
 
@@ -127,15 +127,15 @@ class ClusterConfig:
                 field="seed",
             )
 
-        if self.ab_split not in AB_SPLIT_CHOICES:
+        if self.ab_split is not None and self.ab_split not in AB_SPLIT_CHOICES:
             raise ConfigError(
                 f"ab_split must be one of {AB_SPLIT_CHOICES}, got {self.ab_split!r}",
                 field="ab_split",
             )
-        if self.ab_signal_track is None and self.ab_split != "kmeans2":
+        if self.ab_signal_track is None and self.ab_split is not None:
             raise ConfigError(
                 "ab_split requires ab_signal_track",
-                notes=("supply a signal track or use the default kmeans2",),
+                notes=("supply a signal track or omit ab_split",),
                 field="ab_split",
             )
         if (

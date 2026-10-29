@@ -224,7 +224,7 @@ def _build_cis_results(
     config: ClusterConfig,
     track: SignalTrack | None,
 ) -> list[_ChromosomeResult]:
-    ab_split = config.ab_split
+    ab_split = config.ab_split or "kmeans2"
     results: list[_ChromosomeResult] = []
     cis_node_base = 0
     ab_node_base = 0
@@ -547,6 +547,9 @@ def _build_params(
     params["working_binsize"] = choice.value
     params["working_binsize_mode"] = choice.mode
     params["chromosomes"] = chromosomes
+    params["ab_split"] = (
+        (config.ab_split or "kmeans2") if config.ab_signal_track is not None else None
+    )
     params["dp_lambda_resolved"] = {
         result.chrom: result.selection.dp_lambda for result in results
     }
@@ -673,7 +676,7 @@ def _ab_qc(
 
     return {
         "enabled": True,
-        "split": config.ab_split,
+        "split": config.ab_split or "kmeans2",
         "per_chromosome": per_chromosome,
         "n_chroms_split": n_chroms_split,
         "n_chroms_fallback": n_chroms_fallback,
