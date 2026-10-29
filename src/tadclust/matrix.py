@@ -43,6 +43,20 @@ class DomainMatrices(ObservedExpected):
     eigenvalues: np.ndarray
     variance_fraction: np.ndarray
 
+    @classmethod
+    def from_fine_unit_matrices(cls, fine: FineUnitMatrices) -> DomainMatrices:
+        """Reuse fine-unit matrices when selected domains are the fine units."""
+        return cls(
+            observed=fine.observed,
+            expected=fine.expected,
+            log_oe=fine.log_oe,
+            self_oe=fine.self_oe,
+            alpha=fine.alpha,
+            pcs=fine.pcs,
+            eigenvalues=fine.eigenvalues,
+            variance_fraction=fine.variance_fraction,
+        )
+
 
 def distance_bin_edges(
     n_chromosome_bins: int,

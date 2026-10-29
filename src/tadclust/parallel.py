@@ -15,6 +15,7 @@ from .domains import (
     DomainSelection,
     assign_bin_counts,
     build_chromosome_tree,
+    build_flat_tree,
     map_bins_to_fine,
     select_domains,
 )
@@ -25,7 +26,7 @@ from .matrix import (
 )
 from .mcool import bin_centers, bin_intervals, open_cooler
 from .tads import TadTable
-from .uniform import build_uniform_tree, select_uniform_domains
+from .uniform import select_uniform_domains
 
 
 @dataclass(frozen=True)
@@ -125,7 +126,7 @@ def _select_chromosome(
 ) -> ChromosomeSelection:
     if config.uniform_bins:
         starts, ends = bin_intervals(cooler_object, chrom)
-        tree = build_uniform_tree(starts, ends, chrom, sizes[chrom])
+        tree = build_flat_tree(starts, ends, chrom, sizes[chrom])
         bin_map = np.arange(tree.n_fine, dtype=np.int64)
     else:
         assert tads is not None

@@ -5,9 +5,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from tadclust.domains import build_flat_tree
 from tadclust.errors import ComputationError
 from tadclust.matrix import FineUnitMatrices
-from tadclust.uniform import build_uniform_tree, select_uniform_domains
+from tadclust.uniform import select_uniform_domains
 
 
 def make_fine(n_fine: int) -> FineUnitMatrices:
@@ -24,11 +25,11 @@ def make_fine(n_fine: int) -> FineUnitMatrices:
     )
 
 
-def test_build_uniform_tree() -> None:
+def test_build_flat_tree() -> None:
     starts = np.array([0, 500, 1000, 1500])
     ends = np.array([500, 1000, 1500, 2000])
 
-    tree = build_uniform_tree(starts, ends, "chr1", 2000)
+    tree = build_flat_tree(starts, ends, "chr1", 2000)
 
     assert tree.n_fine == 4
     assert tree.nodes[tree.root_id].children == [1, 2, 3, 4]
@@ -42,7 +43,7 @@ def test_build_uniform_tree() -> None:
 def test_select_uniform_domains_uses_bins_as_units() -> None:
     starts = np.array([0, 500, 1000, 1500])
     ends = np.array([500, 1000, 1500, 2000])
-    tree = build_uniform_tree(starts, ends, "chr1", 2000)
+    tree = build_flat_tree(starts, ends, "chr1", 2000)
     fine = make_fine(4)
 
     selection = select_uniform_domains(tree, fine)
@@ -71,4 +72,4 @@ def test_select_uniform_domains_uses_bins_as_units() -> None:
 )
 def test_invalid_uniform_bins_are_rejected(starts, ends, chromsize) -> None:
     with pytest.raises(ComputationError):
-        build_uniform_tree(starts, ends, "chr1", chromsize)
+        build_flat_tree(starts, ends, "chr1", chromsize)

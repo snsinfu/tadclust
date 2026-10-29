@@ -227,6 +227,65 @@ def build_chromosome_tree(
     )
 
 
+def build_flat_tree(
+    starts: np.ndarray,
+    ends: np.ndarray,
+    chrom: str,
+    chromsize: int,
+) -> ChromosomeTree:
+    """Build a tree whose leaves are contiguous flat units, such as mcool bins."""
+    starts = np.asarray(starts, dtype=np.int64)
+    ends = np.asarray(ends, dtype=np.int64)
+    _check_flat_bins(starts, ends, chrom, chromsize)
+
+    root = DomainNode(
+        node_id=0,
+        chrom=chrom,
+        start=0,
+        end=chromsize,
+        source_row=None,
+        fine_lo=0,
+        fine_hi=len(starts),
+    )
+    nodes = {root.node_id: root}
+    fine_units: list[FineUnit] = []
+
+    for index, (start, end) in enumerate(zip(starts, ends, strict=True)):
+        node_id = index + 1
+        node = DomainNode(
+            node_id=node_id,
+            chrom=chrom,
+            start=int(start),
+            end=int(end),
+            source_row=None,
+            parent_id=root.node_id,
+            fine_lo=index,
+            fine_hi=index + 1,
+        )
+        nodes[node_id] = node
+        root.children.append(node_id)
+        fine_units.append(
+            FineUnit(
+                fine_id=index,
+                chrom=chrom,
+                start=int(start),
+                end=int(end),
+                owner_node_id=node_id,
+                is_tad=False,
+                n_bins=1,
+            )
+        )
+
+    return ChromosomeTree(
+        chrom=chrom,
+        chromsize=chromsize,
+        nodes=nodes,
+        root_id=root.node_id,
+        fine_units=fine_units,
+        n_bins_chrom=len(fine_units),
+    )
+
+
 def is_disjoint(tree: ChromosomeTree) -> bool:
     """Return True when every TAD row is a direct child of the root."""
     return all(
@@ -393,8 +452,10 @@ def antichain_dp(
 def selected_domains(
     tree: ChromosomeTree,
     cut: list[int],
+    *,
+    kind: str = "tad",
 ) -> tuple[list[SelectedDomain], np.ndarray, sparse.csr_array | sparse.csr_matrix]:
-    """Turn a TAD antichain plus uncovered fine units into a partition."""
+    """Turn a selected antichain plus uncovered fine units into a partition."""
     n_fine = tree.n_fine
     covered = np.zeros(n_fine, dtype=bool)
     domains: list[SelectedDomain] = []
@@ -419,7 +480,7 @@ def selected_domains(
                 chrom=tree.chrom,
                 start=node.start,
                 end=node.end,
-                kind="tad",
+                kind=kind,
                 source_row=node.source_row,
                 fine_indices=indices,
                 n_bins=int(sum(tree.fine_units[i].n_bins for i in indices)),
@@ -479,6 +540,7 @@ def select_domains(
     dp_lambda_scale: float,
     tree_branch_k: int,
     seed: int,
+    selected_kind: str = "tad",
 ) -> DomainSelection:
     """Select domains, aggregate O/E, and compute domain PCs."""
     bins_per_fine_unit = np.asarray(
@@ -493,18 +555,18 @@ def select_domains(
         )
 
     total_variance = total_weighted_variance(fine.pcs, bins_per_fine_unit)
-    lambda_value = (
-        dp_lambda_scale * 0.5 * (tree_branch_k - 1) * math.log(max(2, n_data))
-    )
-    masses = {
-        node_id: int(bins_per_fine_unit[node.fine_lo : node.fine_hi].sum())
-        for node_id, node in tree.nodes.items()
-    }
-
     if is_disjoint(tree):
         cut = [node_id for node_id in tree.nodes if node_id != tree.root_id]
         objective = 0.0
+        lambda_value = 0.0
     else:
+        lambda_value = (
+            dp_lambda_scale * 0.5 * (tree_branch_k - 1) * math.log(max(2, n_data))
+        )
+        masses = {
+            node_id: int(bins_per_fine_unit[node.fine_lo : node.fine_hi].sum())
+            for node_id, node in tree.nodes.items()
+        }
         costs = node_costs(
             tree,
             fine.pcs,
@@ -515,17 +577,24 @@ def select_domains(
         cut = antichain_dp(tree, costs, masses)
         objective = sum(costs[node_id] for node_id in cut)
 
-    domains, fine_to_domain, domain_map = selected_domains(tree, cut)
-    matrices = compute_domain_matrices(
-        domain_map,
-        fine.observed,
-        fine.expected,
-        pseudocount=pseudocount,
-        clip_min=clip_min,
-        clip_max=clip_max,
-        n_pcs=n_pcs,
-        label=f"domains:{tree.chrom}",
+    domains, fine_to_domain, domain_map = selected_domains(
+        tree,
+        cut,
+        kind=selected_kind,
     )
+    if np.array_equal(fine_to_domain, np.arange(tree.n_fine, dtype=np.int64)):
+        matrices = DomainMatrices.from_fine_unit_matrices(fine)
+    else:
+        matrices = compute_domain_matrices(
+            domain_map,
+            fine.observed,
+            fine.expected,
+            pseudocount=pseudocount,
+            clip_min=clip_min,
+            clip_max=clip_max,
+            n_pcs=n_pcs,
+            label=f"domains:{tree.chrom}",
+        )
     return DomainSelection(
         tree=tree,
         domains=domains,
@@ -538,6 +607,33 @@ def select_domains(
         total_variance=total_variance,
         dp_lambda=lambda_value,
     )
+
+
+def _check_flat_bins(
+    starts: np.ndarray,
+    ends: np.ndarray,
+    chrom: str,
+    chromsize: int,
+) -> None:
+    if starts.ndim != 1 or ends.ndim != 1 or starts.size != ends.size:
+        raise ComputationError(
+            f"{chrom}: bin starts and ends must be one-dimensional and equal length",
+            chrom=chrom,
+        )
+    if starts.size == 0:
+        raise ComputationError(f"{chrom}: no working bins", chrom=chrom)
+    if starts[0] != 0 or ends[-1] != chromsize:
+        raise ComputationError(
+            f"{chrom}: bins do not cover [0, {chromsize})",
+            chrom=chrom,
+        )
+    if np.any(ends <= starts):
+        raise ComputationError(
+            f"{chrom}: bin end must be greater than start",
+            chrom=chrom,
+        )
+    if np.any(starts[1:] != ends[:-1]):
+        raise ComputationError(f"{chrom}: bins are not contiguous", chrom=chrom)
 
 
 def _check_interval(

@@ -11,6 +11,7 @@ from tadclust.domains import (
     antichain_dp,
     assign_bin_counts,
     build_chromosome_tree,
+    build_flat_tree,
     is_disjoint,
     map_bins_to_fine,
     select_domains,
@@ -375,6 +376,7 @@ def test_select_domains_disjoint_keeps_tad_rows(tmp_path) -> None:
 
     assert selection.cut_size == 3
     assert selection.objective == 0.0
+    assert selection.dp_lambda == 0.0
     assert selection.cut == [1, 2, 3]
     assert len(selection.domains) == 5
     assert sum(domain.kind == "tad" for domain in selection.domains) == 3
@@ -384,6 +386,46 @@ def test_select_domains_disjoint_keeps_tad_rows(tmp_path) -> None:
         for domain in selection.domains
     )
     assert selection.matrices.pcs.shape[0] == 5
+
+
+def test_select_domains_flat_tree_uses_bin_kind_and_reuses_matrices() -> None:
+    starts = np.array([0, 500, 1000, 1500])
+    ends = np.array([500, 1000, 1500, 2000])
+    tree = build_flat_tree(starts, ends, "chr1", 2000)
+    fine = make_fine(
+        [
+            [-2.0, 0.0],
+            [-1.0, 0.0],
+            [1.0, 0.0],
+            [2.0, 0.0],
+        ],
+        [1, 1, 1, 1],
+    )
+
+    selection = select_domains(
+        tree,
+        fine,
+        n_pcs=2,
+        pseudocount=1.0,
+        clip_min=-10.0,
+        clip_max=10.0,
+        dp_lambda_scale=100.0,
+        tree_branch_k=3,
+        seed=0,
+        selected_kind="bin",
+    )
+
+    assert [domain.kind for domain in selection.domains] == ["bin"] * 4
+    assert [domain.source_row for domain in selection.domains] == [None] * 4
+    assert [domain.start for domain in selection.domains] == [0, 500, 1000, 1500]
+    assert [domain.end for domain in selection.domains] == [500, 1000, 1500, 2000]
+    assert selection.fine_to_domain.tolist() == [0, 1, 2, 3]
+    assert np.array_equal(selection.domain_map.toarray(), np.eye(4))
+    assert selection.matrices.pcs is fine.pcs
+    assert selection.matrices.observed is fine.observed
+    assert selection.cut_size == 4
+    assert selection.objective == 0.0
+    assert selection.dp_lambda == 0.0
 
 
 def test_select_domains_lambda_controls_internal_nodes(tmp_path) -> None:
