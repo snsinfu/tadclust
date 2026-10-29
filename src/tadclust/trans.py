@@ -1,0 +1,495 @@
+"""Trans O/E from the mcool pixel table, plus the trans tree."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Sequence
+
+import h5py
+import numpy as np
+
+from .domains import SelectedDomain
+from .errors import ComputationError, McoolError, NoPositiveModeError
+from .matrix import (
+    canonicalize_pc1_sign,
+    log2_ratio,
+    pcs_from_log_oe,
+)
+from .trees import (
+    BranchingTree,
+    build_branching_tree,
+    single_node_tree,
+)
+
+CHUNK_ROWS = 10_000_000
+DEFAULT_MAX_DENSE_DOMAINS = 6_000
+
+
+@dataclass(frozen=True)
+class TransInput:
+    """Selected domains for one chromosome, in genomic order."""
+
+    chrom: str
+    domains: Sequence[SelectedDomain]
+
+
+@dataclass(frozen=True)
+class PixelMap:
+    """Global bin-to-domain mapping and chromosome-pair bookkeeping."""
+
+    bin_to_domain: np.ndarray
+    domain_chrom: np.ndarray
+    col_sums: np.ndarray
+    n_bins_chrom: dict[str, int]
+    chrom_bin_ranges: dict[str, tuple[int, int]]
+    bin1_offsets: np.ndarray
+    pair_info: dict[tuple[int, int], tuple[int, int, int, int]]
+    pair_counts: dict[tuple[int, int], int]
+    n_domains: int
+    n_chrom: int
+    pair_count: int
+
+
+@dataclass(frozen=True)
+class TransInfo:
+    """Null-model parameters and pair totals for a trans matrix."""
+
+    null: str
+    alpha_mode: str
+    grand_mean: float
+    alpha: float
+    min_bins: float
+    total: float
+    pair_count: int
+    n_chrom: int
+    pair_means: dict[tuple[str, str], float]
+    pair_counts: dict[tuple[str, str], int]
+
+
+@dataclass(frozen=True)
+class TransMatrix:
+    """A symmetric trans log2 O/E matrix and domain metadata."""
+
+    log_oe: np.ndarray
+    info: TransInfo
+    domain_chrom: np.ndarray
+    col_sums: np.ndarray
+    chrom_names: list[str]
+
+
+@dataclass(frozen=True)
+class TransTreeResult:
+    """Trans PCs and the tree built from them."""
+
+    pcs: np.ndarray
+    eigenvalues: np.ndarray
+    variance_fraction: np.ndarray
+    tree: BranchingTree
+    single_node: bool
+
+
+def trans_matrix(
+    mcool_path: str | Path,
+    resolution: int,
+    cooler_object: Any,
+    inputs: Sequence[TransInput],
+    *,
+    pseudocount: float,
+    clip_min: float,
+    clip_max: float,
+    balance: bool = True,
+    null: str = "pair",
+    max_dense_domains: int = DEFAULT_MAX_DENSE_DOMAINS,
+) -> TransMatrix:
+    """Build the genome-wide trans log2 O/E matrix from the pixel table.
+
+    The pair null is not coverage-aware; chromosome territory and coverage
+    effects can remain in the trans axes.
+    """
+    if null not in {"pair", "grand"}:
+        raise ComputationError(f"unknown trans null: {null!r}")
+
+    n_domains = sum(len(item.domains) for item in inputs)
+    if n_domains == 0:
+        raise ComputationError("trans clustering has no selected domains")
+    if n_domains > max_dense_domains:
+        raise ComputationError(
+            f"{n_domains} domains exceed the dense-matrix limit ({max_dense_domains})"
+        )
+
+    chrom_names = [item.chrom for item in inputs]
+    alpha_mode = "global" if null == "grand" else "per_pair"
+
+    if len(inputs) < 2:
+        return TransMatrix(
+            log_oe=np.zeros((n_domains, n_domains), dtype=np.float64),
+            info=TransInfo(
+                null=null,
+                alpha_mode=alpha_mode,
+                grand_mean=0.0,
+                alpha=0.0,
+                min_bins=1.0,
+                total=0.0,
+                pair_count=0,
+                n_chrom=len(inputs),
+                pair_means={},
+                pair_counts={},
+            ),
+            domain_chrom=np.zeros(n_domains, dtype=np.int64),
+            col_sums=np.zeros(n_domains, dtype=np.int64),
+            chrom_names=chrom_names,
+        )
+
+    try:
+        handle = h5py.File(mcool_path, "r")
+    except OSError as exc:
+        raise McoolError(
+            f"cannot open mcool: {mcool_path}",
+            path=str(mcool_path),
+            resolution=resolution,
+        ) from exc
+
+    with handle:
+        group = handle.get(f"resolutions/{resolution}")
+        if not isinstance(group, h5py.Group):
+            raise McoolError(
+                f"{mcool_path}: resolution {resolution} not found",
+                path=str(mcool_path),
+                resolution=resolution,
+            )
+
+        pixel_map = build_pixel_map(cooler_object, group, inputs)
+        weight = _read_weights(group) if balance else None
+        tasks = _pixel_tasks(pixel_map, inputs)
+        observed_upper = np.zeros(
+            (pixel_map.n_domains, pixel_map.n_domains),
+            dtype=np.float64,
+        )
+        pair_totals: dict[tuple[int, int], float] = {}
+        total = 0.0
+
+        for start, end in tasks:
+            blocks, chunk_total, pair_sums = _scan_chunk(
+                group,
+                pixel_map,
+                weight,
+                start,
+                end,
+            )
+            total += chunk_total
+            for i, j, pair_sum in pair_sums:
+                pair_totals[(i, j)] = pair_totals.get((i, j), 0.0) + pair_sum
+            for i, j, block in blocks:
+                oa, ob, ma, mb = pixel_map.pair_info[(i, j)]
+                observed_upper[oa : oa + ma, ob : ob + mb] += block
+
+    observed = observed_upper + observed_upper.T
+    grand_mean = total / pixel_map.pair_count if pixel_map.pair_count > 0 else 0.0
+    positive_bins = pixel_map.col_sums[pixel_map.col_sums > 0]
+    min_bins = float(positive_bins.min()) if positive_bins.size else 1.0
+    alpha = pseudocount * grand_mean * min_bins * min_bins
+
+    pair_means: dict[tuple[str, str], float] = {}
+    pair_counts: dict[tuple[str, str], int] = {}
+    for (i, j), count in pixel_map.pair_counts.items():
+        pair_total = pair_totals.get((i, j), 0.0)
+        mean = pair_total / count if count > 0 else 0.0
+        key = (chrom_names[i], chrom_names[j])
+        pair_means[key] = mean
+        pair_counts[key] = count
+
+    values = np.zeros_like(observed, dtype=np.float64)
+    if pixel_map.pair_count > 0 and total > 0:
+        for (i, j), (oa, ob, ma, mb) in pixel_map.pair_info.items():
+            key = (chrom_names[i], chrom_names[j])
+            pair_mean = pair_means[key]
+            mean = grand_mean if null == "grand" else pair_mean
+            pair_alpha = (
+                alpha
+                if null == "grand"
+                else pseudocount * pair_mean * min_bins * min_bins
+            )
+            col_i = pixel_map.col_sums[oa : oa + ma]
+            col_j = pixel_map.col_sums[ob : ob + mb]
+            expected = mean * col_i[:, None] * col_j[None, :]
+            block = log2_ratio(
+                observed[oa : oa + ma, ob : ob + mb],
+                expected,
+                pair_alpha,
+                clip_min=clip_min,
+                clip_max=clip_max,
+            )
+            values[oa : oa + ma, ob : ob + mb] = block
+            values[ob : ob + mb, oa : oa + ma] = block.T
+
+    info = TransInfo(
+        null=null,
+        alpha_mode=alpha_mode,
+        grand_mean=grand_mean,
+        alpha=alpha,
+        min_bins=min_bins,
+        total=total,
+        pair_count=pixel_map.pair_count,
+        n_chrom=pixel_map.n_chrom,
+        pair_means=pair_means,
+        pair_counts=pair_counts,
+    )
+    return TransMatrix(
+        log_oe=values,
+        info=info,
+        domain_chrom=pixel_map.domain_chrom,
+        col_sums=pixel_map.col_sums,
+        chrom_names=chrom_names,
+    )
+
+
+def build_pixel_map(
+    cooler_object: Any,
+    group: h5py.Group,
+    inputs: Sequence[TransInput],
+) -> PixelMap:
+    """Map working-resolution bins to global selected domains by bin center."""
+    chrom_offset = _dataset(group, "indexes/chrom_offset")
+    bin1_offset = _dataset(group, "indexes/bin1_offset")
+    bins_chrom = _dataset(group, "bins/chrom")
+    n_bins = int(bins_chrom.shape[0])
+
+    chrom_index = {
+        str(name): index for index, name in enumerate(cooler_object.chromnames)
+    }
+    n_domains = sum(len(item.domains) for item in inputs)
+    bin_to_domain = np.full(n_bins, -1, dtype=np.int64)
+    domain_chrom = np.full(n_domains, -1, dtype=np.int64)
+    col_sums = np.zeros(n_domains, dtype=np.int64)
+    n_bins_chrom: dict[str, int] = {}
+    chrom_bin_ranges: dict[str, tuple[int, int]] = {}
+    pair_info: dict[tuple[int, int], tuple[int, int, int, int]] = {}
+    pair_counts: dict[tuple[int, int], int] = {}
+    offsets: list[int] = []
+    domain_offset = 0
+
+    for input_index, item in enumerate(inputs):
+        if not item.domains:
+            raise ComputationError(f"{item.chrom}: trans input has no domains")
+        if item.chrom in n_bins_chrom:
+            raise ComputationError(f"duplicate trans chromosome: {item.chrom}")
+        if item.chrom not in chrom_index:
+            raise McoolError(f"{item.chrom}: chromosome absent from the mcool")
+
+        chromosome = chrom_index[item.chrom]
+        start_bin = int(chrom_offset[chromosome])
+        end_bin = int(chrom_offset[chromosome + 1])
+        chromosome_bins = cooler_object.bins().fetch(item.chrom)
+        centers = (
+            chromosome_bins["start"].to_numpy(dtype=np.int64)
+            + chromosome_bins["end"].to_numpy(dtype=np.int64)
+        ) / 2.0
+        if centers.size != end_bin - start_bin:
+            raise ComputationError(
+                f"{item.chrom}: bin count does not match the mcool index"
+            )
+
+        domain_starts = np.asarray(
+            [domain.start for domain in item.domains],
+            dtype=np.float64,
+        )
+        local = np.searchsorted(domain_starts, centers, side="right") - 1
+        local = np.clip(local, 0, len(item.domains) - 1).astype(np.int64)
+        bin_to_domain[start_bin:end_bin] = local + domain_offset
+        col_sums[domain_offset : domain_offset + len(item.domains)] = np.bincount(
+            local, minlength=len(item.domains)
+        )
+        domain_chrom[domain_offset : domain_offset + len(item.domains)] = input_index
+
+        n_bins_chrom[item.chrom] = end_bin - start_bin
+        chrom_bin_ranges[item.chrom] = (start_bin, end_bin)
+        for prior in range(input_index):
+            prior_offset = offsets[prior]
+            pair_info[(prior, input_index)] = (
+                prior_offset,
+                domain_offset,
+                len(inputs[prior].domains),
+                len(item.domains),
+            )
+            pair_counts[(prior, input_index)] = n_bins_chrom[inputs[prior].chrom] * (
+                end_bin - start_bin
+            )
+
+        offsets.append(domain_offset)
+        domain_offset += len(item.domains)
+
+    if np.any(domain_chrom < 0):
+        raise ComputationError("trans pixel map left some domains unassigned")
+
+    return PixelMap(
+        bin_to_domain=bin_to_domain,
+        domain_chrom=domain_chrom,
+        col_sums=col_sums,
+        n_bins_chrom=n_bins_chrom,
+        chrom_bin_ranges=chrom_bin_ranges,
+        bin1_offsets=np.asarray(bin1_offset[:], dtype=np.int64),
+        pair_info=pair_info,
+        pair_counts=pair_counts,
+        n_domains=n_domains,
+        n_chrom=len(inputs),
+        pair_count=sum(pair_counts.values()),
+    )
+
+
+def build_trans_tree(
+    trans: TransMatrix,
+    domain_bins: np.ndarray,
+    *,
+    n_pcs: int,
+    branch_k: int,
+    seed: int,
+) -> TransTreeResult:
+    """Compute trans PCs and build the trans tree, with a one-node fallback."""
+    bins = np.asarray(domain_bins, dtype=np.int64)
+    n_domains = trans.log_oe.shape[0]
+    if bins.shape[0] != n_domains:
+        raise ComputationError(
+            "trans matrix and domain bin counts have different lengths"
+        )
+
+    try:
+        pcs, eigenvalues, fractions = pcs_from_log_oe(
+            trans.log_oe,
+            n_pcs,
+            label="trans",
+        )
+    except NoPositiveModeError:
+        return TransTreeResult(
+            pcs=np.zeros((n_domains, 0), dtype=np.float64),
+            eigenvalues=np.zeros(1, dtype=np.float64),
+            variance_fraction=np.zeros(1, dtype=np.float64),
+            tree=single_node_tree(n_domains, bins),
+            single_node=True,
+        )
+
+    pcs = canonicalize_pc1_sign(pcs)
+    tree = build_branching_tree(
+        pcs,
+        bins,
+        n_pcs=n_pcs,
+        seed=seed,
+        branch_k=branch_k,
+    )
+    return TransTreeResult(
+        pcs=pcs,
+        eigenvalues=eigenvalues,
+        variance_fraction=fractions,
+        tree=tree,
+        single_node=False,
+    )
+
+
+def _read_weights(group: h5py.Group) -> np.ndarray:
+    dataset = _dataset(group, "bins/weight")
+    return np.nan_to_num(
+        np.asarray(dataset[:], dtype=np.float64),
+        nan=0.0,
+        posinf=0.0,
+        neginf=0.0,
+    )
+
+
+def _pixel_tasks(
+    pixel_map: PixelMap,
+    inputs: Sequence[TransInput],
+) -> list[tuple[int, int]]:
+    tasks: list[tuple[int, int]] = []
+    for item in inputs:
+        start_bin, end_bin = pixel_map.chrom_bin_ranges[item.chrom]
+        start_row = int(pixel_map.bin1_offsets[start_bin])
+        end_row = int(pixel_map.bin1_offsets[end_bin])
+        for start in range(start_row, end_row, CHUNK_ROWS):
+            tasks.append((start, min(start + CHUNK_ROWS, end_row)))
+    return tasks
+
+
+def _scan_chunk(
+    group: h5py.Group,
+    pixel_map: PixelMap,
+    weight: np.ndarray | None,
+    start: int,
+    end: int,
+) -> tuple[
+    list[tuple[int, int, np.ndarray]],
+    float,
+    list[tuple[int, int, float]],
+]:
+    bin1 = _dataset(group, "pixels/bin1_id")[start:end]
+    bin2 = _dataset(group, "pixels/bin2_id")[start:end]
+    counts = np.asarray(
+        _dataset(group, "pixels/count")[start:end],
+        dtype=np.float64,
+    )
+
+    domain1 = pixel_map.bin_to_domain[bin1]
+    domain2 = pixel_map.bin_to_domain[bin2]
+    keep = (domain1 >= 0) & (domain2 >= 0)
+
+    chrom1 = pixel_map.domain_chrom[np.where(keep, domain1, 0)]
+    chrom2 = pixel_map.domain_chrom[np.where(keep, domain2, 0)]
+    keep &= chrom1 != chrom2
+    if not keep.any():
+        return [], 0.0, []
+
+    bin1 = bin1[keep]
+    bin2 = bin2[keep]
+    domain1 = domain1[keep]
+    domain2 = domain2[keep]
+    chrom1 = chrom1[keep]
+    chrom2 = chrom2[keep]
+    values = counts[keep]
+    if weight is not None:
+        values = values * weight[bin1] * weight[bin2]
+
+    swap = chrom1 > chrom2
+    domain1_sorted = np.where(swap, domain2, domain1)
+    domain2_sorted = np.where(swap, domain1, domain2)
+    chrom1_sorted = np.where(swap, chrom2, chrom1)
+    chrom2_sorted = np.where(swap, chrom1, chrom2)
+
+    keys = chrom1_sorted * pixel_map.n_chrom + chrom2_sorted
+    order = np.argsort(keys, kind="stable")
+    keys = keys[order]
+    domain1_sorted = domain1_sorted[order]
+    domain2_sorted = domain2_sorted[order]
+    values = values[order]
+
+    cuts = np.flatnonzero(np.diff(keys)) + 1
+    starts = np.r_[0, cuts]
+    ends = np.r_[cuts, len(keys)]
+    blocks: list[tuple[int, int, np.ndarray]] = []
+    pair_sums: list[tuple[int, int, float]] = []
+    total = 0.0
+
+    for block_start, block_end in zip(starts, ends):
+        key = int(keys[block_start])
+        i = key // pixel_map.n_chrom
+        j = key % pixel_map.n_chrom
+        oa, ob, ma, mb = pixel_map.pair_info[(i, j)]
+        local = (domain1_sorted[block_start:block_end] - oa) * mb + (
+            domain2_sorted[block_start:block_end] - ob
+        )
+        block = np.bincount(
+            local,
+            weights=values[block_start:block_end],
+            minlength=ma * mb,
+        ).reshape(ma, mb)
+        pair_sum = float(values[block_start:block_end].sum())
+        blocks.append((i, j, block))
+        pair_sums.append((i, j, pair_sum))
+        total += pair_sum
+
+    return blocks, total, pair_sums
+
+
+def _dataset(group: h5py.Group, path: str) -> h5py.Dataset:
+    dataset = group.get(path)
+    if not isinstance(dataset, h5py.Dataset):
+        raise McoolError(f"mcool group has no dataset: {path}")
+    return dataset

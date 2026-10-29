@@ -15,6 +15,7 @@ def write_mcool(
     chroms: tuple[str, ...] = ("chr1", "chr2"),
     chrom_size: int = 2000,
     with_weight: bool = True,
+    cross_counts: dict[tuple[str, str], int] | None = None,
 ):
     import cooler
 
@@ -38,7 +39,8 @@ def write_mcool(
             if i == j:
                 count = 100
             elif bins_table.chrom[i] != bins_table.chrom[j]:
-                count = 5
+                key = tuple(sorted((bins_table.chrom[i], bins_table.chrom[j])))
+                count = (cross_counts or {}).get(key, 5)
             elif i // 2 == j // 2:
                 count = 30
             else:
@@ -84,3 +86,17 @@ def mcool(tmp_path):
 @pytest.fixture
 def unbalanced_mcool(tmp_path):
     return write_mcool(tmp_path, with_weight=False)
+
+
+@pytest.fixture
+def three_chrom_mcool(tmp_path):
+    return write_mcool(
+        tmp_path,
+        resolutions=(500,),
+        chroms=("chr1", "chr2", "chr3"),
+        cross_counts={
+            ("chr1", "chr2"): 100,
+            ("chr1", "chr3"): 1,
+            ("chr2", "chr3"): 20,
+        },
+    )
