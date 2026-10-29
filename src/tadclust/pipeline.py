@@ -12,7 +12,7 @@ import polars as pl
 
 from .config import ClusterConfig
 from .domains import ChromosomeTree, DomainSelection
-from .errors import ComputationError, InputError
+from .errors import ComputationError
 from .matrix import orient_pc1_to_signal
 from .mcool import (
     ResolutionChoice,
@@ -22,7 +22,8 @@ from .mcool import (
     open_cooler,
 )
 from .parallel import ChromosomeSelection, run_cis_parallel, run_cis_serial
-from .tads import TadTable, check_against_chromsizes, read_tads
+from .sources import AnnotationSource, CisSource, UniformBinSource
+from .tads import read_tads
 from .track import (
     SignalTrack,
     ab_feature_matrix,
@@ -84,41 +85,33 @@ class _TransRun:
     domain_bins: np.ndarray
 
 
+def _make_source(config: ClusterConfig) -> CisSource:
+    if config.annotation_path is None:
+        return UniformBinSource()
+    return AnnotationSource(
+        table=read_tads(config.annotation_path),
+        path=str(config.annotation_path),
+    )
+
+
 def cluster(config: ClusterConfig) -> ClusterResult:
     """Run cis selection, optional A/B, and optional trans clustering."""
     resolutions = list_resolutions(config.mcool_path)
-    tads: TadTable | None
-    if config.uniform_bins:
-        tads = None
-        lengths = None
-    else:
-        assert config.annotation_path is not None
-        tads = read_tads(config.annotation_path)
-        lengths = tads.lengths
-
+    source = _make_source(config)
     choice = choose_resolution(
         resolutions,
-        lengths,
+        source.resolution_lengths(),
         resolution=config.working_binsize,
         percentile=config.tad_size_percentile,
         min_bins_per_tad=config.min_bins_per_tad,
     )
     cooler_object = open_cooler(config.mcool_path, choice.value)
     sizes = chrom_sizes(cooler_object)
-    if config.uniform_bins:
-        chromosomes = _select_uniform_chromosomes(
-            cooler_object,
-            config.chromosomes,
-        )
-    else:
-        assert tads is not None
-        assert config.annotation_path is not None
-        check_against_chromsizes(
-            tads,
-            sizes,
-            path=str(config.annotation_path),
-        )
-        chromosomes = _select_chromosomes(tads, cooler_object, config.chromosomes)
+    source.validate(sizes)
+    chromosomes = source.select_chromosomes(
+        [str(chrom) for chrom in cooler_object.chromnames],
+        config.chromosomes,
+    )
 
     track = (
         read_signal_track(config.ab_signal_track)
@@ -127,7 +120,7 @@ def cluster(config: ClusterConfig) -> ClusterResult:
     )
 
     results = _run_cis(
-        tads,
+        source,
         cooler_object,
         sizes,
         chromosomes,
@@ -167,7 +160,7 @@ def cluster(config: ClusterConfig) -> ClusterResult:
         cis_leaves_ab=cis_leaves_ab,
         cis_nodes_ab=cis_nodes_ab,
         trans_nodes=trans_nodes,
-        params=_build_params(config, choice, chromosomes, results),
+        params=_build_params(config, choice, chromosomes, results, source),
         qc=_build_qc(results, trans_run, config, choice, is_ab),
         inputs={
             "mcool": str(config.mcool_path),
@@ -186,54 +179,8 @@ def cluster(config: ClusterConfig) -> ClusterResult:
     )
 
 
-def _select_chromosomes(
-    tads: TadTable,
-    cooler_object: cooler.Cooler,
-    requested: list[str] | None,
-) -> list[str]:
-    available = [str(chrom) for chrom in cooler_object.chromnames]
-    present = set(tads.chroms)
-
-    if requested is None:
-        chromosomes = [chrom for chrom in available if chrom in present]
-        if not chromosomes:
-            raise InputError("no chromosomes with TAD rows")
-        return chromosomes
-
-    if len(set(requested)) != len(requested):
-        raise InputError("duplicate chromosome in the requested list")
-
-    unknown = [chrom for chrom in requested if chrom not in available]
-    if unknown:
-        raise InputError(f"unknown chromosome(s): {', '.join(unknown)}")
-    missing = [chrom for chrom in requested if chrom not in present]
-    if missing:
-        raise InputError(f"no TAD rows for chromosome(s): {', '.join(missing)}")
-    return list(requested)
-
-
-def _select_uniform_chromosomes(
-    cooler_object: cooler.Cooler,
-    requested: list[str] | None,
-) -> list[str]:
-    available = [str(chrom) for chrom in cooler_object.chromnames]
-    if not available:
-        raise InputError("mcool has no chromosomes")
-
-    if requested is None:
-        return available
-
-    if len(set(requested)) != len(requested):
-        raise InputError("duplicate chromosome in the requested list")
-
-    unknown = [chrom for chrom in requested if chrom not in available]
-    if unknown:
-        raise InputError(f"unknown chromosome(s): {', '.join(unknown)}")
-    return list(requested)
-
-
 def _run_cis(
-    tads: TadTable | None,
+    source: CisSource,
     cooler_object: cooler.Cooler,
     sizes: dict[str, int],
     chromosomes: list[str],
@@ -244,7 +191,7 @@ def _run_cis(
     selections = (
         run_cis_parallel(
             config,
-            tads,
+            source,
             sizes,
             chromosomes,
             resolution,
@@ -252,7 +199,7 @@ def _run_cis(
         if config.workers > 1
         else run_cis_serial(
             config,
-            tads,
+            source,
             sizes,
             chromosomes,
             cooler_object,
@@ -575,6 +522,7 @@ def _build_params(
     choice: ResolutionChoice,
     chromosomes: list[str],
     results: list[_ChromosomeResult],
+    source: CisSource,
 ) -> dict[str, Any]:
     params = {field.name: getattr(config, field.name) for field in fields(config)}
     for key in (
@@ -588,6 +536,7 @@ def _build_params(
 
     params["working_binsize"] = choice.value
     params["working_binsize_mode"] = choice.mode
+    params["input_mode"] = source.mode
     params["chromosomes"] = chromosomes
     params["ab_split"] = (
         (config.ab_split or "kmeans2") if config.ab_signal_track is not None else None

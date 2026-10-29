@@ -10,23 +10,10 @@ import numpy as np
 from threadpoolctl import threadpool_limits
 
 from .config import ClusterConfig
-from .domains import (
-    ChromosomeTree,
-    DomainSelection,
-    assign_bin_counts,
-    build_chromosome_tree,
-    build_flat_tree,
-    map_bins_to_fine,
-    select_domains,
-)
-from .matrix import (
-    FineUnitMatrices,
-    canonicalize_pc1_sign,
-    compute_fine_unit_matrices,
-)
-from .mcool import bin_centers, bin_intervals, open_cooler
-from .tads import TadTable
-from .uniform import select_uniform_domains
+from .domains import ChromosomeTree, DomainSelection, select_domains
+from .matrix import canonicalize_pc1_sign, compute_fine_unit_matrices
+from .mcool import open_cooler
+from .sources import CisSource
 
 
 @dataclass(frozen=True)
@@ -42,7 +29,7 @@ class ChromosomeSelection:
 
 def run_cis_serial(
     config: ClusterConfig,
-    tads: TadTable | None,
+    source: CisSource,
     sizes: dict[str, int],
     chromosomes: list[str],
     cooler_object: cooler.Cooler,
@@ -51,7 +38,7 @@ def run_cis_serial(
     return [
         _select_chromosome(
             config,
-            tads,
+            source,
             sizes,
             chrom,
             cooler_object,
@@ -62,7 +49,7 @@ def run_cis_serial(
 
 def run_cis_parallel(
     config: ClusterConfig,
-    tads: TadTable | None,
+    source: CisSource,
     sizes: dict[str, int],
     chromosomes: list[str],
     resolution: int,
@@ -72,7 +59,7 @@ def run_cis_parallel(
     with context.Pool(
         processes=config.workers,
         initializer=_init_worker,
-        initargs=(config, tads, sizes, resolution),
+        initargs=(config, source, sizes, resolution),
     ) as pool:
         return pool.map(
             _process_chromosome,
@@ -83,34 +70,35 @@ def run_cis_parallel(
 
 _WORKER_COOLER = None
 _WORKER_CONFIG = None
-_WORKER_TADS = None
+_WORKER_SOURCE = None
 _WORKER_SIZES = None
 _WORKER_LIMITER = None
 
 
 def _init_worker(
     config: ClusterConfig,
-    tads: TadTable | None,
+    source: CisSource,
     sizes: dict[str, int],
     resolution: int,
 ) -> None:
-    global _WORKER_COOLER, _WORKER_CONFIG, _WORKER_TADS, _WORKER_SIZES
+    global _WORKER_COOLER, _WORKER_CONFIG, _WORKER_SOURCE, _WORKER_SIZES
     global _WORKER_LIMITER
 
     _WORKER_LIMITER = threadpool_limits(limits=1)
     _WORKER_CONFIG = config
-    _WORKER_TADS = tads
+    _WORKER_SOURCE = source
     _WORKER_SIZES = sizes
     _WORKER_COOLER = open_cooler(config.mcool_path, resolution)
 
 
 def _process_chromosome(chrom: str) -> ChromosomeSelection:
     assert _WORKER_CONFIG is not None
+    assert _WORKER_SOURCE is not None
     assert _WORKER_SIZES is not None
     assert _WORKER_COOLER is not None
     return _select_chromosome(
         _WORKER_CONFIG,
-        _WORKER_TADS,
+        _WORKER_SOURCE,
         _WORKER_SIZES,
         chrom,
         _WORKER_COOLER,
@@ -119,22 +107,12 @@ def _process_chromosome(chrom: str) -> ChromosomeSelection:
 
 def _select_chromosome(
     config: ClusterConfig,
-    tads: TadTable | None,
+    source: CisSource,
     sizes: dict[str, int],
     chrom: str,
     cooler_object: cooler.Cooler,
 ) -> ChromosomeSelection:
-    if config.uniform_bins:
-        starts, ends = bin_intervals(cooler_object, chrom)
-        tree = build_flat_tree(starts, ends, chrom, sizes[chrom])
-        bin_map = np.arange(tree.n_fine, dtype=np.int64)
-    else:
-        assert tads is not None
-        tree = build_chromosome_tree(tads, chrom, sizes[chrom])
-        centers = bin_centers(cooler_object, chrom)
-        assign_bin_counts(tree, centers)
-        bin_map = map_bins_to_fine(tree, centers)
-
+    tree, bin_map = source.build_units(cooler_object, chrom, sizes[chrom])
     fine = compute_fine_unit_matrices(
         cooler_object,
         chrom,
@@ -146,7 +124,18 @@ def _select_chromosome(
         clip_max=config.oe_clip_max,
         n_pcs=config.tree_n_pcs,
     )
-    selection = _select_units(config, tree, fine)
+    selection = select_domains(
+        tree,
+        fine,
+        n_pcs=config.tree_n_pcs,
+        pseudocount=config.oe_pseudocount,
+        clip_min=config.oe_clip_min,
+        clip_max=config.oe_clip_max,
+        dp_lambda_scale=config.dp_lambda_scale,
+        tree_branch_k=config.tree_branch_k,
+        seed=config.seed,
+        selected_kind=source.domain_kind,
+    )
     pcs = canonicalize_pc1_sign(selection.matrices.pcs)
     domain_bins = np.asarray(
         [domain.n_bins for domain in selection.domains],
@@ -158,25 +147,4 @@ def _select_chromosome(
         domain_selection=selection,
         pcs=pcs,
         domain_bins=domain_bins,
-    )
-
-
-def _select_units(
-    config: ClusterConfig,
-    tree: ChromosomeTree,
-    fine: FineUnitMatrices,
-) -> DomainSelection:
-    """Dispatch phase 1: annotated domain modes or uniform mode."""
-    if config.uniform_bins:
-        return select_uniform_domains(tree, fine)
-    return select_domains(
-        tree,
-        fine,
-        n_pcs=config.tree_n_pcs,
-        pseudocount=config.oe_pseudocount,
-        clip_min=config.oe_clip_min,
-        clip_max=config.oe_clip_max,
-        dp_lambda_scale=config.dp_lambda_scale,
-        tree_branch_k=config.tree_branch_k,
-        seed=config.seed,
     )
