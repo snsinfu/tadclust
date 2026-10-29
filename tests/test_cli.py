@@ -58,6 +58,23 @@ def cli_args(mcool, tads, tmp_path, *extra):
     ]
 
 
+def uniform_cli_args(mcool, tmp_path, *extra):
+    return [
+        "--mcool",
+        str(mcool),
+        "--uniform-bins",
+        "--out-dir",
+        str(tmp_path / "out"),
+        "--working-binsize",
+        "500",
+        "--tree-n-pcs",
+        "2",
+        "--tree-branch-k",
+        "2",
+        *extra,
+    ]
+
+
 def test_cli_cis_run(mcool, tmp_path) -> None:
     tads = base_tads(tmp_path)
     args = cli_args(mcool, tads, tmp_path)
@@ -71,6 +88,58 @@ def test_cli_cis_run(mcool, tmp_path) -> None:
     assert manifest["qc"]["n_domains"] == 4
     assert (out / "cis_leaves.parquet").exists()
     assert not (out / "trans_nodes.parquet").exists()
+
+
+def test_cli_uniform_bins_run(mcool, tmp_path) -> None:
+    args = uniform_cli_args(mcool, tmp_path)
+
+    main(args)
+
+    out = tmp_path / "out"
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert manifest["params"]["uniform_bins"] is True
+    assert manifest["params"]["annotation_path"] is None
+    assert manifest["inputs"]["annotation"] is None
+    assert manifest["qc"]["n_bin_domains"] == 8
+    assert manifest["qc"]["n_tads"] == 0
+
+    leaves = pl.read_parquet(out / "cis_leaves.parquet")
+    assert set(leaves["kind"].to_list()) == {"bin"}
+    assert leaves["source_row"].null_count() == leaves.height
+
+
+def test_cli_uniform_bins_requires_working_binsize(mcool, tmp_path) -> None:
+    args = [
+        "--mcool",
+        str(mcool),
+        "--uniform-bins",
+        "--out-dir",
+        str(tmp_path / "out"),
+    ]
+
+    with pytest.raises(SystemExit) as info:
+        main(args)
+    assert "uniform_bins requires working_binsize" in str(info.value)
+
+
+def test_cli_rejects_tad_table_and_uniform_bins(mcool, tmp_path) -> None:
+    tads = base_tads(tmp_path)
+    args = [*cli_args(mcool, tads, tmp_path), "--uniform-bins"]
+
+    with pytest.raises(SystemExit) as info:
+        main(args)
+    assert info.value.code == 2
+
+
+def test_help_lists_advanced(capsys) -> None:
+    with pytest.raises(SystemExit) as info:
+        main(["--help"])
+
+    assert info.value.code == 0
+    out = capsys.readouterr().out
+    assert "advanced" in out
+    assert "--oe-distance-bins" in out
+    assert "--uniform-bins" in out
 
 
 def test_cli_trans_run(three_chrom_mcool, trans_tads, tmp_path) -> None:

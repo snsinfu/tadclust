@@ -25,10 +25,16 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         description="Hierarchical clustering of TADs",
     )
     parser.add_argument("--mcool", required=True, help="multi-resolution mcool")
-    parser.add_argument(
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument(
         "--tad-table",
-        required=True,
+        default=None,
         help="tab-separated chrom/start/end TAD table",
+    )
+    source.add_argument(
+        "--uniform-bins",
+        action="store_true",
+        help="cluster uniform mcool bins as domains; requires --working-binsize",
     )
     parser.add_argument("--out-dir", required=True, help="output directory")
     parser.add_argument(
@@ -153,6 +159,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             ab_split=args.ab_split,
             workers=args.workers,
             seed=args.seed,
+            uniform_bins=args.uniform_bins,
         )
         result = cluster(config)
         written = write_outputs(
