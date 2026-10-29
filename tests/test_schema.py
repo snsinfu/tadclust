@@ -55,6 +55,20 @@ def make_config(mcool, tads, tmp_path, **overrides):
     return ClusterConfig(**values)
 
 
+def make_uniform_config(mcool, tmp_path, **overrides):
+    values = {
+        "mcool_path": mcool,
+        "annotation_path": None,
+        "output_dir": tmp_path / "out",
+        "working_binsize": 500,
+        "tree_n_pcs": 3,
+        "tree_branch_k": 2,
+        "uniform_bins": True,
+    }
+    values.update(overrides)
+    return ClusterConfig(**values)
+
+
 def schema_items(path: Path):
     return list(pl.read_parquet(path).schema.items())
 
@@ -199,6 +213,28 @@ def test_ab_golden_schema(mcool, tmp_path) -> None:
     assert schema_items(out / "cis_leaves_ab.parquet") == CIS_LEAVES_AB_SCHEMA
     assert schema_items(out / "cis_nodes_ab.parquet") == cis_nodes_schema(True)
     assert not (out / "trans_nodes.parquet").exists()
+
+
+def test_uniform_bins_golden_schema(mcool, tmp_path) -> None:
+    config = make_uniform_config(mcool, tmp_path)
+    result = cluster(config)
+    write_outputs(result, config)
+
+    out = tmp_path / "out"
+    assert schema_items(out / "cis_leaves.parquet") == cis_leaves_schema(False)
+    assert schema_items(out / "cis_nodes.parquet") == cis_nodes_schema(False)
+
+    leaves = pl.read_parquet(out / "cis_leaves.parquet")
+    assert set(leaves["kind"].to_list()) == {"bin"}
+    assert leaves["source_row"].null_count() == leaves.height
+
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert manifest["inputs"]["annotation"] is None
+    assert manifest["params"]["uniform_bins"] is True
+    assert manifest["params"]["annotation_path"] is None
+    assert manifest["qc"]["n_bin_domains"] == 8
+    assert manifest["qc"]["n_tads"] == 0
+    assert manifest["qc"]["n_residuals"] == 0
 
 
 def test_manifest_contract(mcool, tmp_path) -> None:

@@ -86,24 +86,40 @@ class _TransRun:
 
 def cluster(config: ClusterConfig) -> ClusterResult:
     """Run cis selection, optional A/B, and optional trans clustering."""
-    assert config.annotation_path is not None
-    tads = read_tads(config.annotation_path)
     resolutions = list_resolutions(config.mcool_path)
+    tads: TadTable | None
+    if config.uniform_bins:
+        tads = None
+        lengths = None
+    else:
+        assert config.annotation_path is not None
+        tads = read_tads(config.annotation_path)
+        lengths = tads.lengths
+
     choice = choose_resolution(
         resolutions,
-        tads.lengths,
+        lengths,
         resolution=config.working_binsize,
         percentile=config.tad_size_percentile,
         min_bins_per_tad=config.min_bins_per_tad,
     )
     cooler_object = open_cooler(config.mcool_path, choice.value)
     sizes = chrom_sizes(cooler_object)
-    check_against_chromsizes(
-        tads,
-        sizes,
-        path=str(config.annotation_path),
-    )
-    chromosomes = _select_chromosomes(tads, cooler_object, config.chromosomes)
+    if config.uniform_bins:
+        chromosomes = _select_uniform_chromosomes(
+            cooler_object,
+            config.chromosomes,
+        )
+    else:
+        assert tads is not None
+        assert config.annotation_path is not None
+        check_against_chromsizes(
+            tads,
+            sizes,
+            path=str(config.annotation_path),
+        )
+        chromosomes = _select_chromosomes(tads, cooler_object, config.chromosomes)
+
     track = (
         read_signal_track(config.ab_signal_track)
         if config.ab_signal_track is not None
@@ -155,7 +171,11 @@ def cluster(config: ClusterConfig) -> ClusterResult:
         qc=_build_qc(results, trans_run, config, choice, is_ab),
         inputs={
             "mcool": str(config.mcool_path),
-            "annotation": str(config.annotation_path),
+            "annotation": (
+                str(config.annotation_path)
+                if config.annotation_path is not None
+                else None
+            ),
             "signal_track": (
                 str(config.ab_signal_track)
                 if config.ab_signal_track is not None
@@ -192,8 +212,28 @@ def _select_chromosomes(
     return list(requested)
 
 
+def _select_uniform_chromosomes(
+    cooler_object: cooler.Cooler,
+    requested: list[str] | None,
+) -> list[str]:
+    available = [str(chrom) for chrom in cooler_object.chromnames]
+    if not available:
+        raise InputError("mcool has no chromosomes")
+
+    if requested is None:
+        return available
+
+    if len(set(requested)) != len(requested):
+        raise InputError("duplicate chromosome in the requested list")
+
+    unknown = [chrom for chrom in requested if chrom not in available]
+    if unknown:
+        raise InputError(f"unknown chromosome(s): {', '.join(unknown)}")
+    return list(requested)
+
+
 def _run_cis(
-    tads: TadTable,
+    tads: TadTable | None,
     cooler_object: cooler.Cooler,
     sizes: dict[str, int],
     chromosomes: list[str],
@@ -567,6 +607,7 @@ def _build_qc(
 ) -> dict[str, Any]:
     domains = [domain for result in results for domain in result.selection.domains]
     n_tads = sum(domain.kind == "tad" for domain in domains)
+    n_bin_domains = sum(domain.kind == "bin" for domain in domains)
     n_residuals = sum(domain.kind == "residual" for domain in domains)
 
     return {
@@ -575,6 +616,7 @@ def _build_qc(
         "n_chromosomes": len(results),
         "n_domains": len(domains),
         "n_tads": n_tads,
+        "n_bin_domains": n_bin_domains,
         "n_residuals": n_residuals,
         "cis": _cis_qc(results),
         "trans": _trans_qc(trans_run, config),
@@ -592,12 +634,17 @@ def _cis_qc(results: list[_ChromosomeResult]) -> dict[str, Any]:
         n_nodes = len(nodes)
         n_leaves = sum(node.is_leaf for node in nodes)
         n_tads = sum(domain.kind == "tad" for domain in result.selection.domains)
+        n_bin_domains = sum(domain.kind == "bin" for domain in result.selection.domains)
+        n_residuals = sum(
+            domain.kind == "residual" for domain in result.selection.domains
+        )
         matrices = result.selection.matrices
         per_chromosome[result.chrom] = {
             "n_fine": result.tree.n_fine,
             "n_domains": len(result.selection.domains),
             "n_tads": n_tads,
-            "n_residuals": len(result.selection.domains) - n_tads,
+            "n_bin_domains": n_bin_domains,
+            "n_residuals": n_residuals,
             "n_nodes": n_nodes,
             "n_leaves": n_leaves,
             "max_depth": max(

@@ -18,14 +18,19 @@ from .domains import (
     map_bins_to_fine,
     select_domains,
 )
-from .matrix import canonicalize_pc1_sign, compute_fine_unit_matrices
-from .mcool import bin_centers, open_cooler
+from .matrix import (
+    FineUnitMatrices,
+    canonicalize_pc1_sign,
+    compute_fine_unit_matrices,
+)
+from .mcool import bin_centers, bin_intervals, open_cooler
 from .tads import TadTable
+from .uniform import build_uniform_tree, select_uniform_domains
 
 
 @dataclass(frozen=True)
 class ChromosomeSelection:
-    """Cis matrix, DP selection, and canonicalized PCs for one chromosome."""
+    """Cis matrix, phase-1 unit selection, and canonicalized PCs."""
 
     chrom: str
     tree: ChromosomeTree
@@ -36,7 +41,7 @@ class ChromosomeSelection:
 
 def run_cis_serial(
     config: ClusterConfig,
-    tads: TadTable,
+    tads: TadTable | None,
     sizes: dict[str, int],
     chromosomes: list[str],
     cooler_object: cooler.Cooler,
@@ -56,7 +61,7 @@ def run_cis_serial(
 
 def run_cis_parallel(
     config: ClusterConfig,
-    tads: TadTable,
+    tads: TadTable | None,
     sizes: dict[str, int],
     chromosomes: list[str],
     resolution: int,
@@ -84,7 +89,7 @@ _WORKER_LIMITER = None
 
 def _init_worker(
     config: ClusterConfig,
-    tads: TadTable,
+    tads: TadTable | None,
     sizes: dict[str, int],
     resolution: int,
 ) -> None:
@@ -100,7 +105,6 @@ def _init_worker(
 
 def _process_chromosome(chrom: str) -> ChromosomeSelection:
     assert _WORKER_CONFIG is not None
-    assert _WORKER_TADS is not None
     assert _WORKER_SIZES is not None
     assert _WORKER_COOLER is not None
     return _select_chromosome(
@@ -114,15 +118,22 @@ def _process_chromosome(chrom: str) -> ChromosomeSelection:
 
 def _select_chromosome(
     config: ClusterConfig,
-    tads: TadTable,
+    tads: TadTable | None,
     sizes: dict[str, int],
     chrom: str,
     cooler_object: cooler.Cooler,
 ) -> ChromosomeSelection:
-    tree = build_chromosome_tree(tads, chrom, sizes[chrom])
-    centers = bin_centers(cooler_object, chrom)
-    assign_bin_counts(tree, centers)
-    bin_map = map_bins_to_fine(tree, centers)
+    if config.uniform_bins:
+        starts, ends = bin_intervals(cooler_object, chrom)
+        tree = build_uniform_tree(starts, ends, chrom, sizes[chrom])
+        bin_map = np.arange(tree.n_fine, dtype=np.int64)
+    else:
+        assert tads is not None
+        tree = build_chromosome_tree(tads, chrom, sizes[chrom])
+        centers = bin_centers(cooler_object, chrom)
+        assign_bin_counts(tree, centers)
+        bin_map = map_bins_to_fine(tree, centers)
+
     fine = compute_fine_unit_matrices(
         cooler_object,
         chrom,
@@ -134,17 +145,7 @@ def _select_chromosome(
         clip_max=config.oe_clip_max,
         n_pcs=config.tree_n_pcs,
     )
-    selection = select_domains(
-        tree,
-        fine,
-        n_pcs=config.tree_n_pcs,
-        pseudocount=config.oe_pseudocount,
-        clip_min=config.oe_clip_min,
-        clip_max=config.oe_clip_max,
-        dp_lambda_scale=config.dp_lambda_scale,
-        tree_branch_k=config.tree_branch_k,
-        seed=config.seed,
-    )
+    selection = _select_units(config, tree, fine)
     pcs = canonicalize_pc1_sign(selection.matrices.pcs)
     domain_bins = np.asarray(
         [domain.n_bins for domain in selection.domains],
@@ -156,4 +157,25 @@ def _select_chromosome(
         domain_selection=selection,
         pcs=pcs,
         domain_bins=domain_bins,
+    )
+
+
+def _select_units(
+    config: ClusterConfig,
+    tree: ChromosomeTree,
+    fine: FineUnitMatrices,
+) -> DomainSelection:
+    """Dispatch phase 1: annotated domain modes or uniform mode."""
+    if config.uniform_bins:
+        return select_uniform_domains(tree, fine)
+    return select_domains(
+        tree,
+        fine,
+        n_pcs=config.tree_n_pcs,
+        pseudocount=config.oe_pseudocount,
+        clip_min=config.oe_clip_min,
+        clip_max=config.oe_clip_max,
+        dp_lambda_scale=config.dp_lambda_scale,
+        tree_branch_k=config.tree_branch_k,
+        seed=config.seed,
     )

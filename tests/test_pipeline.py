@@ -7,6 +7,7 @@ import polars as pl
 import pytest
 from conftest import write_tads, write_track
 
+import tadclust.domains as domains_module
 from tadclust.config import ClusterConfig
 from tadclust.errors import InputError, NoPositiveModeError
 from tadclust.pipeline import cluster
@@ -48,6 +49,20 @@ def make_config(mcool, tads, tmp_path, **overrides):
         "working_binsize": 500,
         "tree_n_pcs": 2,
         "tree_branch_k": 2,
+    }
+    values.update(overrides)
+    return ClusterConfig(**values)
+
+
+def make_uniform_config(mcool, tmp_path, **overrides):
+    values = {
+        "mcool_path": mcool,
+        "annotation_path": None,
+        "output_dir": tmp_path / "out",
+        "working_binsize": 500,
+        "tree_n_pcs": 2,
+        "tree_branch_k": 2,
+        "uniform_bins": True,
     }
     values.update(overrides)
     return ClusterConfig(**values)
@@ -99,6 +114,109 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
         "cis_nodes.parquet",
     ]
     assert not (tmp_path / "out").exists()
+
+
+def test_cluster_uniform_bins(mcool, tmp_path) -> None:
+    result = cluster(make_uniform_config(mcool, tmp_path))
+
+    assert result.cis_leaves.height == 8
+    assert result.cis_leaves["kind"].unique().to_list() == ["bin"]
+    assert result.cis_leaves["source_row"].null_count() == 8
+    assert result.qc["n_domains"] == 8
+    assert result.qc["n_tads"] == 0
+    assert result.qc["n_bin_domains"] == 8
+    assert result.qc["n_residuals"] == 0
+    assert result.params["uniform_bins"] is True
+    assert result.params["annotation_path"] is None
+    assert result.params["working_binsize"] == 500
+    assert result.params["working_binsize_mode"] == "explicit"
+    assert result.inputs["annotation"] is None
+    for chromosome_qc in result.qc["cis"]["per_chromosome"].values():
+        assert chromosome_qc["n_bin_domains"] == 4
+        assert chromosome_qc["dp_cut_size"] == 4
+        assert chromosome_qc["dp_objective"] == 0.0
+        assert chromosome_qc["dp_lambda"] == 0.0
+
+
+def test_uniform_bins_and_disjoint_tads_skip_dp(
+    monkeypatch,
+    mcool,
+    tmp_path,
+) -> None:
+    def fail(*args, **kwargs):
+        raise AssertionError("DP must not run")
+
+    monkeypatch.setattr(domains_module, "antichain_dp", fail)
+
+    uniform = cluster(make_uniform_config(mcool, tmp_path))
+    assert uniform.cis_leaves.height == 8
+
+    disjoint = cluster(
+        make_config(
+            mcool,
+            base_tads(tmp_path),
+            tmp_path,
+            output_dir=tmp_path / "disjoint",
+        )
+    )
+    assert disjoint.cis_leaves.height == 4
+
+
+def test_hierarchical_tads_use_dp(monkeypatch, mcool, tmp_path) -> None:
+    tads = write_tads(
+        tmp_path,
+        [
+            ("chr1", 0, 1500),
+            ("chr1", 0, 500),
+            ("chr1", 500, 1500),
+            ("chr1", 1500, 2000),
+            ("chr2", 0, 1500),
+            ("chr2", 0, 500),
+            ("chr2", 500, 1500),
+            ("chr2", 1500, 2000),
+        ],
+    )
+
+    def fail(*args, **kwargs):
+        raise AssertionError("DP must run for hierarchical annotations")
+
+    monkeypatch.setattr(domains_module, "antichain_dp", fail)
+
+    with pytest.raises(AssertionError, match="DP must run"):
+        cluster(make_config(mcool, tads, tmp_path))
+
+
+def test_cluster_uniform_bins_parallel_matches_serial(mcool, tmp_path) -> None:
+    serial = cluster(
+        make_uniform_config(
+            mcool,
+            tmp_path,
+            output_dir=tmp_path / "serial",
+        )
+    )
+    parallel = cluster(
+        make_uniform_config(
+            mcool,
+            tmp_path,
+            output_dir=tmp_path / "parallel",
+            workers=2,
+        )
+    )
+
+    columns = [
+        "domain_id",
+        "chrom",
+        "start",
+        "end",
+        "kind",
+        "source_row",
+        "n_bins",
+    ]
+    assert serial.cis_leaves.select(columns).equals(parallel.cis_leaves.select(columns))
+    assert np.allclose(
+        np.vstack(serial.cis_leaves["pcs"].to_list()),
+        np.vstack(parallel.cis_leaves["pcs"].to_list()),
+    )
 
 
 def test_cluster_with_trans(three_chrom_mcool, trans_tads, tmp_path) -> None:
