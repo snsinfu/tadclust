@@ -286,10 +286,11 @@ def total_weighted_variance(
 
     selected = values[mask]
     selected_weights = weights[mask]
-    mean = (selected * selected_weights[:, None]).sum(axis=0) / weights[mask].sum()
-    variance = ((selected - mean) ** 2 * selected_weights[:, None]).sum(
-        axis=0
-    ) / selected_weights.sum()
+    weight_sum = selected_weights.sum()
+    mean = (selected * selected_weights[:, None]).sum(axis=0) / weight_sum
+    variance = ((selected - mean) ** 2 * selected_weights[:, None]).sum(axis=0) / (
+        weight_sum
+    )
     total = np.nansum(variance)
     return total if total > 0 else 1.0
 

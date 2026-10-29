@@ -106,17 +106,18 @@ def expected_by_distance(
             raise McoolError("distance-expected O/E: no off-diagonal pixels")
         means[valid] = sums[valid] / counts[valid]
 
-        if not valid.all():
+        positive = means > 0
+        if not valid.all() and positive.any():
             bin_centers = np.sqrt(edges[:-1] * edges[1:])
             log_bin_centers = np.log(bin_centers)
-            log_means = np.log(np.maximum(means[valid], np.finfo(float).tiny))
-            means = np.exp(
-                np.interp(log_bin_centers, log_bin_centers[valid], log_means)
+            log_means = np.log(means[positive])
+            filled = np.exp(
+                np.interp(log_bin_centers, log_bin_centers[positive], log_means)
             )
+            means[~valid] = filled[~valid]
 
         expected[off_diagonal] = means[bin_index[off_diagonal]]
 
-    expected[expected <= 0] = np.finfo(float).tiny
     return expected
 
 

@@ -53,6 +53,18 @@ def test_expected_by_distance_fills_empty_bins() -> None:
     assert np.isclose(expected[2], 100.0)
 
 
+def test_expected_by_distance_does_not_floor_zero_expected() -> None:
+    expected = expected_by_distance(
+        np.array([1, 1]),
+        np.array([0.0, 0.0]),
+        10,
+        3,
+    )
+
+    assert expected.tolist() == [0.0, 0.0]
+    assert scaled_pseudocount(expected, 0.5) == 0.5
+
+
 def test_expected_by_distance_handles_diagonal_only() -> None:
     expected = expected_by_distance(
         np.array([0, 0]),
