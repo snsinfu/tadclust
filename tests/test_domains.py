@@ -334,7 +334,7 @@ def test_select_domains_disjoint_keeps_tad_rows(tmp_path) -> None:
         pseudocount=1.0,
         clip_min=-10.0,
         clip_max=10.0,
-        dp_lambda=100.0,
+        dp_lambda_scale=100.0,
         tree_branch_k=3,
         seed=0,
     )
@@ -380,7 +380,7 @@ def test_select_domains_lambda_controls_internal_nodes(tmp_path) -> None:
         pseudocount=1.0,
         clip_min=-10.0,
         clip_max=10.0,
-        dp_lambda=10.0,
+        dp_lambda_scale=10.0,
         tree_branch_k=3,
         seed=0,
     )
@@ -391,7 +391,18 @@ def test_select_domains_lambda_controls_internal_nodes(tmp_path) -> None:
         pseudocount=1.0,
         clip_min=-10.0,
         clip_max=10.0,
-        dp_lambda=0.0,
+        dp_lambda_scale=0.0,
+        tree_branch_k=3,
+        seed=0,
+    )
+    automatic = select_domains(
+        tree,
+        fine,
+        n_pcs=2,
+        pseudocount=1.0,
+        clip_min=-10.0,
+        clip_max=10.0,
+        dp_lambda_scale=1.0,
         tree_branch_k=3,
         seed=0,
     )
@@ -400,10 +411,11 @@ def test_select_domains_lambda_controls_internal_nodes(tmp_path) -> None:
     assert [domain.kind for domain in merged.domains] == ["tad", "tad"]
     assert [domain.start for domain in merged.domains] == [0, 1000]
     assert merged.cut_size == 2
-    assert merged.dp_lambda == 10.0
+    assert merged.dp_lambda == pytest.approx(10.0 * math.log(3))
     assert merged.matrices.pcs.shape == (2, 2)
 
     assert len(split.domains) == 3
     assert [domain.kind for domain in split.domains] == ["tad", "tad", "tad"]
     assert split.cut_size == 3
     assert split.dp_lambda == 0.0
+    assert automatic.dp_lambda == pytest.approx(math.log(3))

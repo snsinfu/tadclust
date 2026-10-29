@@ -470,7 +470,7 @@ def select_domains(
     pseudocount: float,
     clip_min: float,
     clip_max: float,
-    dp_lambda: float | None,
+    dp_lambda_scale: float,
     tree_branch_k: int,
     seed: int,
 ) -> DomainSelection:
@@ -488,9 +488,7 @@ def select_domains(
 
     total_variance = total_weighted_variance(fine.pcs, bins_per_fine_unit)
     lambda_value = (
-        dp_lambda
-        if dp_lambda is not None
-        else 0.5 * (tree_branch_k - 1) * math.log(max(2, n_data))
+        dp_lambda_scale * 0.5 * (tree_branch_k - 1) * math.log(max(2, n_data))
     )
     masses = {
         node_id: int(bins_per_fine_unit[node.fine_lo : node.fine_hi].sum())

@@ -30,7 +30,7 @@ class ClusterConfig:
     oe_clip_min: float = -10.0
     oe_clip_max: float = 10.0
     oe_pseudocount: float = 1.0
-    dp_lambda: float | None = None
+    dp_lambda_scale: float = 1.0
     tree_n_pcs: int = 5
     tree_branch_k: int = 3
     trans_enabled: bool = False
@@ -96,10 +96,10 @@ class ClusterConfig:
                 "oe_pseudocount must be positive",
                 field="oe_pseudocount",
             )
-        if self.dp_lambda is not None and self.dp_lambda < 0:
+        if self.dp_lambda_scale < 0:
             raise ConfigError(
-                "dp_lambda must be non-negative",
-                field="dp_lambda",
+                "dp_lambda_scale must be non-negative",
+                field="dp_lambda_scale",
             )
         if self.tree_n_pcs < 1:
             raise ConfigError(

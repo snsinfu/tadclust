@@ -31,6 +31,7 @@ def test_default_config_is_valid(tmp_path) -> None:
     config = make_config(tmp_path)
     assert config.tree_branch_k == 3
     assert config.trans_enabled is False
+    assert config.dp_lambda_scale == 1.0
     assert config.ab_split is None
 
 
@@ -38,6 +39,7 @@ def test_default_config_is_valid(tmp_path) -> None:
     "overrides",
     [
         {"oe_pseudocount": 0},
+        {"dp_lambda_scale": -1.0},
         {"oe_clip_min": 1.0, "oe_clip_max": 1.0},
         {"oe_distance_bins": 1},
         {"tree_branch_k": 1},

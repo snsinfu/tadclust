@@ -141,7 +141,7 @@ def _select_chromosome(
         pseudocount=config.oe_pseudocount,
         clip_min=config.oe_clip_min,
         clip_max=config.oe_clip_max,
-        dp_lambda=config.dp_lambda,
+        dp_lambda_scale=config.dp_lambda_scale,
         tree_branch_k=config.tree_branch_k,
         seed=config.seed,
     )

@@ -97,10 +97,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="pseudocount multiplier",
     )
     advanced.add_argument(
-        "--dp-lambda",
+        "--dp-lambda-scale",
         type=float,
-        default=None,
-        help="DP penalty; omit for the automatic value",
+        default=1.0,
+        help="DP penalty multiplier on the automatic value",
     )
     advanced.add_argument(
         "--tree-n-pcs",
@@ -148,7 +148,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             oe_clip_min=args.oe_clip_min,
             oe_clip_max=args.oe_clip_max,
             oe_pseudocount=args.oe_pseudocount,
-            dp_lambda=args.dp_lambda,
+            dp_lambda_scale=args.dp_lambda_scale,
             tree_n_pcs=args.tree_n_pcs,
             tree_branch_k=args.tree_branch_k,
             trans_enabled=args.enable_trans,
