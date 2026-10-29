@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -112,13 +113,17 @@ def _prepare_output_dir(output_dir: Path, overwrite: bool) -> None:
                 path.unlink()
 
 
+def _temporary_path(path: Path) -> Path:
+    return path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
+
+
 def _write_parquet(
     table: pl.DataFrame,
     path: Path,
     schema: Schema,
 ) -> Path:
     frame = table.select([pl.col(name).cast(dtype) for name, dtype in schema.items()])
-    temporary = path.with_name(path.name + ".tmp")
+    temporary = _temporary_path(path)
     try:
         frame.write_parquet(temporary)
         os.replace(temporary, path)
@@ -129,7 +134,7 @@ def _write_parquet(
 
 
 def _write_json(payload: dict, path: Path) -> None:
-    temporary = path.with_name(path.name + ".tmp")
+    temporary = _temporary_path(path)
     try:
         temporary.write_text(
             json.dumps(payload, indent=2) + "\n",

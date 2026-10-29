@@ -11,7 +11,7 @@ import tadclust
 from tadclust.config import ClusterConfig
 from tadclust.errors import OutputError
 from tadclust.pipeline import cluster
-from tadclust.writer import SCHEMA_VERSION, write_outputs
+from tadclust.writer import SCHEMA_VERSION, _temporary_path, write_outputs
 
 from conftest import write_tads, write_track
 
@@ -55,6 +55,19 @@ def make_config(mcool, tads, tmp_path, **overrides):
     }
     values.update(overrides)
     return ClusterConfig(**values)
+
+
+def test_temporary_paths_are_unique(tmp_path) -> None:
+    target = tmp_path / "cis_leaves.parquet"
+
+    first = _temporary_path(target)
+    second = _temporary_path(target)
+
+    assert first != second
+    assert first.parent == target.parent
+    assert second.parent == target.parent
+    assert first.name.endswith(".tmp")
+    assert second.name.endswith(".tmp")
 
 
 def test_write_cis_only_outputs(mcool, tmp_path) -> None:
