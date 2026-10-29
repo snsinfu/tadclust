@@ -106,6 +106,40 @@ def test_build_tree_hierarchy_and_gaps(tmp_path) -> None:
     assert not is_disjoint(tree)
 
 
+def test_whole_chromosome_row_is_root_metadata(tmp_path) -> None:
+    tree = make_tree(
+        tmp_path,
+        [
+            ("chr1", 0, 2000),
+            ("chr1", 0, 1000),
+            ("chr1", 1000, 2000),
+        ],
+    )
+
+    root = tree.nodes[tree.root_id]
+    assert [tree.nodes[child].source_row for child in root.children] == [1, 2]
+    assert {
+        node.source_row for node in tree.nodes.values() if node.node_id != tree.root_id
+    } == {1, 2}
+    assert [(fine.start, fine.end, fine.is_tad) for fine in tree.fine_units] == [
+        (0, 1000, True),
+        (1000, 2000, True),
+    ]
+
+
+def test_whole_chromosome_only_becomes_residual(tmp_path) -> None:
+    tree = make_tree(tmp_path, [("chr1", 0, 2000)])
+
+    assert tree.n_fine == 1
+    fine = tree.fine_units[0]
+    assert (fine.start, fine.end, fine.is_tad) == (0, 2000, False)
+
+    domains, _, _ = selected_domains(tree, [])
+    assert [(domain.kind, domain.start, domain.end) for domain in domains] == [
+        ("residual", 0, 2000)
+    ]
+
+
 def test_disjoint_tree(tmp_path) -> None:
     tree = make_tree(
         tmp_path,

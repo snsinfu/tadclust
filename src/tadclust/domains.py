@@ -104,6 +104,11 @@ def build_chromosome_tree(
     if table.height == 0:
         raise InputError(f"{chrom}: no TAD rows")
 
+    # A whole-chromosome annotation row is the level-0 root, not a selectable
+    # TAD. The synthetic root below already represents that interval.
+    whole_chromosome = (pl.col("start") == 0) & (pl.col("end") == chromsize)
+    table = table.filter(~whole_chromosome)
+
     root = DomainNode(
         node_id=0,
         chrom=chrom,
@@ -172,7 +177,7 @@ def build_chromosome_tree(
                     start=node.start,
                     end=node.end,
                     owner_node_id=node_id,
-                    is_tad=True,
+                    is_tad=node_id != root.node_id,
                 )
             )
         else:
