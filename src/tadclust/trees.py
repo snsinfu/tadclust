@@ -319,36 +319,6 @@ def _leaf_lookup(
     return leaf_of_domain
 
 
-def single_node_tree(
-    n_domains: int,
-    domain_bins: np.ndarray,
-    root_label: str = "root",
-) -> BranchingTree:
-    """Build a one-node tree, used when PCs have no positive mode."""
-    if n_domains < 1:
-        raise ComputationError("cannot build a tree from an empty domain set")
-
-    bins = np.asarray(domain_bins, dtype=np.int64)
-    if bins.shape[0] != n_domains:
-        raise ComputationError(
-            "domain count and domain bin counts have different lengths"
-        )
-
-    root = TreeNode(
-        node_id=0,
-        parent_id=None,
-        domain_indices=np.arange(n_domains, dtype=np.int64),
-        n_bins=int(bins.sum()),
-        centroid=np.zeros(0, dtype=np.float64),
-        path=[],
-    )
-    return BranchingTree(
-        nodes=[root],
-        root_id=root.node_id,
-        root_label=root_label,
-    )
-
-
 def build_cis_forest(
     chrom: str,
     pcs: np.ndarray,

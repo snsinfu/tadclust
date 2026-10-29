@@ -166,12 +166,13 @@ def test_cis_only_golden_schema(mcool, tmp_path) -> None:
     assert not (out / "trans_nodes.parquet").exists()
 
 
-def test_trans_golden_schema(mcool, tmp_path) -> None:
+def test_trans_golden_schema(three_chrom_mcool, trans_tads, tmp_path) -> None:
     config = make_config(
-        mcool,
-        base_tads(tmp_path),
+        three_chrom_mcool,
+        trans_tads,
         tmp_path,
         trans_enabled=True,
+        trans_null="grand",
     )
     result = cluster(config)
     write_outputs(result, config)

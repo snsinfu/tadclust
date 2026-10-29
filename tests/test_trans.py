@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from tadclust.domains import SelectedDomain
-from tadclust.errors import ComputationError, McoolError
+from tadclust.errors import ComputationError, McoolError, NoPositiveModeError
 from tadclust.mcool import open_cooler
 from tadclust.trans import (
     PairInfo,
@@ -153,7 +153,6 @@ def test_trans_single_chromosome_has_no_pairs(mcool) -> None:
         branch_k=3,
         seed=0,
     )
-    assert not result.single_node
     assert result.pcs.shape == (1, 2)
     assert len(result.tree.nodes) == 1
 
@@ -180,7 +179,6 @@ def test_build_trans_tree_positive(three_chrom_mcool) -> None:
         seed=0,
     )
 
-    assert not result.single_node
     assert result.pcs.shape == (3, 2)
     assert result.eigenvalues.shape == (2,)
     assert result.tree.nodes[result.tree.root_id].domain_indices.tolist() == [
@@ -190,7 +188,7 @@ def test_build_trans_tree_positive(three_chrom_mcool) -> None:
     ]
 
 
-def test_trans_no_positive_mode_falls_back(three_chrom_mcool) -> None:
+def test_trans_no_positive_mode_raises(three_chrom_mcool) -> None:
     cooler_object = open_cooler(three_chrom_mcool, 500)
     inputs = one_domain_inputs(("chr1", "chr2", "chr3"))
     trans = trans_matrix(
@@ -204,18 +202,14 @@ def test_trans_no_positive_mode_falls_back(three_chrom_mcool) -> None:
         null="pair",
     )
 
-    result = build_trans_tree(
-        trans,
-        np.array([4, 4, 4], dtype=np.int64),
-        n_pcs=2,
-        branch_k=2,
-        seed=0,
-    )
-
-    assert result.single_node
-    assert result.pcs.shape == (3, 0)
-    assert result.eigenvalues.shape == (1,)
-    assert len(result.tree.nodes) == 1
+    with pytest.raises(NoPositiveModeError):
+        build_trans_tree(
+            trans,
+            np.array([4, 4, 4], dtype=np.int64),
+            n_pcs=2,
+            branch_k=2,
+            seed=0,
+        )
 
 
 def test_trans_chunking_matches(monkeypatch, three_chrom_mcool) -> None:

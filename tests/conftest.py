@@ -102,6 +102,28 @@ def three_chrom_mcool(tmp_path):
     )
 
 
+@pytest.fixture
+def trans_tads(tmp_path):
+    rows = []
+    for chrom in ("chr1", "chr2", "chr3"):
+        rows.extend(
+            [
+                (chrom, 0, 1000),
+                (chrom, 1000, 2000),
+            ]
+        )
+    return write_tads(tmp_path, rows, name="trans_tads.tsv")
+
+
+@pytest.fixture
+def trans_track(tmp_path):
+    rows = []
+    for chrom in ("chr1", "chr2", "chr3"):
+        for index, value in enumerate((1.0, 2.0, 3.0, 4.0)):
+            rows.append((chrom, index * 500, (index + 1) * 500, value))
+    return write_track(tmp_path, rows, name="trans_track.bedGraph")
+
+
 def write_tads(tmp_path, rows, name="tads.tsv"):
     path = tmp_path / name
     lines = ["chrom\tstart\tend"]

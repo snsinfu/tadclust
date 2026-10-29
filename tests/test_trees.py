@@ -11,7 +11,6 @@ from tadclust.trees import (
     build_branching_tree,
     build_cis_forest,
     format_path_label,
-    single_node_tree,
 )
 
 
@@ -217,18 +216,6 @@ def test_degenerate_split_stops(monkeypatch) -> None:
     assert root.is_leaf
     assert root.stop_reason == "degenerate"
     assert root.domain_indices.tolist() == [0, 1, 2, 3]
-
-
-def test_single_node_tree() -> None:
-    tree = single_node_tree(3, np.array([1, 2, 3]))
-
-    root = tree.nodes[tree.root_id]
-    assert root.is_leaf
-    assert root.domain_indices.tolist() == [0, 1, 2]
-    assert root.n_bins == 6
-    assert root.sse == 0.0
-    assert format_path_label(tree.root_label, root.path) == "root"
-    assert len(tree.nodes) == 1
 
 
 def test_build_cis_forest_groups_and_offsets() -> None:

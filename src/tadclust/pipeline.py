@@ -723,7 +723,6 @@ def _trans_qc(
         "n_nodes": len(nodes),
         "n_leaves": sum(node.is_leaf for node in nodes),
         "max_depth": max((node.depth for node in nodes), default=0),
-        "single_node": tree_result.single_node,
     }
 
 

@@ -143,16 +143,20 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     assert "ab_label" not in nodes.columns
 
 
-def test_write_ab_and_trans_outputs(mcool, tmp_path) -> None:
-    tads = ab_tads(tmp_path)
-    track = ab_track(tmp_path)
+def test_write_ab_and_trans_outputs(
+    three_chrom_mcool,
+    trans_tads,
+    trans_track,
+    tmp_path,
+) -> None:
     config = make_config(
-        mcool,
-        tads,
+        three_chrom_mcool,
+        trans_tads,
         tmp_path,
-        ab_signal_track=track,
+        ab_signal_track=trans_track,
         ab_split="kmeans2",
         trans_enabled=True,
+        trans_null="grand",
     )
     result = cluster(config)
 
@@ -199,14 +203,20 @@ def test_nonempty_output_dir_requires_overwrite(mcool, tmp_path) -> None:
     assert unrelated.read_text() == "keep"
 
 
-def test_overwrite_removes_stale_optional_tables(mcool, tmp_path) -> None:
+def test_overwrite_removes_stale_optional_tables(
+    three_chrom_mcool,
+    trans_tads,
+    trans_track,
+    tmp_path,
+) -> None:
     ab_config = make_config(
-        mcool,
-        ab_tads(tmp_path),
+        three_chrom_mcool,
+        trans_tads,
         tmp_path,
-        ab_signal_track=ab_track(tmp_path),
+        ab_signal_track=trans_track,
         ab_split="kmeans2",
         trans_enabled=True,
+        trans_null="grand",
     )
     write_outputs(cluster(ab_config), ab_config)
     out = tmp_path / "out"
@@ -214,7 +224,7 @@ def test_overwrite_removes_stale_optional_tables(mcool, tmp_path) -> None:
     assert (out / "cis_nodes_ab.parquet").exists()
     assert (out / "trans_nodes.parquet").exists()
 
-    config = make_config(mcool, base_tads(tmp_path), tmp_path)
+    config = make_config(three_chrom_mcool, base_tads(tmp_path), tmp_path)
     result = cluster(config)
     write_outputs(result, config, overwrite=True)
 

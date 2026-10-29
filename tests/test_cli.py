@@ -74,9 +74,15 @@ def test_cli_cis_run(mcool, tmp_path) -> None:
     assert not (out / "trans_nodes.parquet").exists()
 
 
-def test_cli_trans_run(mcool, tmp_path) -> None:
-    tads = base_tads(tmp_path)
-    args = cli_args(mcool, tads, tmp_path, "--enable-trans")
+def test_cli_trans_run(three_chrom_mcool, trans_tads, tmp_path) -> None:
+    args = cli_args(
+        three_chrom_mcool,
+        trans_tads,
+        tmp_path,
+        "--enable-trans",
+        "--trans-null",
+        "grand",
+    )
 
     main(args)
 
@@ -135,9 +141,17 @@ def test_cli_invalid_config_returns_error(mcool, tmp_path) -> None:
     assert "pseudocount" in str(info.value)
 
 
-def test_cli_parallel_workers(mcool, tmp_path) -> None:
-    tads = base_tads(tmp_path)
-    args = cli_args(mcool, tads, tmp_path, "--workers", "2", "--enable-trans")
+def test_cli_parallel_workers(three_chrom_mcool, trans_tads, tmp_path) -> None:
+    args = cli_args(
+        three_chrom_mcool,
+        trans_tads,
+        tmp_path,
+        "--workers",
+        "2",
+        "--enable-trans",
+        "--trans-null",
+        "grand",
+    )
 
     main(args)
     assert (tmp_path / "out" / "cis_leaves.parquet").exists()

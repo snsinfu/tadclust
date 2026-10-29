@@ -7,7 +7,7 @@ import polars as pl
 import pytest
 
 from tadclust.config import ClusterConfig
-from tadclust.errors import InputError
+from tadclust.errors import InputError, NoPositiveModeError
 from tadclust.pipeline import cluster
 
 from conftest import write_tads, write_track
@@ -102,15 +102,14 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert not (tmp_path / "out").exists()
 
 
-def test_cluster_with_trans(mcool, tmp_path) -> None:
-    tads = base_tads(tmp_path)
+def test_cluster_with_trans(three_chrom_mcool, trans_tads, tmp_path) -> None:
     result = cluster(
         make_config(
-            mcool,
-            tads,
+            three_chrom_mcool,
+            trans_tads,
             tmp_path,
             trans_enabled=True,
-            trans_null="pair",
+            trans_null="grand",
         )
     )
 
@@ -122,14 +121,28 @@ def test_cluster_with_trans(mcool, tmp_path) -> None:
     assert {"chroms", "chrom_domain_counts"}.issubset(result.trans_nodes.columns)
     assert result.qc["trans"]["enabled"] is True
     assert result.qc["trans"]["skipped"] is None
-    assert result.qc["trans"]["n_domains"] == 4
+    assert result.qc["trans"]["n_domains"] == 6
 
     root = result.trans_nodes.filter(result.trans_nodes["node_id"] == 0).row(
         0, named=True
     )
-    assert root["chroms"] == ["chr1", "chr2"]
-    assert sum(root["chrom_domain_counts"]) == 4
+    assert root["chroms"] == ["chr1", "chr2", "chr3"]
+    assert sum(root["chrom_domain_counts"]) == 6
     assert result.output_files[-1] == "trans_nodes.parquet"
+
+
+def test_cluster_trans_no_positive_mode_raises(mcool, tmp_path) -> None:
+    tads = base_tads(tmp_path)
+
+    with pytest.raises(NoPositiveModeError):
+        cluster(
+            make_config(
+                mcool,
+                tads,
+                tmp_path,
+                trans_enabled=True,
+            )
+        )
 
 
 def test_cluster_with_ab(mcool, tmp_path) -> None:

@@ -13,7 +13,7 @@ from threadpoolctl import threadpool_limits
 
 from .config import TRANS_NULL_CHOICES
 from .domains import SelectedDomain
-from .errors import ComputationError, McoolError, NoPositiveModeError
+from .errors import ComputationError, McoolError
 from .matrix import (
     canonicalize_pc1_sign,
     log2_ratio,
@@ -22,7 +22,6 @@ from .matrix import (
 from .trees import (
     BranchingTree,
     build_branching_tree,
-    single_node_tree,
 )
 
 CHUNK_ROWS = 10_000_000
@@ -128,7 +127,6 @@ class TransTreeResult:
     eigenvalues: np.ndarray
     variance_fraction: np.ndarray
     tree: BranchingTree
-    single_node: bool
 
 
 def trans_matrix(
@@ -402,7 +400,7 @@ def build_trans_tree(
     branch_k: int,
     seed: int,
 ) -> TransTreeResult:
-    """Compute trans PCs and build the trans tree, with a one-node fallback."""
+    """Compute trans PCs and build the trans tree."""
     bins = np.asarray(domain_bins, dtype=np.int64)
     n_domains = trans.log_oe.shape[0]
     if bins.shape[0] != n_domains:
@@ -410,20 +408,11 @@ def build_trans_tree(
             "trans matrix and domain bin counts have different lengths"
         )
 
-    try:
-        pcs, eigenvalues, fractions = pcs_from_log_oe(
-            trans.log_oe,
-            n_pcs,
-            label="trans",
-        )
-    except NoPositiveModeError:
-        return TransTreeResult(
-            pcs=np.zeros((n_domains, 0), dtype=np.float64),
-            eigenvalues=np.zeros(1, dtype=np.float64),
-            variance_fraction=np.zeros(1, dtype=np.float64),
-            tree=single_node_tree(n_domains, bins),
-            single_node=True,
-        )
+    pcs, eigenvalues, fractions = pcs_from_log_oe(
+        trans.log_oe,
+        n_pcs,
+        label="trans",
+    )
 
     pcs = canonicalize_pc1_sign(pcs)
     tree = build_branching_tree(
@@ -438,7 +427,6 @@ def build_trans_tree(
         eigenvalues=eigenvalues,
         variance_fraction=fractions,
         tree=tree,
-        single_node=False,
     )
 
 
