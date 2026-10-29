@@ -91,8 +91,11 @@ def chrom_sizes(clr: cooler.Cooler) -> dict[str, int]:
     return {str(chrom): int(size) for chrom, size in clr.chromsizes.items()}
 
 
-def bin_centers(clr: cooler.Cooler, chrom: str) -> np.ndarray:
-    """Return working-resolution bin centers for one chromosome."""
+def bin_intervals(
+    clr: cooler.Cooler,
+    chrom: str,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return working-resolution bin starts and ends for one chromosome."""
     bins = clr.bins().fetch(chrom)
     if bins.empty:
         raise McoolError(
@@ -102,13 +105,19 @@ def bin_centers(clr: cooler.Cooler, chrom: str) -> np.ndarray:
 
     starts = np.asarray(bins["start"], dtype=np.int64)
     ends = np.asarray(bins["end"], dtype=np.int64)
+    return starts, ends
+
+
+def bin_centers(clr: cooler.Cooler, chrom: str) -> np.ndarray:
+    """Return working-resolution bin centers for one chromosome."""
+    starts, ends = bin_intervals(clr, chrom)
     centers = (starts + ends) / 2.0
     return np.sort(centers.astype(np.float64))
 
 
 def choose_resolution(
     available: Sequence[int],
-    lengths: Sequence[int] | np.ndarray,
+    lengths: Sequence[int] | np.ndarray | None = None,
     *,
     resolution: int | None = None,
     percentile: float = 10.0,
@@ -118,7 +127,8 @@ def choose_resolution(
 
     Adaptive selection uses the largest available resolution at or below
     percentile(TAD length) / min_bins_per_tad, or the smallest available
-    resolution when none qualifies.
+    resolution when none qualifies. TAD lengths are not needed when an
+    explicit resolution is supplied.
     """
     resolutions = sorted(int(value) for value in available)
     if not resolutions:
@@ -131,6 +141,9 @@ def choose_resolution(
                 resolution=resolution,
             )
         return ResolutionChoice(value=resolution, mode="explicit")
+
+    if lengths is None:
+        raise McoolError("adaptive resolution requires TAD lengths")
 
     size_array = np.asarray(lengths, dtype=np.float64)
     if size_array.size == 0:
