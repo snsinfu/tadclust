@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Any
 
 import numpy as np
 import polars as pl
@@ -80,7 +79,7 @@ class DomainSelection:
     tree: ChromosomeTree
     domains: list[SelectedDomain]
     fine_to_domain: np.ndarray
-    domain_map: Any
+    domain_map: sparse.csr_array | sparse.csr_matrix
     matrices: DomainMatrices
     cut: list[int]
     cut_size: int
@@ -393,7 +392,7 @@ def antichain_dp(
 def selected_domains(
     tree: ChromosomeTree,
     cut: list[int],
-) -> tuple[list[SelectedDomain], np.ndarray, Any]:
+) -> tuple[list[SelectedDomain], np.ndarray, sparse.csr_array | sparse.csr_matrix]:
     """Turn a TAD antichain plus uncovered fine units into a partition."""
     n_fine = tree.n_fine
     covered = np.zeros(n_fine, dtype=bool)

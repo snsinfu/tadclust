@@ -272,7 +272,7 @@ def test_trans_matrix_has_no_dense_domain_limit(tmp_path) -> None:
         trans_matrix(
             tmp_path / "missing.mcool",
             500,
-            None,
+            None,  # pyright: ignore[reportArgumentType]
             inputs,
             pseudocount=1.0,
             clip_min=-10.0,

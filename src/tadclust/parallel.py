@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import multiprocessing as mp
 from dataclasses import dataclass
-from typing import Any
 
+import cooler
 import numpy as np
 from threadpoolctl import threadpool_limits
 
@@ -39,7 +39,7 @@ def run_cis_serial(
     tads: TadTable,
     sizes: dict[str, int],
     chromosomes: list[str],
-    cooler_object: Any,
+    cooler_object: cooler.Cooler,
 ) -> list[ChromosomeSelection]:
     """Select domains for each chromosome in the current process."""
     return [
@@ -117,7 +117,7 @@ def _select_chromosome(
     tads: TadTable,
     sizes: dict[str, int],
     chrom: str,
-    cooler_object: Any,
+    cooler_object: cooler.Cooler,
 ) -> ChromosomeSelection:
     tree = build_chromosome_tree(tads, chrom, sizes[chrom])
     centers = bin_centers(cooler_object, chrom)

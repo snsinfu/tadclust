@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
+import cooler
 import numpy as np
 from scipy import linalg, sparse
 from scipy.sparse import linalg as sparse_linalg
@@ -304,7 +304,7 @@ def orient_pc1_to_signal(
 
 
 def compute_fine_unit_matrices(
-    cooler_object: Any,
+    cooler_object: cooler.Cooler,
     chrom: str,
     bin_to_fine_unit: np.ndarray,
     n_fine: int,
@@ -438,7 +438,7 @@ def compute_fine_unit_matrices(
 
 
 def compute_domain_matrices(
-    domain_map: Any,
+    domain_map: sparse.csr_array | sparse.csr_matrix | np.ndarray,
     observed_fine: np.ndarray,
     expected_fine: np.ndarray,
     *,

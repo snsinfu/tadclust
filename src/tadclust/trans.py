@@ -5,8 +5,9 @@ from __future__ import annotations
 import multiprocessing as mp
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NamedTuple, Sequence
+from typing import NamedTuple, Sequence
 
+import cooler
 import h5py
 import numpy as np
 from threadpoolctl import threadpool_limits
@@ -133,7 +134,7 @@ class TransTreeResult:
 def trans_matrix(
     mcool_path: str | Path,
     resolution: int,
-    cooler_object: Any,
+    cooler_object: cooler.Cooler,
     inputs: Sequence[TransInput],
     *,
     pseudocount: float,
@@ -305,7 +306,7 @@ def trans_matrix(
 
 
 def build_pixel_map(
-    cooler_object: Any,
+    cooler_object: cooler.Cooler,
     group: h5py.Group,
     inputs: Sequence[TransInput],
 ) -> PixelMap:
@@ -342,8 +343,8 @@ def build_pixel_map(
         end_bin = int(chrom_offset[chromosome + 1])
         chromosome_bins = cooler_object.bins().fetch(item.chrom)
         centers = (
-            chromosome_bins["start"].to_numpy(dtype=np.int64)
-            + chromosome_bins["end"].to_numpy(dtype=np.int64)
+            np.asarray(chromosome_bins["start"], dtype=np.int64)
+            + np.asarray(chromosome_bins["end"], dtype=np.int64)
         ) / 2.0
         if centers.size != end_bin - start_bin:
             raise ComputationError(

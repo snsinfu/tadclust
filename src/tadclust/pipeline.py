@@ -6,6 +6,7 @@ from collections import Counter
 from dataclasses import dataclass, fields
 from typing import Any
 
+import cooler
 import numpy as np
 import polars as pl
 
@@ -166,7 +167,7 @@ def cluster(config: ClusterConfig) -> ClusterResult:
 
 def _select_chromosomes(
     tads: TadTable,
-    cooler_object: Any,
+    cooler_object: cooler.Cooler,
     requested: list[str] | None,
 ) -> list[str]:
     available = [str(chrom) for chrom in cooler_object.chromnames]
@@ -192,7 +193,7 @@ def _select_chromosomes(
 
 def _run_cis(
     tads: TadTable,
-    cooler_object: Any,
+    cooler_object: cooler.Cooler,
     sizes: dict[str, int],
     chromosomes: list[str],
     config: ClusterConfig,
@@ -309,7 +310,7 @@ def _build_cis_results(
 def _run_trans(
     config: ClusterConfig,
     choice: ResolutionChoice,
-    cooler_object: Any,
+    cooler_object: cooler.Cooler,
     results: list[_ChromosomeResult],
 ) -> _TransRun | None:
     if not config.trans_enabled or len(results) < 2:

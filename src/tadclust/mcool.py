@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
 
 import cooler
 import h5py
@@ -63,7 +63,7 @@ def list_resolutions(path: str | Path) -> list[int]:
     return resolutions
 
 
-def open_cooler(path: str | Path, resolution: int) -> Any:
+def open_cooler(path: str | Path, resolution: int) -> cooler.Cooler:
     """Open one resolution of an mcool file and require balancing weights."""
     source = Path(path)
     uri = f"{source}::/resolutions/{resolution}"
@@ -86,12 +86,12 @@ def open_cooler(path: str | Path, resolution: int) -> Any:
     return clr
 
 
-def chrom_sizes(clr: Any) -> dict[str, int]:
+def chrom_sizes(clr: cooler.Cooler) -> dict[str, int]:
     """Return chromosome sizes in mcool order."""
     return {str(chrom): int(size) for chrom, size in clr.chromsizes.items()}
 
 
-def bin_centers(clr: Any, chrom: str) -> np.ndarray:
+def bin_centers(clr: cooler.Cooler, chrom: str) -> np.ndarray:
     """Return working-resolution bin centers for one chromosome."""
     bins = clr.bins().fetch(chrom)
     if bins.empty:
@@ -100,8 +100,8 @@ def bin_centers(clr: Any, chrom: str) -> np.ndarray:
             path=str(clr.filename),
         )
 
-    starts = bins["start"].to_numpy(dtype=np.int64)
-    ends = bins["end"].to_numpy(dtype=np.int64)
+    starts = np.asarray(bins["start"], dtype=np.int64)
+    ends = np.asarray(bins["end"], dtype=np.int64)
     centers = (starts + ends) / 2.0
     return np.sort(centers.astype(np.float64))
 
