@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import h5py
 import numpy as np
 import pandas as pd
@@ -16,6 +18,9 @@ def write_mcool(
     chrom_size: int = 2000,
     with_weight: bool = True,
     cross_counts: dict[tuple[str, str], int] | None = None,
+    cross_count_fn: Callable[[int, int], float] | None = None,
+    empty_bins: set[int] | None = None,
+    omit_cross_pairs: set[tuple[str, str]] | None = None,
 ):
     import cooler
 
@@ -36,11 +41,18 @@ def write_mcool(
     pixels = []
     for i in range(len(bins_table)):
         for j in range(i, len(bins_table)):
+            if empty_bins and (i in empty_bins or j in empty_bins):
+                continue
             if i == j:
                 count = 100
             elif bins_table.chrom[i] != bins_table.chrom[j]:
                 key = tuple(sorted((bins_table.chrom[i], bins_table.chrom[j])))
-                count = (cross_counts or {}).get(key, 5)
+                if omit_cross_pairs and key in omit_cross_pairs:
+                    continue
+                if cross_count_fn is not None:
+                    count = cross_count_fn(i, j)
+                else:
+                    count = (cross_counts or {}).get(key, 5)
             elif i // 2 == j // 2:
                 count = 30
             else:

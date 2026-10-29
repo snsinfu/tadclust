@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import polars as pl
 import pytest
-from conftest import write_tads, write_track
+from conftest import write_mcool, write_tads, write_track
 
 import tadclust.domains as domains_module
 from tadclust.config import ClusterConfig
@@ -455,3 +455,95 @@ def test_cluster_parallel_matches_serial(mcool, tmp_path) -> None:
     assert serial.cis_nodes.select(node_columns).equals(
         parallel.cis_nodes.select(node_columns)
     )
+
+
+def test_zero_contact_cis_domain_is_unclustered(tmp_path) -> None:
+    mcool = write_mcool(
+        tmp_path,
+        resolutions=(500,),
+        chroms=("chr1",),
+        chrom_size=3000,
+        empty_bins={0, 1},
+    )
+    result = cluster(make_uniform_config(mcool, tmp_path))
+
+    leaves = result.cis_leaves.sort("start")
+    unclustered = leaves.filter(pl.col("start") < 1000)
+    clustered = leaves.filter(pl.col("start") >= 1000)
+    assert unclustered["path"].to_list() == [None, None]
+    assert unclustered["path_label"].to_list() == [None, None]
+    assert unclustered["root_label"].to_list() == [None, None]
+    assert unclustered["depth"].to_list() == [None, None]
+    assert clustered["path"].null_count() == 0
+    assert result.qc["cis"]["n_unclustered"] == 2
+    assert result.qc["cis"]["per_chromosome"]["chr1"]["n_unclustered"] == 2
+
+
+def test_zero_contact_ab_domain_is_unclustered(tmp_path) -> None:
+    mcool = write_mcool(
+        tmp_path,
+        resolutions=(500,),
+        chroms=("chr1",),
+        chrom_size=3000,
+        empty_bins={0, 1},
+    )
+    track = write_track(
+        tmp_path,
+        [
+            ("chr1", index * 500, (index + 1) * 500, float(index + 1))
+            for index in range(6)
+        ],
+    )
+
+    result = cluster(make_uniform_config(mcool, tmp_path, ab_signal_track=track))
+
+    assert result.cis_leaves_ab is not None
+    leaves = result.cis_leaves_ab.sort("start")
+    unclustered = leaves.filter(pl.col("start") < 1000)
+    clustered = leaves.filter(pl.col("start") >= 1000)
+    assert unclustered["path"].to_list() == [None, None]
+    assert unclustered["path_label"].to_list() == [None, None]
+    assert unclustered["ab_label"].to_list() == [None, None]
+    assert unclustered["ab_score"].to_list() == [None, None]
+    assert clustered["path"].null_count() == 0
+    assert result.qc["ab"]["n_unclustered"] == 2
+
+
+def test_zero_contact_trans_domains_are_unclustered(tmp_path) -> None:
+    mcool = write_mcool(
+        tmp_path,
+        resolutions=(500,),
+        chroms=("chr1", "chr2", "chr3"),
+        cross_count_fn=lambda i, j: 5 + i + j,
+        omit_cross_pairs={("chr1", "chr3"), ("chr2", "chr3")},
+    )
+    tads = write_tads(
+        tmp_path,
+        [
+            (chrom, start, start + 1000)
+            for chrom in ("chr1", "chr2", "chr3")
+            for start in (0, 1000)
+        ],
+    )
+
+    result = cluster(
+        make_config(
+            mcool,
+            tads,
+            tmp_path,
+            trans_enabled=True,
+        )
+    )
+
+    chr3 = result.cis_leaves.filter(pl.col("chrom") == "chr3")
+    assert chr3["trans_path"].to_list() == [None, None]
+    assert chr3["trans_path_label"].to_list() == [None, None]
+    other = result.cis_leaves.filter(pl.col("chrom") != "chr3")
+    assert other["trans_path"].null_count() == 0
+    assert result.trans_nodes is not None
+    trans_chroms = {
+        chrom for chroms in result.trans_nodes["chroms"].to_list() for chrom in chroms
+    }
+    assert trans_chroms == {"chr1", "chr2"}
+    assert result.qc["trans"]["n_clustered"] == 4
+    assert result.qc["trans"]["n_unclustered"] == 2

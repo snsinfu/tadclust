@@ -10,6 +10,7 @@ import cooler
 import numpy as np
 import polars as pl
 
+from .clustering import informative_mask
 from .config import ClusterConfig
 from .domains import ChromosomeTree, DomainSelection
 from .errors import ComputationError
@@ -76,6 +77,7 @@ class _ChromosomeResult:
     annotation: AbAnnotation | None
     ab_forest: CisForest | None
     n_uncovered: int
+    clusterable: np.ndarray
 
 
 @dataclass(frozen=True)
@@ -236,6 +238,7 @@ def _build_cis_results(
 
         if track is None:
             pcs = base_pcs
+            clusterable = informative_mask(pcs, config.tree_n_pcs)
         else:
             values = overlap_weighted_values(
                 track,
@@ -244,6 +247,7 @@ def _build_cis_results(
             )
             rank, n_uncovered = fill_and_rank(values, selection.chrom)
             pcs = orient_pc1_to_signal(base_pcs, rank)
+            clusterable = informative_mask(pcs, config.tree_n_pcs)
             features = ab_feature_matrix(pcs, rank, config.tree_n_pcs)
             annotation = annotate_ab(
                 features,
@@ -251,6 +255,7 @@ def _build_cis_results(
                 len(selection.domain_selection.domains),
                 ab_split,
                 config.seed,
+                clusterable=clusterable,
             )
 
         forest = build_cis_forest(
@@ -261,6 +266,7 @@ def _build_cis_results(
             branch_k=config.tree_branch_k,
             seed=config.seed,
             node_base=cis_node_base,
+            clusterable=clusterable,
         )
         cis_node_base += sum(len(tree_.nodes) for tree_ in forest.trees)
 
@@ -280,6 +286,7 @@ def _build_cis_results(
                 branch_k=config.tree_branch_k,
                 seed=config.seed,
                 node_base=ab_node_base,
+                clusterable=clusterable,
             )
             ab_node_base += sum(len(tree_.nodes) for tree_ in ab_forest.trees)
             annotate_cis_forest(
@@ -299,6 +306,7 @@ def _build_cis_results(
                 annotation=annotation,
                 ab_forest=ab_forest,
                 n_uncovered=n_uncovered,
+                clusterable=clusterable,
             )
         )
 
@@ -351,6 +359,7 @@ def _cis_leaf_rows(
         _tree_leaf_info(
             trans_run.tree_result.tree,
             trans_run.matrix.log_oe.shape[0],
+            trans_run.tree_result.domain_indices,
         )
         if trans_run is not None
         else None
@@ -362,7 +371,12 @@ def _cis_leaf_rows(
         leaf_info = _forest_leaf_info(result.forest)
         matrices = result.selection.matrices
         for local_index, domain in enumerate(result.selection.domains):
-            root_label, path, depth = leaf_info[local_index]
+            leaf = leaf_info.get(local_index)
+            if leaf is None:
+                root_label = path = path_label = depth = None
+            else:
+                root_label, path, depth = leaf
+                path_label = format_path_label(root_label, path)
             row: dict[str, Any] = {
                 "domain_id": global_id,
                 "chrom": result.chrom,
@@ -378,18 +392,25 @@ def _cis_leaf_rows(
                 ],
                 "root_label": root_label,
                 "path": path,
-                "path_label": format_path_label(root_label, path),
+                "path_label": path_label,
                 "depth": depth,
             }
             if trans_leaf is not None:
-                trans_root, trans_path, trans_depth = trans_leaf[global_id]
-                row["trans_root_label"] = trans_root
-                row["trans_path"] = trans_path
-                row["trans_path_label"] = format_path_label(
-                    trans_root,
-                    trans_path,
-                )
-                row["trans_depth"] = trans_depth
+                trans = trans_leaf.get(global_id)
+                if trans is None:
+                    row["trans_root_label"] = None
+                    row["trans_path"] = None
+                    row["trans_path_label"] = None
+                    row["trans_depth"] = None
+                else:
+                    trans_root, trans_path, trans_depth = trans
+                    row["trans_root_label"] = trans_root
+                    row["trans_path"] = trans_path
+                    row["trans_path_label"] = format_path_label(
+                        trans_root,
+                        trans_path,
+                    )
+                    row["trans_depth"] = trans_depth
             rows.append(row)
             global_id += 1
 
@@ -460,7 +481,12 @@ def _cis_leaf_ab_rows(
         annotation = result.annotation
 
         for local_index, domain in enumerate(result.selection.domains):
-            root_label, path, depth = leaf_info[local_index]
+            leaf = leaf_info.get(local_index)
+            if leaf is None:
+                root_label = path = path_label = depth = None
+            else:
+                root_label, path, depth = leaf
+                path_label = format_path_label(root_label, path)
             score = annotation.scores[local_index]
             margin = annotation.margins[local_index]
             rows.append(
@@ -473,7 +499,7 @@ def _cis_leaf_ab_rows(
                     "source_row": domain.source_row,
                     "root_label": root_label,
                     "path": path,
-                    "path_label": format_path_label(root_label, path),
+                    "path_label": path_label,
                     "depth": depth,
                     "ab_label": annotation.labels[local_index],
                     "ab_rank": float(annotation.rank[local_index]),
@@ -492,12 +518,13 @@ def _trans_node_rows(trans_run: _TransRun | None) -> pl.DataFrame | None:
 
     tree = trans_run.tree_result.tree
     domain_chrom = trans_run.matrix.domain_chrom
+    domain_indices = trans_run.tree_result.domain_indices
     chrom_names = trans_run.matrix.chrom_names
     rows: list[dict[str, Any]] = []
 
     for node in tree.nodes:
         counts = Counter(
-            chrom_names[int(domain_chrom[domain])]
+            chrom_names[int(domain_chrom[domain_indices[domain]])]
             for domain in node.domain_indices.tolist()
         )
         chroms = sorted(counts)
@@ -587,6 +614,7 @@ def _cis_qc(results: list[_ChromosomeResult]) -> dict[str, Any]:
     per_chromosome: dict[str, Any] = {}
     total_nodes = 0
     total_leaves = 0
+    total_unclustered = 0
 
     for result in results:
         nodes = [node for tree in result.forest.trees for node in tree.nodes]
@@ -597,6 +625,8 @@ def _cis_qc(results: list[_ChromosomeResult]) -> dict[str, Any]:
         n_residuals = sum(
             domain.kind == "residual" for domain in result.selection.domains
         )
+        n_clustered = int(result.clusterable.sum())
+        n_unclustered = len(result.selection.domains) - n_clustered
         matrices = result.selection.matrices
         per_chromosome[result.chrom] = {
             "n_fine": result.tree.n_fine,
@@ -604,6 +634,8 @@ def _cis_qc(results: list[_ChromosomeResult]) -> dict[str, Any]:
             "n_tads": n_tads,
             "n_bin_domains": n_bin_domains,
             "n_residuals": n_residuals,
+            "n_clustered": n_clustered,
+            "n_unclustered": n_unclustered,
             "n_nodes": n_nodes,
             "n_leaves": n_leaves,
             "max_depth": max(
@@ -619,10 +651,12 @@ def _cis_qc(results: list[_ChromosomeResult]) -> dict[str, Any]:
         }
         total_nodes += n_nodes
         total_leaves += n_leaves
+        total_unclustered += n_unclustered
 
     return {
         "n_nodes": total_nodes,
         "n_leaves": total_leaves,
+        "n_unclustered": total_unclustered,
         "per_chromosome": per_chromosome,
     }
 
@@ -637,6 +671,7 @@ def _ab_qc(
     n_nodes_a = 0
     n_nodes_b = 0
     n_nodes_mixed = 0
+    n_unclustered = 0
     n_chroms_split = 0
     n_chroms_fallback = 0
 
@@ -654,6 +689,8 @@ def _ab_qc(
         n_b = int(b_mask.sum())
         n_domains_a += n_a
         n_domains_b += n_b
+        chrom_unclustered = int((~result.clusterable).sum())
+        n_unclustered += chrom_unclustered
 
         primary_nodes = [node for tree in result.forest.trees for node in tree.nodes]
         chrom_nodes_a = sum(node.ab_label == "A" for node in primary_nodes)
@@ -671,6 +708,7 @@ def _ab_qc(
         per_chromosome[result.chrom] = {
             "n_a": n_a,
             "n_b": n_b,
+            "n_unclustered": chrom_unclustered,
             "n_uncovered": result.n_uncovered,
             "fallback": annotation.fallback,
             "fallback_reason": annotation.fallback_reason,
@@ -692,6 +730,7 @@ def _ab_qc(
         "n_chroms_fallback": n_chroms_fallback,
         "n_domains_a": n_domains_a,
         "n_domains_b": n_domains_b,
+        "n_unclustered": n_unclustered,
         "unconstrained_forest": {
             "n_nodes_a": n_nodes_a,
             "n_nodes_b": n_nodes_b,
@@ -740,6 +779,10 @@ def _trans_qc(
         "eigenvalues": tree_result.eigenvalues.tolist(),
         "variance_fraction": tree_result.variance_fraction.tolist(),
         "n_domains": matrix.log_oe.shape[0],
+        "n_clustered": int(tree_result.domain_indices.size),
+        "n_unclustered": (
+            matrix.log_oe.shape[0] - int(tree_result.domain_indices.size)
+        ),
         "n_nodes": len(nodes),
         "n_leaves": sum(node.is_leaf for node in nodes),
         "max_depth": max((node.depth for node in nodes), default=0),
@@ -772,17 +815,23 @@ def _forest_leaf_info(
 def _tree_leaf_info(
     tree: BranchingTree,
     n_domains: int,
+    domain_indices: np.ndarray | None = None,
 ) -> dict[int, tuple[str, list[int], int]]:
+    mapping = (
+        np.arange(n_domains, dtype=np.int64)
+        if domain_indices is None
+        else np.asarray(domain_indices, dtype=np.int64)
+    )
     info: dict[int, tuple[str, list[int], int]] = {}
     for node in tree.nodes:
         if node.is_leaf:
             for domain in node.domain_indices.tolist():
-                info[int(domain)] = (
+                info[int(mapping[domain])] = (
                     tree.root_label,
                     list(node.path),
                     node.depth,
                 )
 
-    if len(info) != n_domains:
+    if len(info) != mapping.size:
         raise ComputationError("trans tree left some domains without a leaf")
     return info
