@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 
 import polars as pl
 import pytest
@@ -14,6 +15,44 @@ from tadclust.config import ClusterConfig
 from tadclust.errors import OutputError
 from tadclust.pipeline import cluster
 from tadclust.writer import SCHEMA_VERSION, _temporary_path, write_outputs
+
+CIS_LEAVES_TSV_COLUMNS = [
+    "domain_id",
+    "chrom",
+    "start",
+    "end",
+    "kind",
+    "source_row",
+    "n_bins",
+    "self_oe",
+    "root_label",
+    "path_label",
+    "depth",
+]
+TRANS_LEAVES_TSV_COLUMNS = [
+    "trans_root_label",
+    "trans_path_label",
+    "trans_depth",
+]
+CIS_LEAVES_AB_TSV_COLUMNS = [
+    "domain_id",
+    "chrom",
+    "start",
+    "end",
+    "kind",
+    "source_row",
+    "root_label",
+    "path_label",
+    "depth",
+    "ab_label",
+    "ab_rank",
+    "ab_score",
+    "ab_margin",
+]
+
+
+def read_tsv(path: Path) -> pl.DataFrame:
+    return pl.read_csv(path, separator="\t", infer_schema_length=0)
 
 
 def base_tads(tmp_path):
@@ -83,6 +122,7 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
 
     assert set(written) == {
         "cis_leaves.parquet",
+        "cis_leaves.tsv",
         "cis_nodes.parquet",
         "manifest.json",
     }
@@ -110,12 +150,14 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     assert manifest["qc"]["n_domains"] == 4
     assert manifest["output_files"] == [
         "cis_leaves.parquet",
+        "cis_leaves.tsv",
         "cis_nodes.parquet",
         "manifest.json",
     ]
     assert "checksums" not in manifest
 
     leaves = pl.read_parquet(tmp_path / "out" / "cis_leaves.parquet")
+    leaves_tsv = read_tsv(tmp_path / "out" / "cis_leaves.tsv")
     nodes = pl.read_parquet(tmp_path / "out" / "cis_nodes.parquet")
     assert leaves.columns == [
         "domain_id",
@@ -142,6 +184,14 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     assert nodes.schema["split_gain"] == pl.Float64
     assert "ab_label" not in nodes.columns
 
+    assert leaves_tsv.columns == CIS_LEAVES_TSV_COLUMNS
+    assert leaves_tsv.height == leaves.height
+    assert set(leaves_tsv["path_label"].to_list()) == set(
+        leaves["path_label"].to_list()
+    )
+    assert "pcs" not in leaves_tsv.columns
+    assert "path" not in leaves_tsv.columns
+
 
 def test_write_ab_and_trans_outputs(
     three_chrom_mcool,
@@ -166,16 +216,20 @@ def test_write_ab_and_trans_outputs(
     manifest = json.loads((out / "manifest.json").read_text())
     assert manifest["output_files"] == [
         "cis_leaves.parquet",
+        "cis_leaves.tsv",
         "cis_nodes.parquet",
         "cis_leaves_ab.parquet",
+        "cis_leaves_ab.tsv",
         "cis_nodes_ab.parquet",
         "trans_nodes.parquet",
         "manifest.json",
     ]
 
     leaves = pl.read_parquet(out / "cis_leaves.parquet")
+    leaves_tsv = read_tsv(out / "cis_leaves.tsv")
     nodes = pl.read_parquet(out / "cis_nodes.parquet")
     leaves_ab = pl.read_parquet(out / "cis_leaves_ab.parquet")
+    leaves_ab_tsv = read_tsv(out / "cis_leaves_ab.tsv")
     nodes_ab = pl.read_parquet(out / "cis_nodes_ab.parquet")
     trans_nodes = pl.read_parquet(out / "trans_nodes.parquet")
 
@@ -186,6 +240,12 @@ def test_write_ab_and_trans_outputs(
     assert "ab_label" in nodes_ab.columns
     assert trans_nodes.schema["chroms"] == pl.List(pl.String)
     assert trans_nodes.schema["chrom_domain_counts"] == pl.List(pl.Int64)
+
+    assert leaves_tsv.columns == CIS_LEAVES_TSV_COLUMNS + TRANS_LEAVES_TSV_COLUMNS
+    assert "trans_path" not in leaves_tsv.columns
+    assert "trans_path_label" in leaves_tsv.columns
+    assert leaves_ab_tsv.columns == CIS_LEAVES_AB_TSV_COLUMNS
+    assert "path" not in leaves_ab_tsv.columns
 
 
 def test_nonempty_output_dir_requires_overwrite(mcool, tmp_path) -> None:
@@ -258,7 +318,9 @@ def test_overwrite_removes_stale_optional_tables(
     )
     write_outputs(cluster(ab_config), ab_config)
     out = tmp_path / "out"
+    assert (out / "cis_leaves.tsv").exists()
     assert (out / "cis_leaves_ab.parquet").exists()
+    assert (out / "cis_leaves_ab.tsv").exists()
     assert (out / "cis_nodes_ab.parquet").exists()
     assert (out / "trans_nodes.parquet").exists()
 
@@ -266,12 +328,15 @@ def test_overwrite_removes_stale_optional_tables(
     result = cluster(config)
     write_outputs(result, config, overwrite=True)
 
+    assert (out / "cis_leaves.tsv").exists()
     assert not (out / "cis_leaves_ab.parquet").exists()
+    assert not (out / "cis_leaves_ab.tsv").exists()
     assert not (out / "cis_nodes_ab.parquet").exists()
     assert not (out / "trans_nodes.parquet").exists()
     manifest = json.loads((out / "manifest.json").read_text())
     assert manifest["output_files"] == [
         "cis_leaves.parquet",
+        "cis_leaves.tsv",
         "cis_nodes.parquet",
         "manifest.json",
     ]

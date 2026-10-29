@@ -87,6 +87,8 @@ def test_cli_cis_run(mcool, tmp_path) -> None:
     assert manifest["params"]["working_binsize"] == 500
     assert manifest["qc"]["n_domains"] == 4
     assert (out / "cis_leaves.parquet").exists()
+    assert (out / "cis_leaves.tsv").exists()
+    assert not (out / "cis_leaves_ab.tsv").exists()
     assert not (out / "trans_nodes.parquet").exists()
 
 
@@ -176,7 +178,9 @@ def test_cli_ab_run(mcool, tmp_path) -> None:
     main(args)
 
     out = tmp_path / "out"
+    assert (out / "cis_leaves.tsv").exists()
     assert (out / "cis_leaves_ab.parquet").exists()
+    assert (out / "cis_leaves_ab.tsv").exists()
     assert (out / "cis_nodes_ab.parquet").exists()
     manifest = json.loads((out / "manifest.json").read_text())
     assert manifest["params"]["ab_split"] == "kmeans2"

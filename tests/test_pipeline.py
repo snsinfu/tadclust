@@ -111,6 +111,7 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert result.inputs["signal_track"] is None
     assert result.output_files == [
         "cis_leaves.parquet",
+        "cis_leaves.tsv",
         "cis_nodes.parquet",
     ]
     assert not (tmp_path / "out").exists()
@@ -257,6 +258,7 @@ def test_cluster_with_trans(three_chrom_mcool, trans_tads, tmp_path) -> None:
     )
     assert root["chroms"] == ["chr1", "chr2", "chr3"]
     assert sum(root["chrom_domain_counts"]) == 6
+    assert "cis_leaves.tsv" in result.output_files
     assert result.output_files[-1] == "trans_nodes.parquet"
 
 
@@ -324,8 +326,10 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
         }
     assert result.output_files == [
         "cis_leaves.parquet",
+        "cis_leaves.tsv",
         "cis_nodes.parquet",
         "cis_leaves_ab.parquet",
+        "cis_leaves_ab.tsv",
         "cis_nodes_ab.parquet",
     ]
 

@@ -72,6 +72,10 @@ def schema_items(path: Path):
     return list(pl.read_parquet(path).schema.items())
 
 
+def tsv_columns(path: Path):
+    return pl.read_csv(path, separator="\t", infer_schema_length=0).columns
+
+
 def cis_leaves_schema(include_trans: bool):
     schema = [
         ("domain_id", pl.Int64),
@@ -129,6 +133,42 @@ def cis_nodes_schema(include_ab: bool):
     return schema
 
 
+CIS_LEAVES_TSV_COLUMNS = [
+    "domain_id",
+    "chrom",
+    "start",
+    "end",
+    "kind",
+    "source_row",
+    "n_bins",
+    "self_oe",
+    "root_label",
+    "path_label",
+    "depth",
+]
+
+TRANS_LEAVES_TSV_COLUMNS = [
+    "trans_root_label",
+    "trans_path_label",
+    "trans_depth",
+]
+
+CIS_LEAVES_AB_TSV_COLUMNS = [
+    "domain_id",
+    "chrom",
+    "start",
+    "end",
+    "kind",
+    "source_row",
+    "root_label",
+    "path_label",
+    "depth",
+    "ab_label",
+    "ab_rank",
+    "ab_score",
+    "ab_margin",
+]
+
 CIS_LEAVES_AB_SCHEMA = [
     ("domain_id", pl.Int64),
     ("chrom", pl.String),
@@ -173,7 +213,9 @@ def test_cis_only_golden_schema(mcool, tmp_path) -> None:
     out = tmp_path / "out"
     assert schema_items(out / "cis_leaves.parquet") == cis_leaves_schema(False)
     assert schema_items(out / "cis_nodes.parquet") == cis_nodes_schema(False)
+    assert tsv_columns(out / "cis_leaves.tsv") == CIS_LEAVES_TSV_COLUMNS
     assert not (out / "cis_leaves_ab.parquet").exists()
+    assert not (out / "cis_leaves_ab.tsv").exists()
     assert not (out / "cis_nodes_ab.parquet").exists()
     assert not (out / "trans_nodes.parquet").exists()
 
@@ -193,6 +235,9 @@ def test_trans_golden_schema(three_chrom_mcool, trans_tads, tmp_path) -> None:
     assert schema_items(out / "cis_leaves.parquet") == cis_leaves_schema(True)
     assert schema_items(out / "cis_nodes.parquet") == cis_nodes_schema(False)
     assert schema_items(out / "trans_nodes.parquet") == TRANS_NODES_SCHEMA
+    assert tsv_columns(out / "cis_leaves.tsv") == (
+        CIS_LEAVES_TSV_COLUMNS + TRANS_LEAVES_TSV_COLUMNS
+    )
 
 
 def test_ab_golden_schema(mcool, tmp_path) -> None:
@@ -211,6 +256,8 @@ def test_ab_golden_schema(mcool, tmp_path) -> None:
     assert schema_items(out / "cis_nodes.parquet") == cis_nodes_schema(True)
     assert schema_items(out / "cis_leaves_ab.parquet") == CIS_LEAVES_AB_SCHEMA
     assert schema_items(out / "cis_nodes_ab.parquet") == cis_nodes_schema(True)
+    assert tsv_columns(out / "cis_leaves.tsv") == CIS_LEAVES_TSV_COLUMNS
+    assert tsv_columns(out / "cis_leaves_ab.tsv") == CIS_LEAVES_AB_TSV_COLUMNS
     assert not (out / "trans_nodes.parquet").exists()
 
 
@@ -222,6 +269,7 @@ def test_uniform_bins_golden_schema(mcool, tmp_path) -> None:
     out = tmp_path / "out"
     assert schema_items(out / "cis_leaves.parquet") == cis_leaves_schema(False)
     assert schema_items(out / "cis_nodes.parquet") == cis_nodes_schema(False)
+    assert tsv_columns(out / "cis_leaves.tsv") == CIS_LEAVES_TSV_COLUMNS
 
     leaves = pl.read_parquet(out / "cis_leaves.parquet")
     assert set(leaves["kind"].to_list()) == {"bin"}
@@ -268,6 +316,7 @@ def test_manifest_contract(mcool, tmp_path) -> None:
     assert manifest["qc"]["n_domains"] == 4
     assert manifest["output_files"] == [
         "cis_leaves.parquet",
+        "cis_leaves.tsv",
         "cis_nodes.parquet",
         "manifest.json",
     ]

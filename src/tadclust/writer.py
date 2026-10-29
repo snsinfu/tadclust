@@ -23,8 +23,10 @@ Schema = dict[str, SchemaValue]
 SCHEMA_VERSION = "2.0"
 KNOWN_OUTPUTS = (
     "cis_leaves.parquet",
+    "cis_leaves.tsv",
     "cis_nodes.parquet",
     "cis_leaves_ab.parquet",
+    "cis_leaves_ab.tsv",
     "cis_nodes_ab.parquet",
     "trans_nodes.parquet",
     "manifest.json",
@@ -55,6 +57,13 @@ def write_outputs(
             )
         )
         staged.append(
+            _stage_tsv(
+                result.cis_leaves,
+                output_dir / "cis_leaves.tsv",
+                _cis_leaves_tsv_columns(config.tree_n_pcs, include_trans),
+            )
+        )
+        staged.append(
             _stage_parquet(
                 result.cis_nodes,
                 output_dir / "cis_nodes.parquet",
@@ -68,6 +77,13 @@ def write_outputs(
                     result.cis_leaves_ab,
                     output_dir / "cis_leaves_ab.parquet",
                     _cis_leaves_ab_schema(),
+                )
+            )
+            staged.append(
+                _stage_tsv(
+                    result.cis_leaves_ab,
+                    output_dir / "cis_leaves_ab.tsv",
+                    _cis_leaves_ab_tsv_columns(),
                 )
             )
         if result.cis_nodes_ab is not None:
@@ -135,6 +151,22 @@ def _stage_parquet(
     temporary = _temporary_path(path)
     try:
         frame.write_parquet(temporary)
+    except Exception:
+        if temporary.exists():
+            temporary.unlink()
+        raise
+    return temporary, path
+
+
+def _stage_tsv(
+    table: pl.DataFrame,
+    path: Path,
+    columns: list[str],
+) -> tuple[Path, Path]:
+    frame = table.select(columns)
+    temporary = _temporary_path(path)
+    try:
+        frame.write_csv(temporary, separator="\t", null_value="")
     except Exception:
         if temporary.exists():
             temporary.unlink()
@@ -230,6 +262,24 @@ def _cis_leaves_schema(
             }
         )
     return schema
+
+
+def _cis_leaves_tsv_columns(n_pcs: int, include_trans: bool) -> list[str]:
+    return _scalar_tsv_columns(_cis_leaves_schema(n_pcs, include_trans))
+
+
+def _cis_leaves_ab_tsv_columns() -> list[str]:
+    return _scalar_tsv_columns(_cis_leaves_ab_schema())
+
+
+def _scalar_tsv_columns(schema: Schema) -> list[str]:
+    return [name for name, dtype in schema.items() if not _is_nested_dtype(dtype)]
+
+
+def _is_nested_dtype(dtype: SchemaValue) -> bool:
+    if isinstance(dtype, type):
+        return issubclass(dtype, (pl.List, pl.Array))
+    return isinstance(dtype, (pl.List, pl.Array))
 
 
 def _cis_nodes_schema(include_ab: bool) -> Schema:

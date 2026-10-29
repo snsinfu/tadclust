@@ -148,9 +148,19 @@ def cluster(config: ClusterConfig) -> ClusterResult:
     trans_nodes = _trans_node_rows(trans_run)
 
     is_ab = track is not None
-    output_files = ["cis_leaves.parquet", "cis_nodes.parquet"]
+    output_files = [
+        "cis_leaves.parquet",
+        "cis_leaves.tsv",
+        "cis_nodes.parquet",
+    ]
     if is_ab:
-        output_files.extend(["cis_leaves_ab.parquet", "cis_nodes_ab.parquet"])
+        output_files.extend(
+            [
+                "cis_leaves_ab.parquet",
+                "cis_leaves_ab.tsv",
+                "cis_nodes_ab.parquet",
+            ]
+        )
     if trans_nodes is not None:
         output_files.append("trans_nodes.parquet")
 
