@@ -10,6 +10,7 @@ from tadclust.domains import SelectedDomain
 from tadclust.errors import ComputationError, McoolError
 from tadclust.mcool import open_cooler
 from tadclust.trans import (
+    PairInfo,
     TransInput,
     build_pixel_map,
     build_trans_tree,
@@ -69,7 +70,7 @@ def test_build_pixel_map(mcool) -> None:
     assert pixel_map.col_sums.tolist() == [2, 2, 4]
     assert pixel_map.domain_chrom.tolist() == [0, 0, 1]
     assert pixel_map.n_bins_chrom == {"chr1": 4, "chr2": 4}
-    assert pixel_map.pair_info == {(0, 1): (0, 2, 2, 1)}
+    assert pixel_map.pair_info == {(0, 1): PairInfo(0, 2, 2, 1)}
     assert pixel_map.pair_counts == {(0, 1): 16}
     assert pixel_map.pair_count == 16
 

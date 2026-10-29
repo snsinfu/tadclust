@@ -5,7 +5,7 @@ from __future__ import annotations
 import multiprocessing as mp
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, NamedTuple, Sequence
 
 import h5py
 import numpy as np
@@ -27,6 +27,46 @@ from .trees import (
 CHUNK_ROWS = 10_000_000
 
 
+class PairInfo(NamedTuple):
+    """Domain offsets and sizes for one chromosome pair."""
+
+    domain_offset_a: int
+    domain_offset_b: int
+    n_domains_a: int
+    n_domains_b: int
+
+
+class ScanTask(NamedTuple):
+    """One contiguous pixel-row range to scan."""
+
+    start_row: int
+    end_row: int
+
+
+class BlockSum(NamedTuple):
+    """One chromosome-pair domain block summed from a scan chunk."""
+
+    chrom_a: int
+    chrom_b: int
+    block: np.ndarray
+
+
+class PairSum(NamedTuple):
+    """Total contact value for one chromosome pair in a scan chunk."""
+
+    chrom_a: int
+    chrom_b: int
+    total: float
+
+
+class ChunkResult(NamedTuple):
+    """Domain blocks, grand total, and pair totals from one scan chunk."""
+
+    blocks: list[BlockSum]
+    total: float
+    pair_sums: list[PairSum]
+
+
 @dataclass(frozen=True)
 class TransInput:
     """Selected domains for one chromosome, in genomic order."""
@@ -45,7 +85,7 @@ class PixelMap:
     n_bins_chrom: dict[str, int]
     chrom_bin_ranges: dict[str, tuple[int, int]]
     bin1_offsets: np.ndarray
-    pair_info: dict[tuple[int, int], tuple[int, int, int, int]]
+    pair_info: dict[tuple[int, int], PairInfo]
     pair_counts: dict[tuple[int, int], int]
     n_domains: int
     n_chrom: int
@@ -171,10 +211,7 @@ def trans_matrix(
                 workers,
             )
         else:
-            chunks = [
-                _scan_chunk(group, pixel_map, weight, start, end)
-                for start, end in tasks
-            ]
+            chunks = [_scan_chunk(group, pixel_map, weight, task) for task in tasks]
     finally:
         handle.close()
 
@@ -185,13 +222,19 @@ def trans_matrix(
     pair_totals: dict[tuple[int, int], float] = {}
     total = 0.0
 
-    for blocks, chunk_total, pair_sums in chunks:
-        total += chunk_total
-        for i, j, pair_sum in pair_sums:
-            pair_totals[(i, j)] = pair_totals.get((i, j), 0.0) + pair_sum
-        for i, j, block in blocks:
-            oa, ob, ma, mb = pixel_map.pair_info[(i, j)]
-            observed_upper[oa : oa + ma, ob : ob + mb] += block
+    for chunk in chunks:
+        total += chunk.total
+        for pair_sum in chunk.pair_sums:
+            key = (pair_sum.chrom_a, pair_sum.chrom_b)
+            pair_totals[key] = pair_totals.get(key, 0.0) + pair_sum.total
+        for block_sum in chunk.blocks:
+            info = pixel_map.pair_info[(block_sum.chrom_a, block_sum.chrom_b)]
+            a0 = info.domain_offset_a
+            b0 = info.domain_offset_b
+            observed_upper[
+                a0 : a0 + info.n_domains_a,
+                b0 : b0 + info.n_domains_b,
+            ] += block_sum.block
 
     observed = observed_upper + observed_upper.T
     grand_mean = total / pixel_map.pair_count if pixel_map.pair_count > 0 else 0.0
@@ -210,7 +253,7 @@ def trans_matrix(
 
     values = np.zeros_like(observed, dtype=np.float64)
     if pixel_map.pair_count > 0 and total > 0:
-        for (i, j), (oa, ob, ma, mb) in pixel_map.pair_info.items():
+        for (i, j), info in pixel_map.pair_info.items():
             key = (chrom_names[i], chrom_names[j])
             pair_mean = pair_means[key]
             mean = grand_mean if null == "grand" else pair_mean
@@ -219,18 +262,22 @@ def trans_matrix(
                 if null == "grand"
                 else pseudocount * pair_mean * min_bins * min_bins
             )
-            col_i = pixel_map.col_sums[oa : oa + ma]
-            col_j = pixel_map.col_sums[ob : ob + mb]
+            a0 = info.domain_offset_a
+            b0 = info.domain_offset_b
+            a1 = a0 + info.n_domains_a
+            b1 = b0 + info.n_domains_b
+            col_i = pixel_map.col_sums[a0:a1]
+            col_j = pixel_map.col_sums[b0:b1]
             expected = mean * col_i[:, None] * col_j[None, :]
             block = log2_ratio(
-                observed[oa : oa + ma, ob : ob + mb],
+                observed[a0:a1, b0:b1],
                 expected,
                 pair_alpha,
                 clip_min=clip_min,
                 clip_max=clip_max,
             )
-            values[oa : oa + ma, ob : ob + mb] = block
-            values[ob : ob + mb, oa : oa + ma] = block.T
+            values[a0:a1, b0:b1] = block
+            values[b0:b1, a0:a1] = block.T
 
     info = TransInfo(
         null=null,
@@ -273,7 +320,7 @@ def build_pixel_map(
     col_sums = np.zeros(n_domains, dtype=np.int64)
     n_bins_chrom: dict[str, int] = {}
     chrom_bin_ranges: dict[str, tuple[int, int]] = {}
-    pair_info: dict[tuple[int, int], tuple[int, int, int, int]] = {}
+    pair_info: dict[tuple[int, int], PairInfo] = {}
     pair_counts: dict[tuple[int, int], int] = {}
     offsets: list[int] = []
     domain_offset = 0
@@ -315,7 +362,7 @@ def build_pixel_map(
         chrom_bin_ranges[item.chrom] = (start_bin, end_bin)
         for prior in range(input_index):
             prior_offset = offsets[prior]
-            pair_info[(prior, input_index)] = (
+            pair_info[(prior, input_index)] = PairInfo(
                 prior_offset,
                 domain_offset,
                 len(inputs[prior].domains),
@@ -406,15 +453,9 @@ def _scan_parallel(
     resolution: int,
     pixel_map: PixelMap,
     weight: np.ndarray | None,
-    tasks: list[tuple[int, int]],
+    tasks: list[ScanTask],
     workers: int,
-) -> list[
-    tuple[
-        list[tuple[int, int, np.ndarray]],
-        float,
-        list[tuple[int, int, float]],
-    ]
-]:
+) -> list[ChunkResult]:
     context = mp.get_context("spawn")
     with context.Pool(
         processes=workers,
@@ -453,20 +494,15 @@ def _init_scan_worker(
 
 
 def _scan_worker(
-    task: tuple[int, int],
-) -> tuple[
-    list[tuple[int, int, np.ndarray]],
-    float,
-    list[tuple[int, int, float]],
-]:
+    task: ScanTask,
+) -> ChunkResult:
     assert _SCAN_GROUP is not None
     assert _SCAN_MAP is not None
     return _scan_chunk(
         _SCAN_GROUP,
         _SCAN_MAP,
         _SCAN_WEIGHT,
-        task[0],
-        task[1],
+        task,
     )
 
 
@@ -483,14 +519,14 @@ def _read_weights(group: h5py.Group) -> np.ndarray:
 def _pixel_tasks(
     pixel_map: PixelMap,
     inputs: Sequence[TransInput],
-) -> list[tuple[int, int]]:
-    tasks: list[tuple[int, int]] = []
+) -> list[ScanTask]:
+    tasks: list[ScanTask] = []
     for item in inputs:
         start_bin, end_bin = pixel_map.chrom_bin_ranges[item.chrom]
         start_row = int(pixel_map.bin1_offsets[start_bin])
         end_row = int(pixel_map.bin1_offsets[end_bin])
         for start in range(start_row, end_row, CHUNK_ROWS):
-            tasks.append((start, min(start + CHUNK_ROWS, end_row)))
+            tasks.append(ScanTask(start, min(start + CHUNK_ROWS, end_row)))
     return tasks
 
 
@@ -498,13 +534,9 @@ def _scan_chunk(
     group: h5py.Group,
     pixel_map: PixelMap,
     weight: np.ndarray | None,
-    start: int,
-    end: int,
-) -> tuple[
-    list[tuple[int, int, np.ndarray]],
-    float,
-    list[tuple[int, int, float]],
-]:
+    task: ScanTask,
+) -> ChunkResult:
+    start, end = task
     bin1 = _dataset(group, "pixels/bin1_id")[start:end]
     bin2 = _dataset(group, "pixels/bin2_id")[start:end]
     counts = np.asarray(
@@ -520,7 +552,7 @@ def _scan_chunk(
     chrom2 = pixel_map.domain_chrom[np.where(keep, domain2, 0)]
     keep &= chrom1 != chrom2
     if not keep.any():
-        return [], 0.0, []
+        return ChunkResult([], 0.0, [])
 
     bin1 = bin1[keep]
     bin2 = bin2[keep]
@@ -548,29 +580,31 @@ def _scan_chunk(
     cuts = np.flatnonzero(np.diff(keys)) + 1
     starts = np.r_[0, cuts]
     ends = np.r_[cuts, len(keys)]
-    blocks: list[tuple[int, int, np.ndarray]] = []
-    pair_sums: list[tuple[int, int, float]] = []
+    blocks: list[BlockSum] = []
+    pair_sums: list[PairSum] = []
     total = 0.0
 
     for block_start, block_end in zip(starts, ends):
         key = int(keys[block_start])
         i = key // pixel_map.n_chrom
         j = key % pixel_map.n_chrom
-        oa, ob, ma, mb = pixel_map.pair_info[(i, j)]
-        local = (domain1_sorted[block_start:block_end] - oa) * mb + (
-            domain2_sorted[block_start:block_end] - ob
+        info = pixel_map.pair_info[(i, j)]
+        local = (
+            domain1_sorted[block_start:block_end] - info.domain_offset_a
+        ) * info.n_domains_b + (
+            domain2_sorted[block_start:block_end] - info.domain_offset_b
         )
         block = np.bincount(
             local,
             weights=values[block_start:block_end],
-            minlength=ma * mb,
-        ).reshape(ma, mb)
+            minlength=info.n_domains_a * info.n_domains_b,
+        ).reshape(info.n_domains_a, info.n_domains_b)
         pair_sum = float(values[block_start:block_end].sum())
-        blocks.append((i, j, block))
-        pair_sums.append((i, j, pair_sum))
+        blocks.append(BlockSum(i, j, block))
+        pair_sums.append(PairSum(i, j, pair_sum))
         total += pair_sum
 
-    return blocks, total, pair_sums
+    return ChunkResult(blocks, total, pair_sums)
 
 
 def _dataset(group: h5py.Group, path: str) -> h5py.Dataset:
