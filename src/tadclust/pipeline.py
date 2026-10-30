@@ -261,7 +261,6 @@ def _build_cis_results(
                 features,
                 feature_rank,
                 len(selection.unit_selection.units),
-                "kmeans2",
                 config.seed,
                 n_pcs=config.tree_n_pcs,
                 clusterable=clusterable,

@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from .clustering import derive_seed, informative_mask, kmeans_labels
-from .config import AB_SPLIT_POLICY_CHOICES
 from .errors import ClusteringError
 
 CHROM_ROOT_LABEL = "chrom"
@@ -74,14 +73,13 @@ class AbAnnotation:
 
     labels: np.ndarray
     feature_rank: np.ndarray
-    split_policy: str
     fallback: bool
     fallback_reason: str | None
     scores: np.ndarray
     margins: np.ndarray
     a_indices: np.ndarray
     b_indices: np.ndarray
-    a_centroids_pc: np.ndarray = field(default_factory=lambda: np.zeros((0, 0)))
+    a_centroid_pc: np.ndarray = field(default_factory=lambda: np.zeros(0))
     b_centroid_pc: np.ndarray = field(default_factory=lambda: np.zeros(0))
 
 
@@ -412,7 +410,6 @@ def annotate_ab(
     features: np.ndarray,
     feature_rank: np.ndarray,
     n_units: int,
-    split_policy: str,
     seed: int,
     *,
     n_pcs: int,
@@ -432,8 +429,6 @@ def annotate_ab(
         raise ClusteringError("A/B feature length does not match the unit count")
     if values.ndim != 2 or values.shape[1] == 0:
         raise ClusteringError("A/B features must have at least one column")
-    if split_policy not in AB_SPLIT_POLICY_CHOICES:
-        raise ClusteringError(f"unknown A/B split policy: {split_policy!r}")
 
     labels = np.full(n_units, None, dtype=object)
     scores = np.full(n_units, np.nan, dtype=np.float64)
@@ -447,7 +442,6 @@ def annotate_ab(
     partition = _ab_partition(
         values,
         n_units,
-        split_policy,
         seed,
         mask,
         n_pcs,
@@ -456,7 +450,6 @@ def annotate_ab(
         return AbAnnotation(
             labels=labels,
             feature_rank=feature_ranks,
-            split_policy=split_policy,
             fallback=True,
             fallback_reason="ab_degenerate",
             scores=scores,
@@ -471,40 +464,36 @@ def annotate_ab(
         partition_margins,
         a_indices,
         b_indices,
-        a_centroids_pc,
+        a_centroid_pc,
         b_centroid_pc,
     ) = partition
     return AbAnnotation(
         labels=partition_labels,
         feature_rank=feature_ranks,
-        split_policy=split_policy,
         fallback=False,
         fallback_reason=None,
         scores=partition_scores,
         margins=partition_margins,
         a_indices=a_indices,
         b_indices=b_indices,
-        a_centroids_pc=a_centroids_pc,
+        a_centroid_pc=a_centroid_pc,
         b_centroid_pc=b_centroid_pc,
     )
 
 
 def _normalized_ab_score(
     point: np.ndarray,
-    a_centroids_pc: np.ndarray,
+    a_centroid_pc: np.ndarray,
     b_centroid_pc: np.ndarray,
 ) -> float:
     """Return the signed A/B margin normalized to [-1, 1].
 
-    The scale is the distance from the B centroid to the A centroid nearest to
-    ``point``. With two A centroids each A centroid maps to +1 and the B
-    centroid maps to -1.
+    The scale is the distance between the A and B centroids. The A centroid
+    maps to +1 and the B centroid maps to -1.
     """
-    a_distances = np.linalg.norm(a_centroids_pc - point, axis=1)
-    nearest = int(np.argmin(a_distances))
-    a_distance = float(a_distances[nearest])
+    a_distance = float(np.linalg.norm(a_centroid_pc - point))
     b_distance = float(np.linalg.norm(b_centroid_pc - point))
-    scale = float(np.linalg.norm(a_centroids_pc[nearest] - b_centroid_pc))
+    scale = float(np.linalg.norm(a_centroid_pc - b_centroid_pc))
     if scale <= 0.0:
         return 0.0
     return float(np.clip((b_distance - a_distance) / scale, -1.0, 1.0))
@@ -513,7 +502,6 @@ def _normalized_ab_score(
 def _ab_partition(
     features: np.ndarray,
     n_units: int,
-    split_policy: str,
     seed: int,
     clusterable: np.ndarray,
     n_pcs: int,
@@ -538,10 +526,9 @@ def _ab_partition(
         return None
 
     subset = features[indices]
-    n_clusters = 2 if split_policy == "kmeans2" else 3
     cluster_labels, _ = kmeans_labels(
         subset,
-        min(n_clusters, indices.size),
+        min(2, indices.size),
         features.shape[1],
         derive_seed(seed, _AB_SEED_NAMESPACE),
     )
@@ -557,22 +544,17 @@ def _ab_partition(
     )
     order = np.argsort(feature_rank_means, kind="stable")
 
-    if split_policy == "kmeans2" or unique.size == 2:
-        a_clusters = [int(order[-1])]
-        b_clusters = [int(order[0])]
-    else:
-        a_clusters = [int(order[-1]), int(order[-2])]
-        b_clusters = [int(order[0])]
-
-    a_centroids_pc = centroids[a_clusters][:, :pc_dim]
-    b_centroid_pc = centroids[b_clusters[0]][:pc_dim]
+    a_cluster = int(order[-1])
+    b_cluster = int(order[0])
+    a_centroid_pc = centroids[a_cluster, :pc_dim]
+    b_centroid_pc = centroids[b_cluster, :pc_dim]
     scores = np.full(n_units, np.nan, dtype=np.float64)
     margins = np.full(n_units, np.nan, dtype=np.float64)
 
     for unit in indices:
         point = features[unit, :pc_dim]
         # Positive score is the A side, matching the track convention A > B.
-        score = _normalized_ab_score(point, a_centroids_pc, b_centroid_pc)
+        score = _normalized_ab_score(point, a_centroid_pc, b_centroid_pc)
         scores[unit] = score
         margins[unit] = abs(score)
 
@@ -590,7 +572,7 @@ def _ab_partition(
         margins,
         a_indices,
         b_indices,
-        a_centroids_pc,
+        a_centroid_pc,
         b_centroid_pc,
     )
 
@@ -611,7 +593,7 @@ def annotate_cis_forest(
     pc_dim = min(n_pcs, values.shape[1] - 1)
     pc_values = values[:, :pc_dim]
     has_centroids = (
-        annotation.a_centroids_pc.size > 0 and annotation.b_centroid_pc.size > 0
+        annotation.a_centroid_pc.size > 0 and annotation.b_centroid_pc.size > 0
     )
 
     for tree, group in zip(forest.trees, forest.groups):
@@ -622,7 +604,7 @@ def annotate_cis_forest(
                 node_feature = pc_values[unit_ids].mean(axis=0)
                 node.ab_score = _normalized_ab_score(
                     node_feature,
-                    annotation.a_centroids_pc,
+                    annotation.a_centroid_pc,
                     annotation.b_centroid_pc,
                 )
             else:

@@ -7,7 +7,6 @@ from pathlib import Path
 
 from .errors import ConfigError
 
-AB_SPLIT_POLICY_CHOICES = ("kmeans2", "kmeans3")
 TRANS_NULL_CHOICES = ("pair", "grand")
 
 

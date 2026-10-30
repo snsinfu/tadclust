@@ -24,16 +24,17 @@ def test_annotate_ab_kmeans2() -> None:
     rank = np.array([0.0, 0.1, 0.9, 1.0])
     features = ab_feature_matrix(pcs, rank, 1)
 
-    annotation = annotate_ab(features, rank, 4, "kmeans2", 0, n_pcs=1)
+    annotation = annotate_ab(features, rank, 4, 0, n_pcs=1)
 
     assert not annotation.fallback
     assert annotation.labels.tolist() == ["B", "B", "A", "A"]
     assert annotation.a_indices.tolist() == [2, 3]
     assert annotation.b_indices.tolist() == [0, 1]
+    assert annotation.a_centroid_pc.shape == (1,)
     assert np.all(annotation.scores[annotation.a_indices] > 0)
     assert np.all(annotation.scores[annotation.b_indices] < 0)
     a_distance = np.linalg.norm(
-        features[:, :1] - annotation.a_centroids_pc[0],
+        features[:, :1] - annotation.a_centroid_pc,
         axis=1,
     )
     b_distance = np.linalg.norm(
@@ -41,7 +42,7 @@ def test_annotate_ab_kmeans2() -> None:
         axis=1,
     )
     scale = np.linalg.norm(
-        annotation.a_centroids_pc[0] - annotation.b_centroid_pc,
+        annotation.a_centroid_pc - annotation.b_centroid_pc,
     )
     np.testing.assert_allclose(
         annotation.scores,
@@ -63,14 +64,13 @@ def test_ab_score_uses_pc_space_not_rank() -> None:
     annotation = AbAnnotation(
         labels=np.array(["B", "B", "A", "A"], dtype=object),
         feature_rank=rank1,
-        split_policy="kmeans2",
         fallback=False,
         fallback_reason=None,
         scores=np.zeros(4),
         margins=np.zeros(4),
         a_indices=np.array([2, 3]),
         b_indices=np.array([0, 1]),
-        a_centroids_pc=features1[[2, 3], :1].mean(axis=0, keepdims=True),
+        a_centroid_pc=features1[[2, 3], :1].mean(axis=0),
         b_centroid_pc=features1[[0, 1], :1].mean(axis=0),
     )
     forest1 = build_cis_forest(
@@ -98,50 +98,12 @@ def test_ab_score_uses_pc_space_not_rank() -> None:
     assert scores1 == pytest.approx(scores2)
 
 
-def test_annotate_ab_kmeans3_merges_two_highest_feature_clusters() -> None:
-    pcs = np.array([[-3.0], [-1.0], [0.0], [2.0], [3.0]])
-    rank = np.array([0.0, 0.1, 0.5, 0.9, 1.0])
-    features = ab_feature_matrix(pcs, rank, 1)
-
-    annotation = annotate_ab(features, rank, 5, "kmeans3", 0, n_pcs=1)
-
-    assert not annotation.fallback
-    assert annotation.a_indices.size + annotation.b_indices.size == 5
-    assert set(annotation.labels.tolist()) == {"A", "B"}
-    assert 4 in annotation.a_indices.tolist()
-    assert 0 in annotation.b_indices.tolist()
-    assert annotation.a_centroids_pc.shape[0] == 2
-    assert annotation.b_centroid_pc.shape == (1,)
-    for index, label in enumerate(annotation.labels):
-        score = annotation.scores[index]
-        if label == "A":
-            assert score > 0
-        elif label == "B":
-            assert score < 0
-        assert -1.0 <= score <= 1.0
-
-    pc = features[:, :1]
-    for unit in range(pc.shape[0]):
-        a_distances = np.linalg.norm(
-            annotation.a_centroids_pc - pc[unit],
-            axis=1,
-        )
-        nearest = int(np.argmin(a_distances))
-        scale = np.linalg.norm(
-            annotation.a_centroids_pc[nearest] - annotation.b_centroid_pc,
-        )
-        expected = (
-            np.linalg.norm(annotation.b_centroid_pc - pc[unit]) - a_distances[nearest]
-        ) / scale
-        assert annotation.scores[unit] == pytest.approx(np.clip(expected, -1.0, 1.0))
-
-
 def test_ab_labels_follow_pc_score() -> None:
     pcs = np.array([[-3.0], [-1.0], [1.0], [3.0]])
     rank = np.array([0.0, 0.1, 0.9, 1.0])
     features = ab_feature_matrix(pcs, rank, 1)
 
-    annotation = annotate_ab(features, rank, 4, "kmeans2", 0, n_pcs=1)
+    annotation = annotate_ab(features, rank, 4, 0, n_pcs=1)
 
     for index, label in enumerate(annotation.labels):
         score = annotation.scores[index]
@@ -159,7 +121,7 @@ def test_ab_degenerate_when_pc_centroids_coincide() -> None:
     rank = np.array([0.0, 0.1, 0.9, 1.0])
     features = ab_feature_matrix(pcs, rank, 1)
 
-    annotation = annotate_ab(features, rank, 4, "kmeans2", 0, n_pcs=1)
+    annotation = annotate_ab(features, rank, 4, 0, n_pcs=1)
 
     assert annotation.fallback
     assert annotation.fallback_reason == "ab_degenerate"
@@ -181,7 +143,6 @@ def test_annotate_ab_excludes_uninformative_units() -> None:
             features,
             rank,
             4,
-            "kmeans2",
             0,
             n_pcs=1,
             clusterable=clusterable,
@@ -205,7 +166,6 @@ def test_annotate_ab_rejects_too_few_units() -> None:
             np.zeros((1, 2)),
             np.array([0.5]),
             1,
-            "kmeans2",
             0,
             n_pcs=1,
         )
@@ -220,7 +180,6 @@ def test_annotate_ab_degenerate(monkeypatch) -> None:
         np.zeros((4, 2)),
         np.array([0.0, 0.25, 0.5, 1.0]),
         4,
-        "kmeans2",
         0,
         n_pcs=1,
     )
@@ -231,9 +190,7 @@ def test_annotate_ab_degenerate(monkeypatch) -> None:
 
 def test_annotate_ab_rejects_invalid_inputs() -> None:
     with pytest.raises(ClusteringError):
-        annotate_ab(np.zeros((2, 2)), np.zeros(3), 3, "kmeans2", 0, n_pcs=1)
-    with pytest.raises(ClusteringError):
-        annotate_ab(np.zeros((2, 2)), np.zeros(2), 2, "bad", 0, n_pcs=1)
+        annotate_ab(np.zeros((2, 2)), np.zeros(3), 3, 0, n_pcs=1)
 
 
 def test_annotate_cis_forest_composition() -> None:
@@ -252,7 +209,6 @@ def test_annotate_cis_forest_composition() -> None:
     annotation = AbAnnotation(
         labels=labels,
         feature_rank=rank,
-        split_policy="kmeans2",
         fallback=False,
         fallback_reason=None,
         scores=np.zeros(4),
@@ -292,7 +248,6 @@ def test_annotate_cis_forest_fractions_include_unlabeled_units() -> None:
     annotation = AbAnnotation(
         labels=labels,
         feature_rank=rank,
-        split_policy="kmeans2",
         fallback=False,
         fallback_reason=None,
         scores=np.zeros(4),
@@ -314,7 +269,7 @@ def test_build_ab_forest_two_roots() -> None:
     bins = np.ones(4, dtype=np.int64)
     rank = np.array([0.0, 0.1, 0.9, 1.0])
     features = ab_feature_matrix(pcs, rank, 1)
-    annotation = annotate_ab(features, rank, 4, "kmeans2", 0, n_pcs=1)
+    annotation = annotate_ab(features, rank, 4, 0, n_pcs=1)
 
     forest = build_ab_forest(
         "chr1",
@@ -342,7 +297,6 @@ def test_build_ab_forest_degenerate_fallback() -> None:
     annotation = AbAnnotation(
         labels=np.array([None, None], dtype=object),
         feature_rank=np.array([0.5, 0.5]),
-        split_policy="kmeans2",
         fallback=True,
         fallback_reason="ab_degenerate",
         scores=np.full(2, np.nan),
@@ -370,7 +324,7 @@ def test_annotate_cis_forest_node_scores_match_leaf_units() -> None:
     pcs = np.array([[-3.0], [-1.0], [1.0], [3.0]])
     rank = np.array([0.0, 0.1, 0.9, 1.0])
     features = ab_feature_matrix(pcs, rank, 1)
-    annotation = annotate_ab(features, rank, 4, "kmeans2", 0, n_pcs=1)
+    annotation = annotate_ab(features, rank, 4, 0, n_pcs=1)
     forest = build_cis_forest(
         "chr1",
         pcs,
@@ -412,14 +366,13 @@ def test_node_label_follows_score_without_mixed_threshold() -> None:
     annotation = AbAnnotation(
         labels=labels,
         feature_rank=rank,
-        split_policy="kmeans2",
         fallback=False,
         fallback_reason=None,
         scores=np.zeros(4),
         margins=np.zeros(4),
         a_indices=np.array([0, 1, 2]),
         b_indices=np.array([3]),
-        a_centroids_pc=features[[0, 1, 2], :1].mean(axis=0, keepdims=True),
+        a_centroid_pc=features[[0, 1, 2], :1].mean(axis=0),
         b_centroid_pc=features[3, :1],
     )
     forest = build_cis_forest(
