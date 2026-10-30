@@ -350,6 +350,18 @@ def _run_trans(
     )
 
 
+def _ab_leaf_fields(
+    annotation: AbAnnotation,
+    local_index: int,
+) -> dict[str, Any]:
+    score = annotation.scores[local_index]
+    return {
+        "ab_label": annotation.labels[local_index],
+        "ab_rank": float(annotation.rank[local_index]),
+        "ab_score": None if np.isnan(score) else float(score),
+    }
+
+
 def _cis_leaf_rows(
     results: list[_ChromosomeResult],
     trans_run: _TransRun | None,
@@ -395,6 +407,8 @@ def _cis_leaf_rows(
                 "path_label": path_label,
                 "depth": depth,
             }
+            if result.annotation is not None:
+                row.update(_ab_leaf_fields(result.annotation, local_index))
             if trans_leaf is not None:
                 trans = trans_leaf.get(global_id)
                 if trans is None:

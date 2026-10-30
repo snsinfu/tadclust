@@ -295,7 +295,20 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
     assert result.cis_leaves_ab is not None
     assert result.cis_nodes_ab is not None
     assert "ab_label" in result.cis_nodes.columns
-    assert "ab_label" not in result.cis_leaves.columns
+    assert "ab_label" in result.cis_leaves.columns
+    assert result.cis_leaves["ab_label"].to_list() == (
+        result.cis_leaves_ab["ab_label"].to_list()
+    )
+    np.testing.assert_allclose(
+        result.cis_leaves["ab_rank"].to_numpy(),
+        result.cis_leaves_ab["ab_rank"].to_numpy(),
+        equal_nan=True,
+    )
+    np.testing.assert_allclose(
+        result.cis_leaves["ab_score"].to_numpy(),
+        result.cis_leaves_ab["ab_score"].to_numpy(),
+        equal_nan=True,
+    )
     assert "ab_label" in result.cis_leaves_ab.columns
     assert result.cis_leaves_ab.height == 8
     assert set(result.cis_leaves_ab["ab_label"].drop_nulls().to_list()) <= {
