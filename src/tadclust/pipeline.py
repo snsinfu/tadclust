@@ -14,7 +14,7 @@ from .clustering import informative_mask
 from .config import ClusterConfig
 from .domains import ChromosomeTree, UnitSelection
 from .errors import ClusteringError
-from .matrix import orient_pcs_to_feature
+from .matrix import area_weighted_mean_oe, orient_pcs_to_feature
 from .mcool import (
     ResolutionChoice,
     choose_resolution,
@@ -375,7 +375,6 @@ def _leaf_unit_fields(
         "end": unit.end,
         "unit_kind": unit.unit_kind,
         "tad_table_row": unit.tad_table_row,
-        "self_oe": float(result.selection.matrices.self_oe[local_index]),
         "pc": [float(value) for value in result.pcs[local_index, :n_pcs]],
     }
 
@@ -388,7 +387,6 @@ def _null_unit_fields() -> dict[str, Any]:
         "unit_kind": None,
         "tad_table_row": None,
         "pc": None,
-        "self_oe": None,
     }
 
 
@@ -420,11 +418,21 @@ def _node_ab_fields(node: TreeNode) -> dict[str, Any]:
     }
 
 
+def _node_oe(result: _ChromosomeResult, local_indices: np.ndarray) -> float | None:
+    matrices = result.selection.matrices
+    return area_weighted_mean_oe(
+        matrices.log_oe,
+        result.unit_bins,
+        local_indices,
+    )
+
+
 def _node_fields(
     chrom: str,
     root_label: str,
     node: TreeNode,
     offset: int,
+    node_oe: float | None,
 ) -> dict[str, Any]:
     return {
         "chrom": chrom,
@@ -441,6 +449,7 @@ def _node_fields(
         "node_split_gain": node.split_gain,
         "child_ids": [child + offset for child in node.children],
         "stop_reason": node.stop_reason,
+        "node_oe": node_oe,
     }
 
 
@@ -478,11 +487,13 @@ def _cis_node_rows(
                 forest.groups,
             ):
                 for node in tree.nodes:
+                    local_indices = group[node.unit_indices]
                     base = _node_fields(
                         result.chrom,
                         tree.root_label,
                         node,
                         offset,
+                        _node_oe(result, local_indices),
                     )
                     if not node.is_leaf:
                         row = dict(base)
@@ -529,6 +540,7 @@ def _cis_node_rows(
                 "node_split_gain": None,
                 "child_ids": [],
                 "stop_reason": None,
+                "node_oe": _node_oe(result, np.array([local_index], dtype=np.int64)),
             }
             row.update(
                 _leaf_unit_fields(

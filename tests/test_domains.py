@@ -54,13 +54,10 @@ def make_fine(pcs, bins_per_fine_unit):
         clip_min=-10.0,
         clip_max=10.0,
     )
-    self_oe = np.diag(log_oe).copy()
-    np.fill_diagonal(log_oe, 0.0)
     return FineUnitMatrices(
         observed=observed,
         expected=expected,
         log_oe=log_oe,
-        self_oe=self_oe,
         alpha=alpha,
         bins_per_fine_unit=bins,
         pcs=pcs,

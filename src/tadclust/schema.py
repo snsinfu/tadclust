@@ -29,7 +29,7 @@ def cis_leaves_schema(
         "depth": pl.Int64,
         "pc": pl.Array(pl.Float64, n_pcs),
         "n_working_bins": pl.Int64,
-        "self_oe": pl.Float64,
+        "node_oe": pl.Float64,
     }
     if include_ab:
         schema.update(
@@ -78,7 +78,7 @@ def cis_nodes_schema(n_pcs: int, include_ab: bool) -> Schema:
         "unit_kind": pl.String,
         "tad_table_row": pl.Int64,
         "pc": pl.Array(pl.Float64, n_pcs),
-        "self_oe": pl.Float64,
+        "node_oe": pl.Float64,
     }
     if include_ab:
         schema.update(

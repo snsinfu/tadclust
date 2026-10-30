@@ -16,12 +16,11 @@ DENSE_PCA_MAX = 6000
 
 @dataclass(frozen=True)
 class ObservedExpected:
-    """Observed, expected, log-ratio, self O/E, and pseudocount."""
+    """Observed, expected, log-ratio, and pseudocount."""
 
     observed: np.ndarray
     expected: np.ndarray
     log_oe: np.ndarray
-    self_oe: np.ndarray
     alpha: float
 
 
@@ -50,7 +49,6 @@ class UnitMatrices(ObservedExpected):
             observed=fine.observed,
             expected=fine.expected,
             log_oe=fine.log_oe,
-            self_oe=fine.self_oe,
             alpha=fine.alpha,
             pcs=fine.pcs,
             eigenvalues=fine.eigenvalues,
@@ -444,11 +442,11 @@ def compute_fine_unit_matrices(
         clip_min=clip_min,
         clip_max=clip_max,
     )
-    self_oe = np.diag(log_oe).copy()
-    np.fill_diagonal(log_oe, 0.0)
+    pca_input = log_oe.copy()
+    np.fill_diagonal(pca_input, 0.0)
 
     pcs, eigenvalues, fractions = pcs_from_log_oe(
-        log_oe,
+        pca_input,
         n_pcs,
         label=f"cis:{chrom}",
     )
@@ -456,7 +454,6 @@ def compute_fine_unit_matrices(
         observed=observed_fine,
         expected=expected_fine,
         log_oe=log_oe,
-        self_oe=self_oe,
         alpha=alpha,
         bins_per_fine_unit=bins_per_fine_unit,
         pcs=pcs,
@@ -494,11 +491,11 @@ def compute_unit_matrices(
         clip_min=clip_min,
         clip_max=clip_max,
     )
-    self_oe = np.diag(log_oe).copy()
-    np.fill_diagonal(log_oe, 0.0)
+    pca_input = log_oe.copy()
+    np.fill_diagonal(pca_input, 0.0)
 
     pcs, eigenvalues, fractions = pcs_from_log_oe(
-        log_oe,
+        pca_input,
         n_pcs,
         label=label,
     )
@@ -506,9 +503,27 @@ def compute_unit_matrices(
         observed=observed,
         expected=expected,
         log_oe=log_oe,
-        self_oe=self_oe,
         alpha=alpha,
         pcs=pcs,
         eigenvalues=eigenvalues,
         variance_fraction=fractions,
     )
+
+
+def area_weighted_mean_oe(
+    log_oe: np.ndarray,
+    unit_bins: np.ndarray,
+    indices: np.ndarray,
+) -> float | None:
+    """Return the area-weighted mean log2 O/E over the given units."""
+    indices = np.asarray(indices, dtype=np.int64)
+    if indices.size == 0:
+        return None
+
+    values = np.array(log_oe[np.ix_(indices, indices)], dtype=np.float64, copy=True)
+    weights = np.asarray(unit_bins[indices], dtype=np.float64)
+    weights = weights[:, None] * weights[None, :]
+    total = float(weights.sum())
+    if total <= 0.0:
+        return float(values.mean())
+    return float((values * weights).sum() / total)

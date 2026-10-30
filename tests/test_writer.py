@@ -32,7 +32,7 @@ CIS_LEAVES_TSV_COLUMNS = [
     "path_label",
     "depth",
     "n_working_bins",
-    "self_oe",
+    "node_oe",
 ]
 TRANS_LEAVES_TSV_COLUMNS = [
     "trans_root_label",
@@ -206,11 +206,11 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
         "depth",
         "pc",
         "n_working_bins",
-        "self_oe",
+        "node_oe",
     ]
     assert leaves.schema["path"] == pl.List(pl.Int64)
     assert leaves.schema["depth"] == pl.Int64
-    assert leaves.schema["self_oe"] == pl.Float64
+    assert leaves.schema["node_oe"] == pl.Float64
     assert leaves.schema["pc"] == pl.Array(pl.Float64, 2)
     assert nodes.schema["parent_id"] == pl.Int64
     assert nodes.schema["child_ids"] == pl.List(pl.Int64)
@@ -218,7 +218,7 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     assert nodes.schema["node_split_gain"] == pl.Float64
     assert nodes.schema["unit_id"] == pl.Int64
     assert nodes.schema["pc"] == pl.Array(pl.Float64, 2)
-    assert nodes.schema["self_oe"] == pl.Float64
+    assert nodes.schema["node_oe"] == pl.Float64
     assert "ab_label" not in nodes.columns
 
     assert leaves_tsv.columns == CIS_LEAVES_TSV_COLUMNS

@@ -90,7 +90,7 @@ def cis_leaves_schema(include_trans: bool, include_ab: bool):
         ("depth", pl.Int64),
         ("pc", pl.Array(pl.Float64, 3)),
         ("n_working_bins", pl.Int64),
-        ("self_oe", pl.Float64),
+        ("node_oe", pl.Float64),
     ]
     if include_ab:
         schema.extend(
@@ -134,7 +134,7 @@ def cis_nodes_schema(include_ab: bool, n_pcs: int = 3):
         ("unit_kind", pl.String),
         ("tad_table_row", pl.Int64),
         ("pc", pl.Array(pl.Float64, n_pcs)),
-        ("self_oe", pl.Float64),
+        ("node_oe", pl.Float64),
     ]
     if include_ab:
         schema.extend(
@@ -161,7 +161,7 @@ CIS_LEAVES_TSV_COLUMNS = [
     "path_label",
     "depth",
     "n_working_bins",
-    "self_oe",
+    "node_oe",
 ]
 
 TRANS_LEAVES_TSV_COLUMNS = [

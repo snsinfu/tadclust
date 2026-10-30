@@ -90,6 +90,9 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert "ab_label" not in result.cis_nodes.columns
     assert set(result.cis_nodes["root_label"].unique().to_list()) == {"chrom"}
     assert result.cis_nodes["parent_id"].null_count() == 2
+    assert result.cis_nodes["node_oe"].null_count() == 0
+    assert result.cis_leaves["node_oe"].null_count() == 0
+    assert result.cis_nodes["node_oe"].is_finite().all()
     assert_node_references(result.cis_nodes)
 
     assert result.cis_leaves_ab is None

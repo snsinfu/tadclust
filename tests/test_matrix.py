@@ -7,6 +7,7 @@ import pytest
 
 from tadclust.errors import ClusteringError
 from tadclust.matrix import (
+    area_weighted_mean_oe,
     canonicalize_pc1_sign,
     compute_fine_unit_matrices,
     compute_top_pcs,
@@ -239,9 +240,8 @@ def test_compute_fine_unit_matrices_on_synthetic_mcool(mcool) -> None:
     assert matrices.observed.shape == (2, 2)
     assert matrices.expected.shape == (2, 2)
     assert matrices.log_oe.shape == (2, 2)
-    assert matrices.self_oe.shape == (2,)
     assert matrices.bins_per_fine_unit.tolist() == [2, 2]
-    assert np.allclose(np.diag(matrices.log_oe), 0.0)
+    assert np.all(np.isfinite(np.diag(matrices.log_oe)))
     assert matrices.alpha > 0
     assert matrices.pcs.shape == (2, 2)
     assert matrices.eigenvalues.shape == (2,)
@@ -298,6 +298,54 @@ def test_compute_unit_matrices_aggregate_fine_pairs() -> None:
 
     assert np.allclose(matrices.observed, unit_map.T @ observed_fine @ unit_map)
     assert np.allclose(matrices.expected, unit_map.T @ expected_fine @ unit_map)
-    assert np.allclose(np.diag(matrices.log_oe), 0.0)
-    assert matrices.self_oe.shape == (2,)
+    assert np.all(np.isfinite(np.diag(matrices.log_oe)))
     assert matrices.pcs.shape == (2, 1)
+
+
+def test_area_weighted_mean_oe_uses_pair_and_diagonal_weights() -> None:
+    log_oe = np.array([[2.0, 1.0], [1.0, 3.0]])
+    unit_bins = np.array([1, 2])
+
+    value = area_weighted_mean_oe(
+        log_oe,
+        unit_bins,
+        np.array([0, 1]),
+    )
+
+    assert value == pytest.approx(2.0)
+
+
+def test_area_weighted_mean_oe_singleton_returns_diagonal() -> None:
+    log_oe = np.array([[2.0, 1.0], [1.0, 3.0]])
+    unit_bins = np.array([1, 2])
+
+    value = area_weighted_mean_oe(
+        log_oe,
+        unit_bins,
+        np.array([1]),
+    )
+
+    assert value == pytest.approx(3.0)
+
+
+def test_area_weighted_mean_oe_zero_weight_falls_back_to_mean() -> None:
+    log_oe = np.array([[2.0, 1.0], [1.0, 3.0]])
+    unit_bins = np.array([0, 0])
+
+    value = area_weighted_mean_oe(
+        log_oe,
+        unit_bins,
+        np.array([0, 1]),
+    )
+
+    assert value == pytest.approx(1.75)
+
+
+def test_area_weighted_mean_oe_empty_indices_is_none() -> None:
+    value = area_weighted_mean_oe(
+        np.zeros((0, 0)),
+        np.zeros(0, dtype=np.int64),
+        np.zeros(0, dtype=np.int64),
+    )
+
+    assert value is None
