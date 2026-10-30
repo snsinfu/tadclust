@@ -420,7 +420,7 @@ def annotate_ab(
     """Assign per-domain A/B labels and boundary scores.
 
     The feature matrix must end with the standardized signal rank. K-means runs
-    in that augmented space, but scores are derived in the projected
+    in that augmented space, but scores and labels are derived in the projected
     standardized PC subspace.
     """
     values = np.asarray(features, dtype=np.float64)
@@ -542,16 +542,8 @@ def _ab_partition(
         a_clusters = [int(order[-1]), int(order[-2])]
         b_clusters = [int(order[0])]
 
-    a_indices = indices[np.flatnonzero(np.isin(inverse, a_clusters))]
-    b_indices = indices[np.flatnonzero(np.isin(inverse, b_clusters))]
-    if a_indices.size == 0 or b_indices.size == 0:
-        return None
-
     a_centroids_pc = centroids[a_clusters][:, :pc_dim]
     b_centroid_pc = centroids[b_clusters[0]][:pc_dim]
-    labels = np.full(n_domains, None, dtype=object)
-    labels[a_indices] = "A"
-    labels[b_indices] = "B"
     scores = np.full(n_domains, np.nan, dtype=np.float64)
     margins = np.full(n_domains, np.nan, dtype=np.float64)
 
@@ -563,6 +555,14 @@ def _ab_partition(
         score = b_distance - a_distance
         scores[domain] = score
         margins[domain] = abs(score)
+
+    labels = np.full(n_domains, None, dtype=object)
+    a_indices = indices[scores[indices] > 0.0]
+    b_indices = indices[scores[indices] < 0.0]
+    if a_indices.size == 0 or b_indices.size == 0:
+        return None
+    labels[a_indices] = "A"
+    labels[b_indices] = "B"
 
     return (
         labels,
@@ -582,7 +582,11 @@ def annotate_cis_forest(
     *,
     n_pcs: int,
 ) -> None:
-    """Attach per-node A/B composition, rank, labels, and boundary scores."""
+    """Attach per-node A/B composition, rank, labels, and boundary scores.
+
+    Scores use the node's mean standardized PC vector and the projected A/B
+    centroids.
+    """
     values = np.asarray(features, dtype=np.float64)
     pc_dim = min(n_pcs, values.shape[1] - 1)
     pc_values = values[:, :pc_dim]

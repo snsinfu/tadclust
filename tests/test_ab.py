@@ -103,10 +103,47 @@ def test_annotate_ab_kmeans3_merges_two_highest_signal_clusters() -> None:
     assert set(annotation.labels.tolist()) == {"A", "B"}
     assert 4 in annotation.a_indices.tolist()
     assert 0 in annotation.b_indices.tolist()
-    assert (
-        annotation.rank[annotation.a_indices].mean()
-        > annotation.rank[annotation.b_indices].mean()
-    )
+    assert annotation.a_centroids_pc.shape[0] == 2
+    assert annotation.b_centroid_pc.shape == (1,)
+    for index, label in enumerate(annotation.labels):
+        score = annotation.scores[index]
+        if label == "A":
+            assert score > 0
+        elif label == "B":
+            assert score < 0
+
+
+def test_ab_labels_follow_pc_score() -> None:
+    pcs = np.array([[-3.0], [-1.0], [1.0], [3.0]])
+    rank = np.array([0.0, 0.1, 0.9, 1.0])
+    features = ab_feature_matrix(pcs, rank, 1)
+
+    annotation = annotate_ab(features, rank, 4, "kmeans2", 0, n_pcs=1)
+
+    for index, label in enumerate(annotation.labels):
+        score = annotation.scores[index]
+        if label == "A":
+            assert score > 0
+        elif label == "B":
+            assert score < 0
+        else:
+            assert label is None
+            assert np.isnan(score) or score == 0.0
+
+
+def test_ab_degenerate_when_pc_centroids_coincide() -> None:
+    pcs = np.zeros((4, 1))
+    rank = np.array([0.0, 0.1, 0.9, 1.0])
+    features = ab_feature_matrix(pcs, rank, 1)
+
+    annotation = annotate_ab(features, rank, 4, "kmeans2", 0, n_pcs=1)
+
+    assert annotation.fallback
+    assert annotation.fallback_reason == "ab_degenerate"
+    assert annotation.labels.tolist() == [None, None, None, None]
+    assert np.isnan(annotation.scores).all()
+    assert annotation.a_indices.size == 0
+    assert annotation.b_indices.size == 0
 
 
 def test_annotate_ab_excludes_uninformative_domains() -> None:
