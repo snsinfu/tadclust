@@ -9,7 +9,7 @@ import numpy as np
 from scipy import linalg, sparse
 from scipy.sparse import linalg as sparse_linalg
 
-from .errors import ComputationError, McoolError, NoPositiveModeError
+from .errors import ClusteringError, McoolError
 
 DENSE_PCA_MAX = 6000
 
@@ -64,7 +64,7 @@ def distance_bin_edges(
 ) -> np.ndarray:
     """Build log-spaced off-diagonal distance-bin edges."""
     if n_distance_bins < 1:
-        raise ComputationError("n_distance_bins must be at least 1")
+        raise ClusteringError("n_distance_bins must be at least 1")
     if n_chromosome_bins <= 2:
         return np.array([1.0, 2.0])
 
@@ -208,7 +208,7 @@ def compute_top_pcs(
     negative eigenvalues are clipped to zero.
     """
     if n_pcs < 1:
-        raise ComputationError(
+        raise ClusteringError(
             "n_pcs must be at least 1",
             matrix=label,
         )
@@ -221,7 +221,7 @@ def compute_top_pcs(
     )
     n_rows = int(matrix_values.shape[0])
     if n_rows == 0:
-        raise ComputationError(
+        raise ClusteringError(
             "cannot compute PCs of an empty matrix",
             matrix=label,
         )
@@ -246,7 +246,7 @@ def compute_top_pcs(
                 maxiter=max(1000, n_rows * 10),
             )
     except Exception as exc:
-        raise ComputationError(
+        raise ClusteringError(
             f"eigendecomposition failed: {exc}",
             matrix=label,
         ) from exc
@@ -256,7 +256,7 @@ def compute_top_pcs(
     eigenvectors = np.asarray(eigenvectors[:, order], dtype=np.float64)
 
     if eigenvalues.size == 0 or eigenvalues[0] <= 1e-12:
-        raise NoPositiveModeError(
+        raise ClusteringError(
             "eigendecomposition found no positive mode",
             matrix=label,
         )
@@ -305,9 +305,9 @@ def orient_pc1_to_signal(
     values = np.array(pcs, dtype=np.float64, copy=True)
     ranks = np.asarray(rank, dtype=np.float64)
     if values.ndim != 2:
-        raise ComputationError("domain PCs must be a two-dimensional array")
+        raise ClusteringError("domain PCs must be a two-dimensional array")
     if values.shape[0] != ranks.shape[0]:
-        raise ComputationError("PC and signal-rank lengths differ")
+        raise ClusteringError("PC and signal-rank lengths differ")
     if values.shape[1] == 0 or values.shape[0] < 2:
         return values
     if np.std(values[:, 0]) == 0 or np.std(ranks) == 0:
@@ -332,19 +332,19 @@ def compute_fine_unit_matrices(
 ) -> FineUnitMatrices:
     """Aggregate cis O/E to fine units and compute fine-unit PCs."""
     if n_fine < 1:
-        raise ComputationError(
+        raise ClusteringError(
             f"{chrom}: no fine units",
             chrom=chrom,
         )
 
     bin_map = np.asarray(bin_to_fine_unit, dtype=np.int64)
     if bin_map.ndim != 1:
-        raise ComputationError(
+        raise ClusteringError(
             f"{chrom}: bin map must be one-dimensional",
             chrom=chrom,
         )
     if np.any(bin_map < -1) or np.any(bin_map >= n_fine):
-        raise ComputationError(
+        raise ClusteringError(
             f"{chrom}: bin map values must be in [-1, {n_fine})",
             chrom=chrom,
         )
@@ -378,7 +378,7 @@ def compute_fine_unit_matrices(
     pixel_distance = pixel_distance[usable_pixels]
 
     if pixel_row.max() >= bin_map.size or pixel_col.max() >= bin_map.size:
-        raise ComputationError(
+        raise ClusteringError(
             f"{chrom}: pixel bin index is outside the bin map",
             chrom=chrom,
         )

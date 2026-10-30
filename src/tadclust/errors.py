@@ -38,14 +38,11 @@ class McoolError(TadclustError):
 
 
 @dataclass(eq=False)
-class ComputationError(TadclustError):
+class ClusteringError(TadclustError):
+    """Failure while selecting domains, building features, or clustering."""
+
     chrom: str | None = None
     matrix: str | None = None
-
-
-@dataclass(eq=False)
-class NoPositiveModeError(ComputationError):
-    pass
 
 
 @dataclass(eq=False)

@@ -13,7 +13,7 @@ import polars as pl
 from .clustering import informative_mask
 from .config import ClusterConfig
 from .domains import ChromosomeTree, DomainSelection
-from .errors import ComputationError
+from .errors import ClusteringError
 from .matrix import orient_pc1_to_signal
 from .mcool import (
     ResolutionChoice,
@@ -476,7 +476,7 @@ def _cis_leaf_ab_rows(
 
     for result in results:
         if result.ab_forest is None or result.annotation is None:
-            raise ComputationError(f"{result.chrom}: missing A/B result")
+            raise ClusteringError(f"{result.chrom}: missing A/B result")
         leaf_info = _forest_leaf_info(result.ab_forest)
         annotation = result.annotation
 
@@ -679,7 +679,7 @@ def _ab_qc(
         annotation = result.annotation
         ab_forest = result.ab_forest
         if annotation is None or ab_forest is None:
-            raise ComputationError(f"{result.chrom}: missing A/B result")
+            raise ClusteringError(f"{result.chrom}: missing A/B result")
 
         labels = annotation.labels
         rank = annotation.rank
@@ -806,7 +806,7 @@ def _forest_leaf_info(
 
     expected = sum(len(group) for group in forest.groups)
     if len(info) != expected:
-        raise ComputationError(
+        raise ClusteringError(
             f"{forest.chrom}: forest left some domains without a leaf"
         )
     return info
@@ -833,5 +833,5 @@ def _tree_leaf_info(
                 )
 
     if len(info) != mapping.size:
-        raise ComputationError("trans tree left some domains without a leaf")
+        raise ClusteringError("trans tree left some domains without a leaf")
     return info

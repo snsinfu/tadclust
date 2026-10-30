@@ -10,7 +10,7 @@ import polars as pl
 from scipy.stats import rankdata
 
 from .bedlike import read_bedlike
-from .errors import ComputationError, TrackError
+from .errors import ClusteringError, TrackError
 
 
 @dataclass(frozen=True)
@@ -190,9 +190,9 @@ def ab_feature_matrix(
     values = np.asarray(pcs, dtype=np.float64)
     ranks = np.asarray(rank, dtype=np.float64)
     if values.ndim != 2:
-        raise ComputationError("domain PCs must be a two-dimensional array")
+        raise ClusteringError("domain PCs must be a two-dimensional array")
     if values.shape[0] != ranks.shape[0]:
-        raise ComputationError("PC and rank lengths differ")
+        raise ClusteringError("PC and rank lengths differ")
 
     n_features = max(1, min(n_pcs, values.shape[1])) if values.shape[1] else 0
     columns = [values[:, :n_features]] if n_features else []

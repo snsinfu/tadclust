@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from tadclust.domains import build_flat_tree
-from tadclust.errors import ComputationError
+from tadclust.errors import ClusteringError
 
 
 def test_build_flat_tree() -> None:
@@ -34,5 +34,5 @@ def test_build_flat_tree() -> None:
     ],
 )
 def test_invalid_flat_bins_are_rejected(starts, ends, chromsize) -> None:
-    with pytest.raises(ComputationError):
+    with pytest.raises(ClusteringError):
         build_flat_tree(starts, ends, "chr1", chromsize)

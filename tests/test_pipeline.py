@@ -9,7 +9,7 @@ from conftest import write_mcool, write_tads, write_track
 
 import tadclust.domains as domains_module
 from tadclust.config import ClusterConfig
-from tadclust.errors import InputError, NoPositiveModeError
+from tadclust.errors import ClusteringError, InputError
 from tadclust.pipeline import cluster
 
 
@@ -265,7 +265,7 @@ def test_cluster_with_trans(three_chrom_mcool, trans_tads, tmp_path) -> None:
 def test_cluster_trans_no_positive_mode_raises(mcool, tmp_path) -> None:
     tads = base_tads(tmp_path)
 
-    with pytest.raises(NoPositiveModeError):
+    with pytest.raises(ClusteringError):
         cluster(
             make_config(
                 mcool,

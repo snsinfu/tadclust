@@ -10,7 +10,7 @@ import numpy as np
 import polars as pl
 from scipy import sparse
 
-from .errors import ComputationError, InputError
+from .errors import ClusteringError, InputError
 from .matrix import DomainMatrices, FineUnitMatrices, compute_domain_matrices
 from .tads import TadTable
 
@@ -463,12 +463,12 @@ def selected_domains(
     for node_id in cut:
         node = tree.nodes[node_id]
         if node_id == tree.root_id:
-            raise ComputationError(
+            raise ClusteringError(
                 f"{tree.chrom}: the synthetic root cannot be selected",
                 chrom=tree.chrom,
             )
         if covered[node.fine_lo : node.fine_hi].any():
-            raise ComputationError(
+            raise ClusteringError(
                 f"{tree.chrom}: selected TAD domains overlap",
                 chrom=tree.chrom,
             )
@@ -521,7 +521,7 @@ def selected_domains(
         fine_to_domain[domain.fine_indices] = domain.domain_id
 
     if np.any(fine_to_domain < 0):
-        raise ComputationError(
+        raise ClusteringError(
             f"{tree.chrom}: fine units were not assigned to a domain",
             chrom=tree.chrom,
         )
@@ -549,7 +549,7 @@ def select_domains(
     )
     n_data = int((bins_per_fine_unit > 0).sum())
     if n_data == 0:
-        raise ComputationError(
+        raise ClusteringError(
             f"{tree.chrom}: no fine units contain working bins",
             chrom=tree.chrom,
         )
@@ -616,24 +616,24 @@ def _check_flat_bins(
     chromsize: int,
 ) -> None:
     if starts.ndim != 1 or ends.ndim != 1 or starts.size != ends.size:
-        raise ComputationError(
+        raise ClusteringError(
             f"{chrom}: bin starts and ends must be one-dimensional and equal length",
             chrom=chrom,
         )
     if starts.size == 0:
-        raise ComputationError(f"{chrom}: no working bins", chrom=chrom)
+        raise ClusteringError(f"{chrom}: no working bins", chrom=chrom)
     if starts[0] != 0 or ends[-1] != chromsize:
-        raise ComputationError(
+        raise ClusteringError(
             f"{chrom}: bins do not cover [0, {chromsize})",
             chrom=chrom,
         )
     if np.any(ends <= starts):
-        raise ComputationError(
+        raise ClusteringError(
             f"{chrom}: bin end must be greater than start",
             chrom=chrom,
         )
     if np.any(starts[1:] != ends[:-1]):
-        raise ComputationError(f"{chrom}: bins are not contiguous", chrom=chrom)
+        raise ClusteringError(f"{chrom}: bins are not contiguous", chrom=chrom)
 
 
 def _check_interval(
@@ -693,7 +693,7 @@ def _check_fine_units(
 def _sorted_centers(bin_centers: np.ndarray) -> np.ndarray:
     centers = np.asarray(bin_centers, dtype=np.float64)
     if centers.ndim != 1:
-        raise ComputationError("bin centers must be one-dimensional")
+        raise ClusteringError("bin centers must be one-dimensional")
     if centers.size > 1 and np.any(np.diff(centers) < 0):
-        raise ComputationError("bin centers must be sorted")
+        raise ClusteringError("bin centers must be sorted")
     return centers

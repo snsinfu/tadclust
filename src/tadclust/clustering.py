@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 from sklearn.cluster import KMeans
 
-from .errors import ComputationError
+from .errors import ClusteringError
 
 
 def derive_seed(base_seed: int, *key: int) -> int:
@@ -18,7 +18,7 @@ def informative_mask(features: np.ndarray, n_features: int) -> np.ndarray:
     """Return True for rows with at least one non-zero clustering feature."""
     values = np.asarray(features, dtype=np.float64)
     if values.ndim != 2:
-        raise ComputationError("features must be a two-dimensional array")
+        raise ClusteringError("features must be a two-dimensional array")
     if values.shape[1] == 0:
         return np.zeros(values.shape[0], dtype=bool)
     n_features = max(1, min(int(n_features), values.shape[1]))
@@ -36,7 +36,7 @@ def kmeans_labels(
     values = np.asarray(pcs, dtype=np.float64)
     n_rows = values.shape[0]
     if n_rows == 0:
-        raise ComputationError("cannot cluster an empty set")
+        raise ClusteringError("cannot cluster an empty set")
 
     n_clusters = max(1, min(k, n_rows))
     n_features = max(1, min(n_pcs, values.shape[1])) if values.shape[1] else 0

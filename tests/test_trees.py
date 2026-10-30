@@ -9,7 +9,7 @@ import pytest
 from sklearn.exceptions import ConvergenceWarning
 
 from tadclust.clustering import derive_seed, kmeans_labels
-from tadclust.errors import ComputationError
+from tadclust.errors import ClusteringError
 from tadclust.trees import (
     build_branching_tree,
     build_cis_forest,
@@ -80,7 +80,7 @@ def test_kmeans_labels_clamps_and_handles_single_cluster() -> None:
     assert labels.tolist() == [0, 0]
     assert centers.shape == (1, 1)
 
-    with pytest.raises(ComputationError):
+    with pytest.raises(ClusteringError):
         kmeans_labels(np.empty((0, 1)), 2, 1, 0)
 
 
@@ -308,7 +308,7 @@ def test_build_cis_forest_groups_and_offsets() -> None:
 
 
 def test_invalid_tree_inputs() -> None:
-    with pytest.raises(ComputationError):
+    with pytest.raises(ClusteringError):
         build_branching_tree(
             np.empty((0, 1)),
             np.empty(0, dtype=np.int64),
@@ -316,7 +316,7 @@ def test_invalid_tree_inputs() -> None:
             seed=0,
             branch_k=2,
         )
-    with pytest.raises(ComputationError):
+    with pytest.raises(ClusteringError):
         build_branching_tree(
             np.array([[0.0], [1.0]]),
             np.ones(2, dtype=np.int64),
@@ -324,7 +324,7 @@ def test_invalid_tree_inputs() -> None:
             seed=0,
             branch_k=1,
         )
-    with pytest.raises(ComputationError):
+    with pytest.raises(ClusteringError):
         build_branching_tree(
             np.array([[0.0], [1.0]]),
             np.ones(3, dtype=np.int64),
@@ -332,7 +332,7 @@ def test_invalid_tree_inputs() -> None:
             seed=0,
             branch_k=2,
         )
-    with pytest.raises(ComputationError):
+    with pytest.raises(ClusteringError):
         build_branching_tree(
             np.array([[0.0], [1.0]]),
             np.ones(2, dtype=np.int64),

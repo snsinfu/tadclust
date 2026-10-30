@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from sklearn.exceptions import ConvergenceWarning
 
-from tadclust.errors import ComputationError
+from tadclust.errors import ClusteringError
 from tadclust.track import ab_feature_matrix
 from tadclust.trees import (
     AbAnnotation,
@@ -87,7 +87,7 @@ def test_annotate_ab_excludes_uninformative_domains() -> None:
 
 
 def test_annotate_ab_rejects_too_few_domains() -> None:
-    with pytest.raises(ComputationError):
+    with pytest.raises(ClusteringError):
         annotate_ab(
             np.zeros((1, 2)),
             np.array([0.5]),
@@ -115,9 +115,9 @@ def test_annotate_ab_degenerate(monkeypatch) -> None:
 
 
 def test_annotate_ab_rejects_invalid_inputs() -> None:
-    with pytest.raises(ComputationError):
+    with pytest.raises(ClusteringError):
         annotate_ab(np.zeros((2, 2)), np.zeros(3), 3, "kmeans2", 0)
-    with pytest.raises(ComputationError):
+    with pytest.raises(ClusteringError):
         annotate_ab(np.zeros((2, 2)), np.zeros(2), 2, "bad", 0)
 
 

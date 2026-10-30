@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from tadclust.errors import ComputationError, NoPositiveModeError
+from tadclust.errors import ClusteringError
 from tadclust.matrix import (
     canonicalize_pc1_sign,
     compute_domain_matrices,
@@ -173,14 +173,14 @@ def test_top_pcs_sparse_path() -> None:
 
 
 def test_top_pcs_rejects_zero_matrix() -> None:
-    with pytest.raises(NoPositiveModeError) as info:
+    with pytest.raises(ClusteringError) as info:
         compute_top_pcs(np.zeros((2, 2)), 2, label="test")
 
     assert info.value.matrix == "test"
 
 
 def test_pcs_from_oe_rejects_zero_matrix() -> None:
-    with pytest.raises(NoPositiveModeError):
+    with pytest.raises(ClusteringError):
         pcs_from_log_oe(np.zeros((2, 2)), 2, label="cis")
 
 
@@ -243,7 +243,7 @@ def test_compute_fine_unit_matrices_rejects_out_of_range_bin_map(
     cooler_object = open_cooler(mcool, 500)
     bin_to_fine_unit = np.array([0, 0, 1], dtype=np.int64)
 
-    with pytest.raises(ComputationError):
+    with pytest.raises(ClusteringError):
         compute_fine_unit_matrices(
             cooler_object,
             "chr1",

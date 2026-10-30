@@ -16,7 +16,7 @@ from threadpoolctl import threadpool_limits
 from .clustering import informative_mask
 from .config import TRANS_NULL_CHOICES
 from .domains import SelectedDomain
-from .errors import ComputationError, McoolError
+from .errors import ClusteringError, McoolError
 from .matrix import (
     canonicalize_pc1_sign,
     log2_ratio,
@@ -153,13 +153,13 @@ def trans_matrix(
     effects can remain in the trans axes.
     """
     if null not in TRANS_NULL_CHOICES:
-        raise ComputationError(f"unknown trans null: {null!r}")
+        raise ClusteringError(f"unknown trans null: {null!r}")
     if workers < 1:
-        raise ComputationError("workers must be at least 1")
+        raise ClusteringError("workers must be at least 1")
 
     n_domains = sum(len(item.domains) for item in inputs)
     if n_domains == 0:
-        raise ComputationError("trans clustering has no selected domains")
+        raise ClusteringError("trans clustering has no selected domains")
 
     chrom_names = [item.chrom for item in inputs]
     alpha_mode = "global" if null == "grand" else "per_pair"
@@ -335,9 +335,9 @@ def build_pixel_map(
 
     for input_index, item in enumerate(inputs):
         if not item.domains:
-            raise ComputationError(f"{item.chrom}: trans input has no domains")
+            raise ClusteringError(f"{item.chrom}: trans input has no domains")
         if item.chrom in n_bins_chrom:
-            raise ComputationError(f"duplicate trans chromosome: {item.chrom}")
+            raise ClusteringError(f"duplicate trans chromosome: {item.chrom}")
         if item.chrom not in chrom_index:
             raise McoolError(f"{item.chrom}: chromosome absent from the mcool")
 
@@ -350,7 +350,7 @@ def build_pixel_map(
             + np.asarray(chromosome_bins["end"], dtype=np.int64)
         ) / 2.0
         if centers.size != end_bin - start_bin:
-            raise ComputationError(
+            raise ClusteringError(
                 f"{item.chrom}: bin count does not match the mcool index"
             )
 
@@ -384,7 +384,7 @@ def build_pixel_map(
         domain_offset += len(item.domains)
 
     if np.any(domain_chrom < 0):
-        raise ComputationError("trans pixel map left some domains unassigned")
+        raise ClusteringError("trans pixel map left some domains unassigned")
 
     return PixelMap(
         bin_to_domain=bin_to_domain,
@@ -413,7 +413,7 @@ def build_trans_tree(
     bins = np.asarray(domain_bins, dtype=np.int64)
     n_domains = trans.log_oe.shape[0]
     if bins.shape[0] != n_domains:
-        raise ComputationError(
+        raise ClusteringError(
             "trans matrix and domain bin counts have different lengths"
         )
 
@@ -429,7 +429,7 @@ def build_trans_tree(
         if n_domains == 1:
             indices = np.arange(1, dtype=np.int64)
         else:
-            raise ComputationError("trans tree has no informative domains")
+            raise ClusteringError("trans tree has no informative domains")
 
     tree = build_branching_tree(
         pcs[indices],

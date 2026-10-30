@@ -18,7 +18,7 @@ from tadclust.domains import (
     selected_domains,
     total_weighted_variance,
 )
-from tadclust.errors import ComputationError, InputError
+from tadclust.errors import ClusteringError, InputError
 from tadclust.matrix import (
     FineUnitMatrices,
     log2_ratio,
@@ -228,7 +228,7 @@ def test_assign_bin_counts_and_map(tmp_path) -> None:
 def test_unsorted_centers_are_rejected(tmp_path) -> None:
     tree = make_tree(tmp_path, hierarchy_rows())
 
-    with pytest.raises(ComputationError):
+    with pytest.raises(ClusteringError):
         assign_bin_counts(tree, np.array([100.0, 50.0]))
 
 

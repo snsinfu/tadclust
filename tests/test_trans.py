@@ -10,7 +10,7 @@ import pytest
 from sklearn.exceptions import ConvergenceWarning
 
 from tadclust.domains import SelectedDomain
-from tadclust.errors import ComputationError, McoolError, NoPositiveModeError
+from tadclust.errors import ClusteringError, McoolError
 from tadclust.mcool import open_cooler
 from tadclust.trans import (
     PairInfo,
@@ -259,7 +259,7 @@ def test_trans_no_positive_mode_raises(three_chrom_mcool) -> None:
         null="pair",
     )
 
-    with pytest.raises(NoPositiveModeError):
+    with pytest.raises(ClusteringError):
         build_trans_tree(
             trans,
             np.array([4, 4, 4], dtype=np.int64),
@@ -364,7 +364,7 @@ def test_unknown_trans_null_is_rejected(three_chrom_mcool) -> None:
     cooler_object = open_cooler(three_chrom_mcool, 500)
     inputs = one_domain_inputs(("chr1", "chr2", "chr3"))
 
-    with pytest.raises(ComputationError):
+    with pytest.raises(ClusteringError):
         trans_matrix(
             three_chrom_mcool,
             500,

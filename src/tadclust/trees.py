@@ -8,7 +8,7 @@ import numpy as np
 
 from .clustering import derive_seed, informative_mask, kmeans_labels
 from .config import AB_SPLIT_CHOICES
-from .errors import ComputationError
+from .errors import ClusteringError
 
 AB_NODE_PURITY = 0.8
 _TREE_SEED_NAMESPACE = 0
@@ -99,18 +99,16 @@ def build_branching_tree(
     values = np.asarray(pcs, dtype=np.float64)
     bins = np.asarray(domain_bins, dtype=np.int64)
     if values.ndim != 2:
-        raise ComputationError("domain PCs must be a two-dimensional array")
+        raise ClusteringError("domain PCs must be a two-dimensional array")
     n_domains = values.shape[0]
     if n_domains == 0:
-        raise ComputationError("cannot build a tree from an empty domain set")
+        raise ClusteringError("cannot build a tree from an empty domain set")
     if bins.shape[0] != n_domains:
-        raise ComputationError(
-            "domain PCs and domain bin counts have different lengths"
-        )
+        raise ClusteringError("domain PCs and domain bin counts have different lengths")
     if branch_k < 2:
-        raise ComputationError("branch_k must be at least 2")
+        raise ClusteringError("branch_k must be at least 2")
     if n_pcs < 1:
-        raise ComputationError("n_pcs must be at least 1")
+        raise ClusteringError("n_pcs must be at least 1")
 
     nodes: list[TreeNode] = []
     root_id = _new_node(
@@ -315,7 +313,7 @@ def _leaf_lookup(
             leaf_of_domain[node.domain_indices] = node.node_id
 
     if np.any(leaf_of_domain < 0):
-        raise ComputationError("tree left some domains unassigned")
+        raise ClusteringError("tree left some domains unassigned")
     return leaf_of_domain
 
 
@@ -373,9 +371,7 @@ def _resolve_clusterable(
 
     mask = np.asarray(clusterable, dtype=bool)
     if mask.ndim != 1 or mask.shape[0] != values.shape[0]:
-        raise ComputationError(
-            "clusterable mask length does not match the domain count"
-        )
+        raise ClusteringError("clusterable mask length does not match the domain count")
     return mask
 
 
@@ -418,13 +414,13 @@ def annotate_ab(
     values = np.asarray(features, dtype=np.float64)
     ranks = np.asarray(rank, dtype=np.float64)
     if ranks.shape[0] != n_domains:
-        raise ComputationError("A/B rank length does not match the domain count")
+        raise ClusteringError("A/B rank length does not match the domain count")
     if values.shape[0] != n_domains:
-        raise ComputationError("A/B feature length does not match the domain count")
+        raise ClusteringError("A/B feature length does not match the domain count")
     if values.ndim != 2 or values.shape[1] == 0:
-        raise ComputationError("A/B features must have at least one column")
+        raise ClusteringError("A/B features must have at least one column")
     if ab_split not in AB_SPLIT_CHOICES:
-        raise ComputationError(f"unknown A/B split policy: {ab_split!r}")
+        raise ClusteringError(f"unknown A/B split policy: {ab_split!r}")
 
     labels = np.full(n_domains, None, dtype=object)
     scores = np.full(n_domains, np.nan, dtype=np.float64)
@@ -433,7 +429,7 @@ def annotate_ab(
     mask = _resolve_clusterable(values, values.shape[1], clusterable)
 
     if n_domains < 2:
-        raise ComputationError("A/B split requires at least two domains")
+        raise ClusteringError("A/B split requires at least two domains")
 
     partition = _ab_partition(values, n_domains, ab_split, seed, mask)
     if partition is None:
