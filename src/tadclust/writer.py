@@ -20,7 +20,7 @@ from .pipeline import ClusterResult
 SchemaValue = pl.DataType | type[pl.DataType]
 Schema = dict[str, SchemaValue]
 
-SCHEMA_VERSION = "2.0"
+SCHEMA_VERSION = "2.1"
 _TSV_NULL_INT = -1
 _TSV_NULL_FLOAT = float("nan")
 _TSV_NULL_STRING = "NA"
@@ -56,14 +56,14 @@ def write_outputs(
             _stage_parquet(
                 result.cis_leaves,
                 output_dir / "cis_leaves.parquet",
-                _cis_leaves_schema(config.tree_n_pcs, include_trans),
+                _cis_leaves_schema(config.tree_n_pcs, include_trans, include_ab),
             )
         )
         staged.append(
             _stage_tsv(
                 result.cis_leaves,
                 output_dir / "cis_leaves.tsv",
-                _cis_leaves_schema(config.tree_n_pcs, include_trans),
+                _cis_leaves_schema(config.tree_n_pcs, include_trans, include_ab),
             )
         )
         staged.append(
@@ -244,6 +244,7 @@ def _utc_now() -> str:
 def _cis_leaves_schema(
     n_pcs: int,
     include_trans: bool,
+    include_ab: bool,
 ) -> Schema:
     schema: Schema = {
         "domain_id": pl.Int64,
@@ -260,6 +261,14 @@ def _cis_leaves_schema(
         "n_bins": pl.Int64,
         "self_oe": pl.Float64,
     }
+    if include_ab:
+        schema.update(
+            {
+                "ab_label": pl.String,
+                "ab_rank": pl.Float64,
+                "ab_score": pl.Float64,
+            }
+        )
     if include_trans:
         schema.update(
             {
@@ -345,7 +354,6 @@ def _cis_leaves_ab_schema() -> Schema:
         "ab_label": pl.String,
         "ab_rank": pl.Float64,
         "ab_score": pl.Float64,
-        "ab_margin": pl.Float64,
     }
 
 

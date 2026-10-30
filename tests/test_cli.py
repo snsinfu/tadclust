@@ -182,6 +182,8 @@ def test_cli_ab_run(mcool, tmp_path) -> None:
     assert (out / "cis_leaves_ab.parquet").exists()
     assert (out / "cis_leaves_ab.tsv").exists()
     assert (out / "cis_nodes_ab.parquet").exists()
+    leaves = pl.read_parquet(out / "cis_leaves.parquet")
+    assert "ab_label" in leaves.columns
     manifest = json.loads((out / "manifest.json").read_text())
     assert manifest["params"]["ab_split"] == "kmeans2"
 

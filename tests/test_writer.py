@@ -39,6 +39,11 @@ TRANS_LEAVES_TSV_COLUMNS = [
     "trans_path_label",
     "trans_depth",
 ]
+CIS_LEAVES_AB_COLUMNS = [
+    "ab_label",
+    "ab_rank",
+    "ab_score",
+]
 CIS_LEAVES_AB_TSV_COLUMNS = [
     "domain_id",
     "chrom",
@@ -52,7 +57,6 @@ CIS_LEAVES_AB_TSV_COLUMNS = [
     "ab_label",
     "ab_rank",
     "ab_score",
-    "ab_margin",
 ]
 
 
@@ -263,6 +267,8 @@ def test_uniform_bin_tsv_nulls_use_sentinels(tmp_path) -> None:
     assert unclustered["root_label"].to_list() == ["NA", "NA"]
     assert unclustered["path_label"].to_list() == ["NA", "NA"]
     assert unclustered["depth"].to_list() == ["-1", "-1"]
+    assert unclustered["ab_label"].to_list() == ["NA", "NA"]
+    assert unclustered["ab_score"].to_list() == ["NaN", "NaN"]
 
     leaves_ab = read_tsv(out / "cis_leaves_ab.tsv")
     unclustered_ab = leaves_ab.filter(pl.col("start").cast(pl.Int64) < 1000)
@@ -312,13 +318,18 @@ def test_write_ab_and_trans_outputs(
 
     assert "trans_path" in leaves.columns
     assert leaves.schema["trans_path"] == pl.List(pl.Int64)
+    assert "ab_label" in leaves.columns
+    assert "ab_margin" not in leaves.columns
     assert "ab_label" in nodes.columns
     assert "ab_score" in leaves_ab.columns
+    assert "ab_margin" not in leaves_ab.columns
     assert "ab_label" in nodes_ab.columns
     assert trans_nodes.schema["chroms"] == pl.List(pl.String)
     assert trans_nodes.schema["chrom_domain_counts"] == pl.List(pl.Int64)
 
-    assert leaves_tsv.columns == CIS_LEAVES_TSV_COLUMNS + TRANS_LEAVES_TSV_COLUMNS
+    assert leaves_tsv.columns == (
+        CIS_LEAVES_TSV_COLUMNS + CIS_LEAVES_AB_COLUMNS + TRANS_LEAVES_TSV_COLUMNS
+    )
     assert "trans_path" not in leaves_tsv.columns
     assert "trans_path_label" in leaves_tsv.columns
     assert leaves_ab_tsv.columns == CIS_LEAVES_AB_TSV_COLUMNS

@@ -76,7 +76,7 @@ def tsv_columns(path: Path):
     return pl.read_csv(path, separator="\t", infer_schema_length=0).columns
 
 
-def cis_leaves_schema(include_trans: bool):
+def cis_leaves_schema(include_trans: bool, include_ab: bool):
     schema = [
         ("domain_id", pl.Int64),
         ("chrom", pl.String),
@@ -92,6 +92,14 @@ def cis_leaves_schema(include_trans: bool):
         ("n_bins", pl.Int64),
         ("self_oe", pl.Float64),
     ]
+    if include_ab:
+        schema.extend(
+            [
+                ("ab_label", pl.String),
+                ("ab_rank", pl.Float64),
+                ("ab_score", pl.Float64),
+            ]
+        )
     if include_trans:
         schema.extend(
             [
@@ -153,6 +161,12 @@ TRANS_LEAVES_TSV_COLUMNS = [
     "trans_depth",
 ]
 
+CIS_LEAVES_AB_COLUMNS = [
+    "ab_label",
+    "ab_rank",
+    "ab_score",
+]
+
 CIS_LEAVES_AB_TSV_COLUMNS = [
     "domain_id",
     "chrom",
@@ -166,7 +180,6 @@ CIS_LEAVES_AB_TSV_COLUMNS = [
     "ab_label",
     "ab_rank",
     "ab_score",
-    "ab_margin",
 ]
 
 CIS_LEAVES_AB_SCHEMA = [
@@ -183,7 +196,6 @@ CIS_LEAVES_AB_SCHEMA = [
     ("ab_label", pl.String),
     ("ab_rank", pl.Float64),
     ("ab_score", pl.Float64),
-    ("ab_margin", pl.Float64),
 ]
 
 TRANS_NODES_SCHEMA = [
@@ -211,7 +223,7 @@ def test_cis_only_golden_schema(mcool, tmp_path) -> None:
     write_outputs(result, config)
 
     out = tmp_path / "out"
-    assert schema_items(out / "cis_leaves.parquet") == cis_leaves_schema(False)
+    assert schema_items(out / "cis_leaves.parquet") == cis_leaves_schema(False, False)
     assert schema_items(out / "cis_nodes.parquet") == cis_nodes_schema(False)
     assert tsv_columns(out / "cis_leaves.tsv") == CIS_LEAVES_TSV_COLUMNS
     assert not (out / "cis_leaves_ab.parquet").exists()
@@ -232,7 +244,7 @@ def test_trans_golden_schema(three_chrom_mcool, trans_tads, tmp_path) -> None:
     write_outputs(result, config)
 
     out = tmp_path / "out"
-    assert schema_items(out / "cis_leaves.parquet") == cis_leaves_schema(True)
+    assert schema_items(out / "cis_leaves.parquet") == cis_leaves_schema(True, False)
     assert schema_items(out / "cis_nodes.parquet") == cis_nodes_schema(False)
     assert schema_items(out / "trans_nodes.parquet") == TRANS_NODES_SCHEMA
     assert tsv_columns(out / "cis_leaves.tsv") == (
@@ -252,11 +264,13 @@ def test_ab_golden_schema(mcool, tmp_path) -> None:
     write_outputs(result, config)
 
     out = tmp_path / "out"
-    assert schema_items(out / "cis_leaves.parquet") == cis_leaves_schema(False)
+    assert schema_items(out / "cis_leaves.parquet") == cis_leaves_schema(False, True)
     assert schema_items(out / "cis_nodes.parquet") == cis_nodes_schema(True)
     assert schema_items(out / "cis_leaves_ab.parquet") == CIS_LEAVES_AB_SCHEMA
     assert schema_items(out / "cis_nodes_ab.parquet") == cis_nodes_schema(True)
-    assert tsv_columns(out / "cis_leaves.tsv") == CIS_LEAVES_TSV_COLUMNS
+    assert tsv_columns(out / "cis_leaves.tsv") == (
+        CIS_LEAVES_TSV_COLUMNS + CIS_LEAVES_AB_COLUMNS
+    )
     assert tsv_columns(out / "cis_leaves_ab.tsv") == CIS_LEAVES_AB_TSV_COLUMNS
     assert not (out / "trans_nodes.parquet").exists()
 
@@ -267,7 +281,7 @@ def test_uniform_bins_golden_schema(mcool, tmp_path) -> None:
     write_outputs(result, config)
 
     out = tmp_path / "out"
-    assert schema_items(out / "cis_leaves.parquet") == cis_leaves_schema(False)
+    assert schema_items(out / "cis_leaves.parquet") == cis_leaves_schema(False, False)
     assert schema_items(out / "cis_nodes.parquet") == cis_nodes_schema(False)
     assert tsv_columns(out / "cis_leaves.tsv") == CIS_LEAVES_TSV_COLUMNS
 

@@ -501,26 +501,20 @@ def _cis_leaf_ab_rows(
             else:
                 root_label, path, depth = leaf
                 path_label = format_path_label(root_label, path)
-            score = annotation.scores[local_index]
-            margin = annotation.margins[local_index]
-            rows.append(
-                {
-                    "domain_id": global_id,
-                    "chrom": result.chrom,
-                    "start": domain.start,
-                    "end": domain.end,
-                    "kind": domain.kind,
-                    "source_row": domain.source_row,
-                    "root_label": root_label,
-                    "path": path,
-                    "path_label": path_label,
-                    "depth": depth,
-                    "ab_label": annotation.labels[local_index],
-                    "ab_rank": float(annotation.rank[local_index]),
-                    "ab_score": None if np.isnan(score) else float(score),
-                    "ab_margin": None if np.isnan(margin) else float(margin),
-                }
-            )
+            row: dict[str, Any] = {
+                "domain_id": global_id,
+                "chrom": result.chrom,
+                "start": domain.start,
+                "end": domain.end,
+                "kind": domain.kind,
+                "source_row": domain.source_row,
+                "root_label": root_label,
+                "path": path,
+                "path_label": path_label,
+                "depth": depth,
+            }
+            row.update(_ab_leaf_fields(annotation, local_index))
+            rows.append(row)
             global_id += 1
 
     return pl.DataFrame(rows)
