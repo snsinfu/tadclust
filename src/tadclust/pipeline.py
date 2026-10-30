@@ -370,25 +370,24 @@ def _leaf_unit_fields(
 ) -> dict[str, Any]:
     unit = result.selection.units[local_index]
     return {
-        "domain_id": unit_id,
+        "unit_id": unit_id,
         "start": unit.start,
         "end": unit.end,
-        "kind": unit.unit_kind,
-        "source_row": unit.tad_table_row,
-        "n_bins": unit.n_working_bins,
+        "unit_kind": unit.unit_kind,
+        "tad_table_row": unit.tad_table_row,
         "self_oe": float(result.selection.matrices.self_oe[local_index]),
-        "pcs": [float(value) for value in result.pcs[local_index, :n_pcs]],
+        "pc": [float(value) for value in result.pcs[local_index, :n_pcs]],
     }
 
 
 def _null_unit_fields() -> dict[str, Any]:
     return {
-        "domain_id": None,
+        "unit_id": None,
         "start": None,
         "end": None,
-        "kind": None,
-        "source_row": None,
-        "pcs": None,
+        "unit_kind": None,
+        "tad_table_row": None,
+        "pc": None,
         "self_oe": None,
     }
 
@@ -436,11 +435,11 @@ def _node_fields(
         "path": list(node.path),
         "path_label": format_path_label(root_label, node.path),
         "is_leaf": node.is_leaf,
-        "n_domains": len(node.unit_indices),
-        "n_bins": node.n_working_bins,
-        "node_sse": node.sse,
+        "n_units": len(node.unit_indices),
+        "n_working_bins": node.n_working_bins,
+        "node_internal_sse": node.sse,
         "node_split_gain": node.split_gain,
-        "children": [child + offset for child in node.children],
+        "child_ids": [child + offset for child in node.children],
         "stop_reason": node.stop_reason,
     }
 
@@ -524,10 +523,11 @@ def _cis_node_rows(
                 "path": None,
                 "path_label": None,
                 "is_leaf": True,
-                "n_domains": 1,
-                "node_sse": None,
+                "n_units": 1,
+                "n_working_bins": units[local_index].n_working_bins,
+                "node_internal_sse": None,
                 "node_split_gain": None,
-                "children": [],
+                "child_ids": [],
                 "stop_reason": None,
             }
             row.update(
@@ -545,7 +545,7 @@ def _cis_node_rows(
         unit_base += len(units)
 
     return pl.DataFrame(rows).with_columns(
-        pl.col("pcs").cast(pl.Array(pl.Float64, n_pcs))
+        pl.col("pc").cast(pl.Array(pl.Float64, n_pcs))
     )
 
 
@@ -560,22 +560,22 @@ def _cis_leaf_rows(
     leaves = (
         cis_nodes.filter(pl.col("is_leaf"))
         .select(list(cis_leaves_schema(n_pcs, False, include_ab)))
-        .sort("domain_id")
+        .sort("unit_id")
     )
     if trans_nodes is None:
         return leaves
 
     trans = trans_nodes.filter(pl.col("is_leaf")).select(
-        "domain_id",
+        "unit_id",
         pl.col("root_label").alias("trans_root_label"),
         pl.col("path").alias("trans_path"),
         pl.col("path_label").alias("trans_path_label"),
         pl.col("depth").alias("trans_depth"),
     )
     return (
-        leaves.join(trans, on="domain_id", how="left")
+        leaves.join(trans, on="unit_id", how="left")
         .select(list(cis_leaves_schema(n_pcs, include_trans, include_ab)))
-        .sort("domain_id")
+        .sort("unit_id")
     )
 
 
@@ -583,7 +583,7 @@ def _cis_leaf_ab_rows(cis_nodes_ab: pl.DataFrame) -> pl.DataFrame:
     return (
         cis_nodes_ab.filter(pl.col("is_leaf"))
         .select(list(cis_leaves_ab_schema()))
-        .sort("domain_id")
+        .sort("unit_id")
     )
 
 
@@ -614,24 +614,24 @@ def _trans_node_rows(trans_run: _TransRun | None) -> pl.DataFrame | None:
                 node.path,
             ),
             "is_leaf": node.is_leaf,
-            "n_domains": len(node.unit_indices),
-            "n_bins": node.n_working_bins,
-            "node_sse": node.sse,
+            "n_units": len(node.unit_indices),
+            "n_working_bins": node.n_working_bins,
+            "node_internal_sse": node.sse,
             "node_split_gain": node.split_gain,
-            "children": list(node.children),
+            "child_ids": list(node.children),
             "stop_reason": node.stop_reason,
             "chroms": chroms,
-            "chrom_domain_counts": [counts[chrom] for chrom in chroms],
+            "chrom_unit_counts": [counts[chrom] for chrom in chroms],
         }
         if not node.is_leaf:
             row = dict(base)
-            row["domain_id"] = None
+            row["unit_id"] = None
             rows.append(row)
             continue
 
         for member in node.unit_indices.tolist():
             row = dict(base)
-            row["domain_id"] = int(global_indices[member])
+            row["unit_id"] = int(global_indices[member])
             rows.append(row)
 
     return pl.DataFrame(rows)
@@ -685,9 +685,9 @@ def _build_qc(
         "working_binsize": choice.value,
         "working_binsize_mode": choice.mode,
         "n_chromosomes": len(results),
-        "n_domains": len(units),
+        "n_units": len(units),
         "n_tads": n_tads,
-        "n_bin_domains": n_bin_units,
+        "n_bin_units": n_bin_units,
         "n_residuals": n_residuals,
         "cis": _cis_qc(results),
         "trans": _trans_qc(trans_run, config),
@@ -715,9 +715,9 @@ def _cis_qc(results: list[_ChromosomeResult]) -> dict[str, Any]:
         matrices = result.selection.matrices
         per_chromosome[result.chrom] = {
             "n_fine": result.tree.n_fine,
-            "n_domains": len(result.selection.units),
+            "n_units": len(result.selection.units),
             "n_tads": n_tads,
-            "n_bin_domains": n_bin_units,
+            "n_bin_units": n_bin_units,
             "n_residuals": n_residuals,
             "n_clustered": n_clustered,
             "n_unclustered": n_unclustered,
@@ -813,8 +813,8 @@ def _ab_qc(
         "per_chromosome": per_chromosome,
         "n_chroms_split": n_chroms_split,
         "n_chroms_fallback": n_chroms_fallback,
-        "n_domains_a": n_units_a,
-        "n_domains_b": n_units_b,
+        "n_units_a": n_units_a,
+        "n_units_b": n_units_b,
         "n_unclustered": n_unclustered,
         "unconstrained_forest": {
             "n_nodes_a": n_nodes_a,
@@ -862,7 +862,7 @@ def _trans_qc(
         "pair_mean_max": max(pair_means) if pair_means else None,
         "eigenvalues": tree_result.eigenvalues.tolist(),
         "variance_fraction": tree_result.variance_fraction.tolist(),
-        "n_domains": matrix.log_oe.shape[0],
+        "n_units": matrix.log_oe.shape[0],
         "n_clustered": int(tree_result.unit_indices.size),
         "n_unclustered": (matrix.log_oe.shape[0] - int(tree_result.unit_indices.size)),
         "n_nodes": len(nodes),

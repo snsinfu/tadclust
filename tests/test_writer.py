@@ -22,16 +22,16 @@ from tadclust.writer import (
 )
 
 CIS_LEAVES_TSV_COLUMNS = [
-    "domain_id",
+    "unit_id",
     "chrom",
     "start",
     "end",
-    "kind",
-    "source_row",
+    "unit_kind",
+    "tad_table_row",
     "root_label",
     "path_label",
     "depth",
-    "n_bins",
+    "n_working_bins",
     "self_oe",
 ]
 TRANS_LEAVES_TSV_COLUMNS = [
@@ -45,12 +45,12 @@ CIS_LEAVES_AB_COLUMNS = [
     "ab_score",
 ]
 CIS_LEAVES_AB_TSV_COLUMNS = [
-    "domain_id",
+    "unit_id",
     "chrom",
     "start",
     "end",
-    "kind",
-    "source_row",
+    "unit_kind",
+    "tad_table_row",
     "root_label",
     "path_label",
     "depth",
@@ -181,7 +181,7 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     assert manifest["inputs"] == result.inputs
     assert manifest["cli"] == {"argv": ["--mcool", str(mcool)]}
     assert manifest["params"]["working_binsize"] == 500
-    assert manifest["qc"]["n_domains"] == 4
+    assert manifest["qc"]["n_units"] == 4
     assert manifest["output_files"] == [
         "cis_leaves.parquet",
         "cis_leaves.tsv",
@@ -194,30 +194,30 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     leaves_tsv = read_tsv(tmp_path / "out" / "cis_leaves.tsv")
     nodes = pl.read_parquet(tmp_path / "out" / "cis_nodes.parquet")
     assert leaves.columns == [
-        "domain_id",
+        "unit_id",
         "chrom",
         "start",
         "end",
-        "kind",
-        "source_row",
+        "unit_kind",
+        "tad_table_row",
         "root_label",
         "path",
         "path_label",
         "depth",
-        "pcs",
-        "n_bins",
+        "pc",
+        "n_working_bins",
         "self_oe",
     ]
     assert leaves.schema["path"] == pl.List(pl.Int64)
     assert leaves.schema["depth"] == pl.Int64
     assert leaves.schema["self_oe"] == pl.Float64
-    assert leaves.schema["pcs"] == pl.Array(pl.Float64, 2)
+    assert leaves.schema["pc"] == pl.Array(pl.Float64, 2)
     assert nodes.schema["parent_id"] == pl.Int64
-    assert nodes.schema["children"] == pl.List(pl.Int64)
+    assert nodes.schema["child_ids"] == pl.List(pl.Int64)
     assert nodes.schema["is_leaf"] == pl.Boolean
     assert nodes.schema["node_split_gain"] == pl.Float64
-    assert nodes.schema["domain_id"] == pl.Int64
-    assert nodes.schema["pcs"] == pl.Array(pl.Float64, 2)
+    assert nodes.schema["unit_id"] == pl.Int64
+    assert nodes.schema["pc"] == pl.Array(pl.Float64, 2)
     assert nodes.schema["self_oe"] == pl.Float64
     assert "ab_label" not in nodes.columns
 
@@ -226,7 +226,7 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     assert set(leaves_tsv["path_label"].to_list()) == set(
         leaves["path_label"].to_list()
     )
-    assert "pcs" not in leaves_tsv.columns
+    assert "pc" not in leaves_tsv.columns
     assert "path" not in leaves_tsv.columns
 
 
@@ -257,7 +257,7 @@ def test_uniform_bin_tsv_nulls_use_sentinels(tmp_path) -> None:
     out = tmp_path / "out"
 
     parquet = pl.read_parquet(out / "cis_leaves.parquet")
-    assert parquet["source_row"].null_count() == parquet.height
+    assert parquet["tad_table_row"].null_count() == parquet.height
 
     for name in ("cis_leaves.tsv", "cis_leaves_ab.tsv"):
         text = (out / name).read_text()
@@ -265,7 +265,7 @@ def test_uniform_bin_tsv_nulls_use_sentinels(tmp_path) -> None:
             assert all(cell != "" for cell in line.split("\t"))
 
     leaves = read_tsv(out / "cis_leaves.tsv")
-    assert leaves["source_row"].to_list() == ["-1"] * leaves.height
+    assert leaves["tad_table_row"].to_list() == ["-1"] * leaves.height
     unclustered = leaves.filter(pl.col("start").cast(pl.Int64) < 1000)
     assert unclustered["root_label"].to_list() == ["NA", "NA"]
     assert unclustered["path_label"].to_list() == ["NA", "NA"]
@@ -332,8 +332,8 @@ def test_write_ab_and_trans_outputs(
     assert "ab_label" in nodes_ab.columns
     assert "ab_margin" not in nodes_ab.columns
     assert trans_nodes.schema["chroms"] == pl.List(pl.String)
-    assert trans_nodes.schema["chrom_domain_counts"] == pl.List(pl.Int64)
-    assert trans_nodes.schema["domain_id"] == pl.Int64
+    assert trans_nodes.schema["chrom_unit_counts"] == pl.List(pl.Int64)
+    assert trans_nodes.schema["unit_id"] == pl.Int64
 
     assert leaves_tsv.columns == (
         CIS_LEAVES_TSV_COLUMNS + CIS_LEAVES_AB_COLUMNS + TRANS_LEAVES_TSV_COLUMNS

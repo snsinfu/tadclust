@@ -34,7 +34,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     source.add_argument(
         "--uniform-bins",
         action="store_true",
-        help="cluster uniform mcool bins as domains; requires --working-binsize",
+        help="cluster uniform mcool bins as units; requires --working-binsize",
     )
     parser.add_argument("--out-dir", required=True, help="output directory")
     parser.add_argument(
@@ -171,8 +171,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         raise SystemExit(f"tadclust: error: {exc}") from exc
 
     logger.info(
-        "wrote %d domains and %d file(s) to %s",
-        result.qc["n_domains"],
+        "wrote %d units and %d file(s) to %s",
+        result.qc["n_units"],
         len(written),
         config.output_dir,
     )

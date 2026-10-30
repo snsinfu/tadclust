@@ -72,7 +72,7 @@ def assert_node_references(nodes) -> None:
     for row in nodes.iter_rows(named=True):
         if row["parent_id"] is not None:
             assert row["parent_id"] in ids
-        assert set(row["children"]).issubset(ids)
+        assert set(row["child_ids"]).issubset(ids)
 
 
 def test_cluster_cis_only(mcool, tmp_path) -> None:
@@ -80,10 +80,10 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     result = cluster(make_config(mcool, tads, tmp_path))
 
     assert result.cis_leaves.height == 4
-    assert result.cis_leaves["domain_id"].to_list() == [0, 1, 2, 3]
-    assert result.cis_leaves["pcs"].dtype == pl.Array(pl.Float64, 2)
+    assert result.cis_leaves["unit_id"].to_list() == [0, 1, 2, 3]
+    assert result.cis_leaves["pc"].dtype == pl.Array(pl.Float64, 2)
     assert result.cis_leaves["root_label"].unique().to_list() == ["chrom"]
-    assert result.cis_leaves["source_row"].to_list() == [0, 1, 2, 3]
+    assert result.cis_leaves["tad_table_row"].to_list() == [0, 1, 2, 3]
     assert "ab_label" not in result.cis_leaves.columns
     assert "trans_path" not in result.cis_leaves.columns
 
@@ -96,7 +96,7 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert result.cis_nodes_ab is None
     assert result.trans_nodes is None
 
-    assert result.qc["n_domains"] == 4
+    assert result.qc["n_units"] == 4
     assert result.qc["n_tads"] == 4
     assert result.qc["n_residuals"] == 0
     assert result.qc["trans"] == {"enabled": False}
@@ -121,11 +121,11 @@ def test_cluster_uniform_bins(mcool, tmp_path) -> None:
     result = cluster(make_uniform_config(mcool, tmp_path))
 
     assert result.cis_leaves.height == 8
-    assert result.cis_leaves["kind"].unique().to_list() == ["bin"]
-    assert result.cis_leaves["source_row"].null_count() == 8
-    assert result.qc["n_domains"] == 8
+    assert result.cis_leaves["unit_kind"].unique().to_list() == ["bin"]
+    assert result.cis_leaves["tad_table_row"].null_count() == 8
+    assert result.qc["n_units"] == 8
     assert result.qc["n_tads"] == 0
-    assert result.qc["n_bin_domains"] == 8
+    assert result.qc["n_bin_units"] == 8
     assert result.qc["n_residuals"] == 0
     assert result.params["input_mode"] == "uniform_bins"
     assert result.params["annotation_path"] is None
@@ -133,7 +133,7 @@ def test_cluster_uniform_bins(mcool, tmp_path) -> None:
     assert result.params["working_binsize_mode"] == "explicit"
     assert result.inputs["annotation"] is None
     for chromosome_qc in result.qc["cis"]["per_chromosome"].values():
-        assert chromosome_qc["n_bin_domains"] == 4
+        assert chromosome_qc["n_bin_units"] == 4
         assert chromosome_qc["dp_cut_size"] == 4
         assert chromosome_qc["dp_objective"] == 0.0
         assert chromosome_qc["dp_lambda"] == 0.0
@@ -205,18 +205,18 @@ def test_cluster_uniform_bins_parallel_matches_serial(mcool, tmp_path) -> None:
     )
 
     columns = [
-        "domain_id",
+        "unit_id",
         "chrom",
         "start",
         "end",
-        "kind",
-        "source_row",
-        "n_bins",
+        "unit_kind",
+        "tad_table_row",
+        "n_working_bins",
     ]
     assert serial.cis_leaves.select(columns).equals(parallel.cis_leaves.select(columns))
     assert np.allclose(
-        np.vstack(serial.cis_leaves["pcs"].to_list()),
-        np.vstack(parallel.cis_leaves["pcs"].to_list()),
+        np.vstack(serial.cis_leaves["pc"].to_list()),
+        np.vstack(parallel.cis_leaves["pc"].to_list()),
     )
 
 
@@ -240,10 +240,10 @@ def test_cluster_with_trans(three_chrom_mcool, trans_tads, tmp_path) -> None:
     assert set(
         result.cis_leaves["trans_root_label"].drop_nulls().unique().to_list()
     ) == {"genome"}
-    assert {"chroms", "chrom_domain_counts"}.issubset(result.trans_nodes.columns)
+    assert {"chroms", "chrom_unit_counts"}.issubset(result.trans_nodes.columns)
     assert result.qc["trans"]["enabled"] is True
     assert result.qc["trans"]["skipped"] is None
-    assert result.qc["trans"]["n_domains"] == 6
+    assert result.qc["trans"]["n_units"] == 6
     assert result.qc["trans"]["alpha"] is not None
     pair_alphas = result.qc["trans"]["pair_alphas"]
     assert len(pair_alphas) == 3
@@ -261,7 +261,7 @@ def test_cluster_with_trans(three_chrom_mcool, trans_tads, tmp_path) -> None:
         0, named=True
     )
     assert root["chroms"] == ["chr1", "chr2", "chr3"]
-    assert sum(root["chrom_domain_counts"]) == 6
+    assert sum(root["chrom_unit_counts"]) == 6
     assert "cis_leaves.tsv" in result.output_files
     assert result.output_files[-1] == "trans_nodes.parquet"
 
@@ -326,7 +326,7 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
     ab_qc = result.qc["ab"]
     assert ab_qc["enabled"] is True
     assert ab_qc["split_policy"] == "kmeans2"
-    assert ab_qc["n_domains_a"] + ab_qc["n_domains_b"] == 8
+    assert ab_qc["n_units_a"] + ab_qc["n_units_b"] == 8
     assert set(ab_qc["per_chromosome"]) == {"chr1", "chr2"}
     assert "n_nodes_a" not in ab_qc
     assert set(ab_qc["unconstrained_forest"]) == {
@@ -446,18 +446,18 @@ def test_cluster_parallel_matches_serial(mcool, tmp_path) -> None:
     )
 
     columns = [
-        "domain_id",
+        "unit_id",
         "chrom",
         "start",
         "end",
-        "kind",
-        "source_row",
-        "n_bins",
+        "unit_kind",
+        "tad_table_row",
+        "n_working_bins",
     ]
     assert serial.cis_leaves.select(columns).equals(parallel.cis_leaves.select(columns))
     assert np.allclose(
-        np.vstack(serial.cis_leaves["pcs"].to_list()),
-        np.vstack(parallel.cis_leaves["pcs"].to_list()),
+        np.vstack(serial.cis_leaves["pc"].to_list()),
+        np.vstack(parallel.cis_leaves["pc"].to_list()),
     )
     node_columns = [
         "chrom",
@@ -493,7 +493,7 @@ def test_zero_contact_cis_unit_is_unclustered(tmp_path) -> None:
 
     node_unclustered = result.cis_nodes.filter(pl.col("node_id").is_null())
     assert node_unclustered.height == 2
-    assert node_unclustered["domain_id"].to_list() == [0, 1]
+    assert node_unclustered["unit_id"].to_list() == [0, 1]
     assert node_unclustered["is_leaf"].to_list() == [True, True]
     assert node_unclustered["path"].to_list() == [None, None]
     assert result.qc["cis"]["n_unclustered"] == 2
@@ -569,7 +569,7 @@ def test_zero_contact_trans_units_are_unclustered(tmp_path) -> None:
     assert other["trans_path"].null_count() == 0
     assert result.trans_nodes is not None
     trans_leaf = result.trans_nodes.filter(pl.col("is_leaf"))
-    assert trans_leaf["domain_id"].null_count() == 0
+    assert trans_leaf["unit_id"].null_count() == 0
     trans_chroms = {
         chrom for chroms in result.trans_nodes["chroms"].to_list() for chrom in chroms
     }

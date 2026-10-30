@@ -85,7 +85,7 @@ def test_cli_cis_run(mcool, tmp_path) -> None:
     manifest = json.loads((out / "manifest.json").read_text())
     assert manifest["cli"]["argv"] == args
     assert manifest["params"]["working_binsize"] == 500
-    assert manifest["qc"]["n_domains"] == 4
+    assert manifest["qc"]["n_units"] == 4
     assert (out / "cis_leaves.parquet").exists()
     assert (out / "cis_leaves.tsv").exists()
     assert not (out / "cis_leaves_ab.tsv").exists()
@@ -102,12 +102,12 @@ def test_cli_uniform_bins_run(mcool, tmp_path) -> None:
     assert manifest["params"]["input_mode"] == "uniform_bins"
     assert manifest["params"]["annotation_path"] is None
     assert manifest["inputs"]["annotation"] is None
-    assert manifest["qc"]["n_bin_domains"] == 8
+    assert manifest["qc"]["n_bin_units"] == 8
     assert manifest["qc"]["n_tads"] == 0
 
     leaves = pl.read_parquet(out / "cis_leaves.parquet")
-    assert set(leaves["kind"].to_list()) == {"bin"}
-    assert leaves["source_row"].null_count() == leaves.height
+    assert set(leaves["unit_kind"].to_list()) == {"bin"}
+    assert leaves["tad_table_row"].null_count() == leaves.height
 
 
 def test_cli_uniform_bins_requires_working_binsize(mcool, tmp_path) -> None:

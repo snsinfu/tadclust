@@ -78,18 +78,18 @@ def tsv_columns(path: Path):
 
 def cis_leaves_schema(include_trans: bool, include_ab: bool):
     schema = [
-        ("domain_id", pl.Int64),
+        ("unit_id", pl.Int64),
         ("chrom", pl.String),
         ("start", pl.Int64),
         ("end", pl.Int64),
-        ("kind", pl.String),
-        ("source_row", pl.Int64),
+        ("unit_kind", pl.String),
+        ("tad_table_row", pl.Int64),
         ("root_label", pl.String),
         ("path", pl.List(pl.Int64)),
         ("path_label", pl.String),
         ("depth", pl.Int64),
-        ("pcs", pl.Array(pl.Float64, 3)),
-        ("n_bins", pl.Int64),
+        ("pc", pl.Array(pl.Float64, 3)),
+        ("n_working_bins", pl.Int64),
         ("self_oe", pl.Float64),
     ]
     if include_ab:
@@ -122,18 +122,18 @@ def cis_nodes_schema(include_ab: bool, n_pcs: int = 3):
         ("path", pl.List(pl.Int64)),
         ("path_label", pl.String),
         ("is_leaf", pl.Boolean),
-        ("n_domains", pl.Int64),
-        ("node_sse", pl.Float64),
+        ("n_units", pl.Int64),
+        ("node_internal_sse", pl.Float64),
         ("node_split_gain", pl.Float64),
-        ("children", pl.List(pl.Int64)),
+        ("child_ids", pl.List(pl.Int64)),
         ("stop_reason", pl.String),
-        ("n_bins", pl.Int64),
-        ("domain_id", pl.Int64),
+        ("n_working_bins", pl.Int64),
+        ("unit_id", pl.Int64),
         ("start", pl.Int64),
         ("end", pl.Int64),
-        ("kind", pl.String),
-        ("source_row", pl.Int64),
-        ("pcs", pl.Array(pl.Float64, n_pcs)),
+        ("unit_kind", pl.String),
+        ("tad_table_row", pl.Int64),
+        ("pc", pl.Array(pl.Float64, n_pcs)),
         ("self_oe", pl.Float64),
     ]
     if include_ab:
@@ -151,16 +151,16 @@ def cis_nodes_schema(include_ab: bool, n_pcs: int = 3):
 
 
 CIS_LEAVES_TSV_COLUMNS = [
-    "domain_id",
+    "unit_id",
     "chrom",
     "start",
     "end",
-    "kind",
-    "source_row",
+    "unit_kind",
+    "tad_table_row",
     "root_label",
     "path_label",
     "depth",
-    "n_bins",
+    "n_working_bins",
     "self_oe",
 ]
 
@@ -177,12 +177,12 @@ CIS_LEAVES_AB_COLUMNS = [
 ]
 
 CIS_LEAVES_AB_TSV_COLUMNS = [
-    "domain_id",
+    "unit_id",
     "chrom",
     "start",
     "end",
-    "kind",
-    "source_row",
+    "unit_kind",
+    "tad_table_row",
     "root_label",
     "path_label",
     "depth",
@@ -192,12 +192,12 @@ CIS_LEAVES_AB_TSV_COLUMNS = [
 ]
 
 CIS_LEAVES_AB_SCHEMA = [
-    ("domain_id", pl.Int64),
+    ("unit_id", pl.Int64),
     ("chrom", pl.String),
     ("start", pl.Int64),
     ("end", pl.Int64),
-    ("kind", pl.String),
-    ("source_row", pl.Int64),
+    ("unit_kind", pl.String),
+    ("tad_table_row", pl.Int64),
     ("root_label", pl.String),
     ("path", pl.List(pl.Int64)),
     ("path_label", pl.String),
@@ -210,20 +210,20 @@ CIS_LEAVES_AB_SCHEMA = [
 TRANS_NODES_SCHEMA = [
     ("node_id", pl.Int64),
     ("parent_id", pl.Int64),
-    ("domain_id", pl.Int64),
+    ("unit_id", pl.Int64),
     ("depth", pl.Int64),
     ("root_label", pl.String),
     ("path", pl.List(pl.Int64)),
     ("path_label", pl.String),
     ("is_leaf", pl.Boolean),
-    ("n_domains", pl.Int64),
-    ("node_sse", pl.Float64),
+    ("n_units", pl.Int64),
+    ("node_internal_sse", pl.Float64),
     ("node_split_gain", pl.Float64),
-    ("children", pl.List(pl.Int64)),
+    ("child_ids", pl.List(pl.Int64)),
     ("stop_reason", pl.String),
-    ("n_bins", pl.Int64),
+    ("n_working_bins", pl.Int64),
     ("chroms", pl.List(pl.String)),
-    ("chrom_domain_counts", pl.List(pl.Int64)),
+    ("chrom_unit_counts", pl.List(pl.Int64)),
 ]
 
 
@@ -296,14 +296,14 @@ def test_uniform_bins_golden_schema(mcool, tmp_path) -> None:
     assert tsv_columns(out / "cis_leaves.tsv") == CIS_LEAVES_TSV_COLUMNS
 
     leaves = pl.read_parquet(out / "cis_leaves.parquet")
-    assert set(leaves["kind"].to_list()) == {"bin"}
-    assert leaves["source_row"].null_count() == leaves.height
+    assert set(leaves["unit_kind"].to_list()) == {"bin"}
+    assert leaves["tad_table_row"].null_count() == leaves.height
 
     manifest = json.loads((out / "manifest.json").read_text())
     assert manifest["inputs"]["annotation"] is None
     assert manifest["params"]["input_mode"] == "uniform_bins"
     assert manifest["params"]["annotation_path"] is None
-    assert manifest["qc"]["n_bin_domains"] == 8
+    assert manifest["qc"]["n_bin_units"] == 8
     assert manifest["qc"]["n_tads"] == 0
     assert manifest["qc"]["n_residuals"] == 0
 
@@ -337,7 +337,7 @@ def test_manifest_contract(mcool, tmp_path) -> None:
     assert manifest["params"]["working_binsize"] == 500
     assert manifest["params"]["working_binsize_mode"] == "explicit"
     assert manifest["params"]["ab_split_policy"] is None
-    assert manifest["qc"]["n_domains"] == 4
+    assert manifest["qc"]["n_units"] == 4
     assert manifest["output_files"] == [
         "cis_leaves.parquet",
         "cis_leaves.tsv",
@@ -356,11 +356,9 @@ def test_cis_leaves_derived_from_cis_nodes(mcool, tmp_path) -> None:
     assert set(leaf_columns) <= set(result.cis_nodes.columns)
 
     derived = (
-        result.cis_nodes.filter(pl.col("is_leaf"))
-        .select(leaf_columns)
-        .sort("domain_id")
+        result.cis_nodes.filter(pl.col("is_leaf")).select(leaf_columns).sort("unit_id")
     )
-    expected = result.cis_leaves.select(leaf_columns).sort("domain_id")
+    expected = result.cis_leaves.select(leaf_columns).sort("unit_id")
     assert derived.equals(expected)
 
 
@@ -380,9 +378,9 @@ def test_trans_leaves_derived_from_cis_and_trans_nodes(
     assert result.trans_nodes is not None
 
     trans_leaf = result.trans_nodes.filter(pl.col("is_leaf"))
-    assert trans_leaf["domain_id"].null_count() == 0
+    assert trans_leaf["unit_id"].null_count() == 0
     trans_columns = trans_leaf.select(
-        "domain_id",
+        "unit_id",
         pl.col("root_label").alias("trans_root_label"),
         pl.col("path").alias("trans_path"),
         pl.col("path_label").alias("trans_path_label"),
@@ -397,11 +395,11 @@ def test_trans_leaves_derived_from_cis_and_trans_nodes(
     derived = (
         result.cis_nodes.filter(pl.col("is_leaf"))
         .select(base_columns)
-        .join(trans_columns, on="domain_id", how="left")
+        .join(trans_columns, on="unit_id", how="left")
         .select(result.cis_leaves.columns)
-        .sort("domain_id")
+        .sort("unit_id")
     )
-    assert derived.equals(result.cis_leaves.sort("domain_id"))
+    assert derived.equals(result.cis_leaves.sort("unit_id"))
 
 
 def test_ab_leaves_derived_from_ab_nodes(mcool, tmp_path) -> None:
@@ -423,7 +421,7 @@ def test_ab_leaves_derived_from_ab_nodes(mcool, tmp_path) -> None:
     derived = (
         result.cis_nodes_ab.filter(pl.col("is_leaf"))
         .select(leaf_columns)
-        .sort("domain_id")
+        .sort("unit_id")
     )
-    expected = result.cis_leaves_ab.select(leaf_columns).sort("domain_id")
+    expected = result.cis_leaves_ab.select(leaf_columns).sort("unit_id")
     assert derived.equals(expected)
