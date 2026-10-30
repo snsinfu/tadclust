@@ -213,8 +213,8 @@ def test_cluster_uniform_bins_parallel_matches_serial(mcool, tmp_path) -> None:
     columns = [
         "unit_id",
         "chrom",
-        "start",
-        "end",
+        "unit_start",
+        "unit_end",
         "unit_kind",
         "tad_table_row",
         "n_working_bins",
@@ -445,8 +445,8 @@ def test_cluster_parallel_matches_serial(mcool, tmp_path) -> None:
     columns = [
         "unit_id",
         "chrom",
-        "start",
-        "end",
+        "unit_start",
+        "unit_end",
         "unit_kind",
         "tad_table_row",
         "n_working_bins",
@@ -479,9 +479,9 @@ def test_zero_contact_cis_unit_is_unclustered(tmp_path) -> None:
     )
     result = cluster(make_uniform_config(mcool, tmp_path))
 
-    leaves = result.cis_leaves.sort("start")
-    unclustered = leaves.filter(pl.col("start") < 1000)
-    clustered = leaves.filter(pl.col("start") >= 1000)
+    leaves = result.cis_leaves.sort("unit_start")
+    unclustered = leaves.filter(pl.col("unit_start") < 1000)
+    clustered = leaves.filter(pl.col("unit_start") >= 1000)
     assert unclustered["path"].to_list() == [None, None]
     assert unclustered["path_label"].to_list() == [None, None]
     assert unclustered["root_label"].to_list() == [None, None]
@@ -516,9 +516,9 @@ def test_zero_contact_ab_unit_is_unclustered(tmp_path) -> None:
     result = cluster(make_uniform_config(mcool, tmp_path, ab_feature_track=track))
 
     assert result.cis_leaves_ab is not None
-    leaves = result.cis_leaves_ab.sort("start")
-    unclustered = leaves.filter(pl.col("start") < 1000)
-    clustered = leaves.filter(pl.col("start") >= 1000)
+    leaves = result.cis_leaves_ab.sort("unit_start")
+    unclustered = leaves.filter(pl.col("unit_start") < 1000)
+    clustered = leaves.filter(pl.col("unit_start") >= 1000)
     assert unclustered["path"].to_list() == [None, None]
     assert unclustered["path_label"].to_list() == [None, None]
     assert unclustered["ab_label"].to_list() == [None, None]

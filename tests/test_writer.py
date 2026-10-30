@@ -24,8 +24,8 @@ from tadclust.writer import (
 CIS_LEAVES_TSV_COLUMNS = [
     "unit_id",
     "chrom",
-    "start",
-    "end",
+    "unit_start",
+    "unit_end",
     "unit_kind",
     "tad_table_row",
     "root_label",
@@ -46,8 +46,8 @@ CIS_LEAVES_AB_COLUMNS = [
 CIS_LEAVES_AB_TSV_COLUMNS = [
     "unit_id",
     "chrom",
-    "start",
-    "end",
+    "unit_start",
+    "unit_end",
     "unit_kind",
     "tad_table_row",
     "root_label",
@@ -194,8 +194,8 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     assert leaves.columns == [
         "unit_id",
         "chrom",
-        "start",
-        "end",
+        "unit_start",
+        "unit_end",
         "unit_kind",
         "tad_table_row",
         "root_label",
@@ -264,7 +264,7 @@ def test_uniform_bin_tsv_nulls_use_sentinels(tmp_path) -> None:
 
     leaves = read_tsv(out / "cis_leaves.tsv")
     assert leaves["tad_table_row"].to_list() == ["-1"] * leaves.height
-    unclustered = leaves.filter(pl.col("start").cast(pl.Int64) < 1000)
+    unclustered = leaves.filter(pl.col("unit_start").cast(pl.Int64) < 1000)
     assert unclustered["root_label"].to_list() == ["NA", "NA"]
     assert unclustered["path_label"].to_list() == ["NA", "NA"]
     assert unclustered["depth"].to_list() == ["-1", "-1"]
@@ -272,7 +272,7 @@ def test_uniform_bin_tsv_nulls_use_sentinels(tmp_path) -> None:
     assert unclustered["ab_score"].to_list() == ["NaN", "NaN"]
 
     leaves_ab = read_tsv(out / "cis_leaves_ab.tsv")
-    unclustered_ab = leaves_ab.filter(pl.col("start").cast(pl.Int64) < 1000)
+    unclustered_ab = leaves_ab.filter(pl.col("unit_start").cast(pl.Int64) < 1000)
     assert unclustered_ab["ab_label"].to_list() == ["NA", "NA"]
     assert unclustered_ab["ab_score"].to_list() == ["NaN", "NaN"]
 
