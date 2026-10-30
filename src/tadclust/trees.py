@@ -36,7 +36,7 @@ class TreeNode:
     ab_frac_a: float | None = None
     ab_frac_b: float | None = None
     ab_purity: float | None = None
-    ab_score: float | None = None
+    ab_signal: float | None = None
 
     @property
     def is_leaf(self) -> bool:
@@ -64,18 +64,19 @@ class CisForest:
 
 @dataclass
 class AbAnnotation:
-    """Per-unit A/B labels, feature ranks, and normalized continuous scores.
+    """Per-unit A/B labels, feature ranks, and normalized continuous signals.
 
     The A/B centroids are stored in the standardized PC subspace. The feature
     rank is used only to fit and orient the centroids, not to score units.
-    Scores and margins are signed margins normalized to [-1, 1].
+    Signals are normalized signed margins in [-1, 1]; margins hold their
+    absolute values.
     """
 
     labels: np.ndarray
     feature_rank: np.ndarray
     fallback: bool
     fallback_reason: str | None
-    scores: np.ndarray
+    signals: np.ndarray
     margins: np.ndarray
     a_indices: np.ndarray
     b_indices: np.ndarray
@@ -415,11 +416,11 @@ def annotate_ab(
     n_pcs: int,
     clusterable: np.ndarray | None = None,
 ) -> AbAnnotation:
-    """Assign per-unit A/B labels and normalized boundary scores.
+    """Assign per-unit A/B labels and normalized boundary signals.
 
     The feature matrix must end with the standardized feature rank. K-means runs
-    in that augmented space, but scores and labels are derived in the projected
-    standardized PC subspace. Scores are normalized signed margins in [-1, 1].
+    in that augmented space, but signals and labels are derived in the projected
+    standardized PC subspace. Signals are normalized signed margins in [-1, 1].
     """
     values = np.asarray(features, dtype=np.float64)
     feature_ranks = np.asarray(feature_rank, dtype=np.float64)
@@ -431,7 +432,7 @@ def annotate_ab(
         raise ClusteringError("A/B features must have at least one column")
 
     labels = np.full(n_units, None, dtype=object)
-    scores = np.full(n_units, np.nan, dtype=np.float64)
+    signals = np.full(n_units, np.nan, dtype=np.float64)
     margins = np.full(n_units, np.nan, dtype=np.float64)
     empty = np.zeros(0, dtype=np.int64)
     mask = _resolve_clusterable(values, values.shape[1], clusterable)
@@ -452,7 +453,7 @@ def annotate_ab(
             feature_rank=feature_ranks,
             fallback=True,
             fallback_reason="ab_degenerate",
-            scores=scores,
+            signals=signals,
             margins=margins,
             a_indices=empty,
             b_indices=empty,
@@ -460,7 +461,7 @@ def annotate_ab(
 
     (
         partition_labels,
-        partition_scores,
+        partition_signals,
         partition_margins,
         a_indices,
         b_indices,
@@ -472,7 +473,7 @@ def annotate_ab(
         feature_rank=feature_ranks,
         fallback=False,
         fallback_reason=None,
-        scores=partition_scores,
+        signals=partition_signals,
         margins=partition_margins,
         a_indices=a_indices,
         b_indices=b_indices,
@@ -481,7 +482,7 @@ def annotate_ab(
     )
 
 
-def _normalized_ab_score(
+def _normalized_ab_signal(
     point: np.ndarray,
     a_centroid_pc: np.ndarray,
     b_centroid_pc: np.ndarray,
@@ -548,19 +549,19 @@ def _ab_partition(
     b_cluster = int(order[0])
     a_centroid_pc = centroids[a_cluster, :pc_dim]
     b_centroid_pc = centroids[b_cluster, :pc_dim]
-    scores = np.full(n_units, np.nan, dtype=np.float64)
+    signals = np.full(n_units, np.nan, dtype=np.float64)
     margins = np.full(n_units, np.nan, dtype=np.float64)
 
     for unit in indices:
         point = features[unit, :pc_dim]
-        # Positive score is the A side, matching the track convention A > B.
-        score = _normalized_ab_score(point, a_centroid_pc, b_centroid_pc)
-        scores[unit] = score
-        margins[unit] = abs(score)
+        # Positive signal is the A side, matching the track convention A > B.
+        signal = _normalized_ab_signal(point, a_centroid_pc, b_centroid_pc)
+        signals[unit] = signal
+        margins[unit] = abs(signal)
 
     labels = np.full(n_units, None, dtype=object)
-    a_indices = indices[scores[indices] > 0.0]
-    b_indices = indices[scores[indices] < 0.0]
+    a_indices = indices[signals[indices] > 0.0]
+    b_indices = indices[signals[indices] < 0.0]
     if a_indices.size == 0 or b_indices.size == 0:
         return None
     labels[a_indices] = "A"
@@ -568,7 +569,7 @@ def _ab_partition(
 
     return (
         labels,
-        scores,
+        signals,
         margins,
         a_indices,
         b_indices,
@@ -584,9 +585,9 @@ def annotate_cis_forest(
     *,
     n_pcs: int,
 ) -> None:
-    """Attach per-node A/B composition, feature rank, labels, and normalized scores.
+    """Attach per-node A/B composition, feature rank, labels, and normalized signals.
 
-    Scores use the node's mean standardized PC vector and the projected A/B
+    Signals use the node's mean standardized PC vector and the projected A/B
     centroids. Values are normalized signed margins in [-1, 1].
     """
     values = np.asarray(features, dtype=np.float64)
@@ -602,13 +603,13 @@ def annotate_cis_forest(
 
             if has_centroids and unit_ids.size:
                 node_feature = pc_values[unit_ids].mean(axis=0)
-                node.ab_score = _normalized_ab_score(
+                node.ab_signal = _normalized_ab_signal(
                     node_feature,
                     annotation.a_centroid_pc,
                     annotation.b_centroid_pc,
                 )
             else:
-                node.ab_score = None
+                node.ab_signal = None
 
             unit_labels = annotation.labels[unit_ids]
             n_total = int(unit_labels.size)
@@ -625,12 +626,12 @@ def annotate_cis_forest(
                 node.ab_frac_b = None
                 node.ab_purity = None
 
-            # The node label follows the signed centroid score. Nodes exactly
+            # The node label follows the signed centroid signal. Nodes exactly
             # on the boundary stay unlabeled; fractions tell consumers whether
             # a node is mixed.
-            if node.ab_score is None or node.ab_score == 0.0:
+            if node.ab_signal is None or node.ab_signal == 0.0:
                 node.ab_label = None
-            elif node.ab_score > 0.0:
+            elif node.ab_signal > 0.0:
                 node.ab_label = "A"
             else:
                 node.ab_label = "B"

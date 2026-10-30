@@ -307,8 +307,8 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
         result.cis_leaves_ab["ab_label"].to_list()
     )
     np.testing.assert_allclose(
-        result.cis_leaves["ab_score"].to_numpy(),
-        result.cis_leaves_ab["ab_score"].to_numpy(),
+        result.cis_leaves["ab_signal"].to_numpy(),
+        result.cis_leaves_ab["ab_signal"].to_numpy(),
         equal_nan=True,
     )
     for table in (
@@ -317,7 +317,7 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
         result.cis_nodes,
         result.cis_nodes_ab,
     ):
-        values = table["ab_score"].drop_nulls().abs().to_numpy()
+        values = table["ab_signal"].drop_nulls().abs().to_numpy()
         assert np.all(values <= 1.0 + 1e-12)
     assert "ab_label" in result.cis_leaves_ab.columns
     assert "ab_feature_rank" not in result.cis_leaves.columns
@@ -531,14 +531,14 @@ def test_zero_contact_ab_unit_is_unclustered(tmp_path) -> None:
     assert unclustered["path"].to_list() == [None, None]
     assert unclustered["path_label"].to_list() == [None, None]
     assert unclustered["ab_label"].to_list() == [None, None]
-    assert unclustered["ab_score"].to_list() == [None, None]
+    assert unclustered["ab_signal"].to_list() == [None, None]
     assert clustered["path"].null_count() == 0
 
     assert result.cis_nodes_ab is not None
     node_unclustered = result.cis_nodes_ab.filter(pl.col("node_id").is_null())
     assert node_unclustered.height == 2
     assert node_unclustered["ab_label"].to_list() == [None, None]
-    assert node_unclustered["ab_score"].to_list() == [None, None]
+    assert node_unclustered["ab_signal"].to_list() == [None, None]
     assert result.qc["ab"]["n_unclustered"] == 2
 
 

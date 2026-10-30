@@ -308,7 +308,7 @@ def orient_pcs_to_feature(
 
     Positive PC coordinates then correspond to the high-feature (A) side on
     every cis PC axis. These flips are reflections, so distances, clustering,
-    and A/B scores are unchanged.
+    and A/B signals are unchanged.
     """
     values = np.array(pcs, dtype=np.float64, copy=True)
     ranks = np.asarray(feature_rank, dtype=np.float64)
