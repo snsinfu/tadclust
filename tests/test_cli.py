@@ -203,13 +203,13 @@ def test_cli_ab_run(mcool, tmp_path) -> None:
     assert manifest["params"]["ab_split_policy"] == "kmeans2"
 
 
-def test_cli_ab_split_policy_requires_track(mcool, tmp_path) -> None:
+def test_cli_rejects_ab_split_policy(mcool, tmp_path) -> None:
     tads = base_tads(tmp_path)
     args = cli_args(mcool, tads, tmp_path, "--ab-split-policy", "kmeans3")
 
     with pytest.raises(SystemExit) as info:
         main(args)
-    assert "ab_split_policy requires ab_feature_track" in str(info.value)
+    assert info.value.code == 2
 
 
 def test_cli_overwrite(mcool, tmp_path) -> None:

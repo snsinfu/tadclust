@@ -8,11 +8,7 @@ import sys
 from collections.abc import Sequence
 
 from . import __version__
-from .config import (
-    AB_SPLIT_POLICY_CHOICES,
-    TRANS_NULL_CHOICES,
-    ClusterConfig,
-)
+from .config import TRANS_NULL_CHOICES, ClusterConfig
 from .errors import TadclustError
 from .pipeline import cluster
 from .writer import write_outputs
@@ -52,12 +48,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--ab-feature-track",
         default=None,
         help="bedGraph or BED feature track; enables A/B",
-    )
-    parser.add_argument(
-        "--ab-split-policy",
-        choices=AB_SPLIT_POLICY_CHOICES,
-        default=None,
-        help="A/B split policy; default kmeans2 with a feature track",
     )
     parser.add_argument(
         "--workers",
@@ -156,7 +146,6 @@ def main(argv: Sequence[str] | None = None) -> None:
             trans_enabled=args.enable_trans,
             trans_null=args.trans_null,
             ab_feature_track=args.ab_feature_track,
-            ab_split_policy=args.ab_split_policy,
             workers=args.workers,
             seed=args.seed,
         )
