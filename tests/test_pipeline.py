@@ -311,6 +311,14 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
         result.cis_leaves_ab["ab_score"].to_numpy(),
         equal_nan=True,
     )
+    for table in (
+        result.cis_leaves,
+        result.cis_leaves_ab,
+        result.cis_nodes,
+        result.cis_nodes_ab,
+    ):
+        values = table["ab_score"].drop_nulls().abs().to_numpy()
+        assert np.all(values <= 1.0 + 1e-12)
     assert "ab_label" in result.cis_leaves_ab.columns
     assert "ab_feature_rank" not in result.cis_leaves.columns
     assert "ab_feature_rank" not in result.cis_leaves_ab.columns

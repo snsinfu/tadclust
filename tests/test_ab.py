@@ -40,7 +40,14 @@ def test_annotate_ab_kmeans2() -> None:
         features[:, :1] - annotation.b_centroid_pc,
         axis=1,
     )
-    np.testing.assert_allclose(annotation.scores, b_distance - a_distance)
+    scale = np.linalg.norm(
+        annotation.a_centroids_pc[0] - annotation.b_centroid_pc,
+    )
+    np.testing.assert_allclose(
+        annotation.scores,
+        (b_distance - a_distance) / scale,
+    )
+    assert np.all(np.abs(annotation.scores) <= 1.0)
     assert np.allclose(
         annotation.margins,
         np.abs(annotation.scores),
@@ -111,6 +118,22 @@ def test_annotate_ab_kmeans3_merges_two_highest_feature_clusters() -> None:
             assert score > 0
         elif label == "B":
             assert score < 0
+        assert -1.0 <= score <= 1.0
+
+    pc = features[:, :1]
+    for unit in range(pc.shape[0]):
+        a_distances = np.linalg.norm(
+            annotation.a_centroids_pc - pc[unit],
+            axis=1,
+        )
+        nearest = int(np.argmin(a_distances))
+        scale = np.linalg.norm(
+            annotation.a_centroids_pc[nearest] - annotation.b_centroid_pc,
+        )
+        expected = (
+            np.linalg.norm(annotation.b_centroid_pc - pc[unit]) - a_distances[nearest]
+        ) / scale
+        assert annotation.scores[unit] == pytest.approx(np.clip(expected, -1.0, 1.0))
 
 
 def test_ab_labels_follow_pc_score() -> None:
@@ -358,6 +381,11 @@ def test_annotate_cis_forest_node_scores_match_leaf_units() -> None:
     )
 
     annotate_cis_forest(forest, annotation, features, n_pcs=1)
+
+    for tree in forest.trees:
+        for node in tree.nodes:
+            if node.ab_score is not None:
+                assert -1.0 <= node.ab_score <= 1.0
 
     for tree, group in zip(forest.trees, forest.groups):
         for node in tree.nodes:

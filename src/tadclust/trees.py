@@ -65,10 +65,11 @@ class CisForest:
 
 @dataclass
 class AbAnnotation:
-    """Per-unit A/B labels, feature ranks, and continuous scores.
+    """Per-unit A/B labels, feature ranks, and normalized continuous scores.
 
     The A/B centroids are stored in the standardized PC subspace. The feature
     rank is used only to fit and orient the centroids, not to score units.
+    Scores and margins are signed margins normalized to [-1, 1].
     """
 
     labels: np.ndarray
@@ -417,11 +418,11 @@ def annotate_ab(
     n_pcs: int,
     clusterable: np.ndarray | None = None,
 ) -> AbAnnotation:
-    """Assign per-unit A/B labels and boundary scores.
+    """Assign per-unit A/B labels and normalized boundary scores.
 
     The feature matrix must end with the standardized feature rank. K-means runs
     in that augmented space, but scores and labels are derived in the projected
-    standardized PC subspace.
+    standardized PC subspace. Scores are normalized signed margins in [-1, 1].
     """
     values = np.asarray(features, dtype=np.float64)
     feature_ranks = np.asarray(feature_rank, dtype=np.float64)
@@ -488,6 +489,27 @@ def annotate_ab(
     )
 
 
+def _normalized_ab_score(
+    point: np.ndarray,
+    a_centroids_pc: np.ndarray,
+    b_centroid_pc: np.ndarray,
+) -> float:
+    """Return the signed A/B margin normalized to [-1, 1].
+
+    The scale is the distance from the B centroid to the A centroid nearest to
+    ``point``. With two A centroids each A centroid maps to +1 and the B
+    centroid maps to -1.
+    """
+    a_distances = np.linalg.norm(a_centroids_pc - point, axis=1)
+    nearest = int(np.argmin(a_distances))
+    a_distance = float(a_distances[nearest])
+    b_distance = float(np.linalg.norm(b_centroid_pc - point))
+    scale = float(np.linalg.norm(a_centroids_pc[nearest] - b_centroid_pc))
+    if scale <= 0.0:
+        return 0.0
+    return float(np.clip((b_distance - a_distance) / scale, -1.0, 1.0))
+
+
 def _ab_partition(
     features: np.ndarray,
     n_units: int,
@@ -549,10 +571,8 @@ def _ab_partition(
 
     for unit in indices:
         point = features[unit, :pc_dim]
-        a_distance = np.min(np.linalg.norm(a_centroids_pc - point, axis=1))
-        b_distance = np.linalg.norm(b_centroid_pc - point)
         # Positive score is the A side, matching the track convention A > B.
-        score = b_distance - a_distance
+        score = _normalized_ab_score(point, a_centroids_pc, b_centroid_pc)
         scores[unit] = score
         margins[unit] = abs(score)
 
@@ -582,10 +602,10 @@ def annotate_cis_forest(
     *,
     n_pcs: int,
 ) -> None:
-    """Attach per-node A/B composition, feature rank, labels, and boundary scores.
+    """Attach per-node A/B composition, feature rank, labels, and normalized scores.
 
     Scores use the node's mean standardized PC vector and the projected A/B
-    centroids.
+    centroids. Values are normalized signed margins in [-1, 1].
     """
     values = np.asarray(features, dtype=np.float64)
     pc_dim = min(n_pcs, values.shape[1] - 1)
@@ -600,18 +620,11 @@ def annotate_cis_forest(
 
             if has_centroids and unit_ids.size:
                 node_feature = pc_values[unit_ids].mean(axis=0)
-                a_distance = float(
-                    np.min(
-                        np.linalg.norm(
-                            annotation.a_centroids_pc - node_feature,
-                            axis=1,
-                        )
-                    )
+                node.ab_score = _normalized_ab_score(
+                    node_feature,
+                    annotation.a_centroids_pc,
+                    annotation.b_centroid_pc,
                 )
-                b_distance = float(
-                    np.linalg.norm(annotation.b_centroid_pc - node_feature)
-                )
-                node.ab_score = b_distance - a_distance
             else:
                 node.ab_score = None
 
