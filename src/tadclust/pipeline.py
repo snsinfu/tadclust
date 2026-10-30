@@ -264,6 +264,7 @@ def _build_cis_results(
                 len(selection.domain_selection.domains),
                 ab_split,
                 config.seed,
+                n_pcs=config.tree_n_pcs,
                 clusterable=clusterable,
             )
 
@@ -285,6 +286,7 @@ def _build_cis_results(
                 forest,
                 annotation,
                 features,
+                n_pcs=config.tree_n_pcs,
             )
             ab_forest = build_ab_forest(
                 selection.chrom,
@@ -302,6 +304,7 @@ def _build_cis_results(
                 ab_forest,
                 annotation,
                 features,
+                n_pcs=config.tree_n_pcs,
             )
 
         results.append(

@@ -24,7 +24,7 @@ def test_annotate_ab_kmeans2() -> None:
     rank = np.array([0.0, 0.1, 0.9, 1.0])
     features = ab_feature_matrix(pcs, rank, 1)
 
-    annotation = annotate_ab(features, rank, 4, "kmeans2", 0)
+    annotation = annotate_ab(features, rank, 4, "kmeans2", 0, n_pcs=1)
 
     assert not annotation.fallback
     assert annotation.labels.tolist() == ["B", "B", "A", "A"]
@@ -32,11 +32,63 @@ def test_annotate_ab_kmeans2() -> None:
     assert annotation.b_indices.tolist() == [0, 1]
     assert np.all(annotation.scores[annotation.a_indices] > 0)
     assert np.all(annotation.scores[annotation.b_indices] < 0)
-    assert np.corrcoef(annotation.scores, rank)[0, 1] > 0
+    a_distance = np.linalg.norm(
+        features[:, :1] - annotation.a_centroids_pc[0],
+        axis=1,
+    )
+    b_distance = np.linalg.norm(
+        features[:, :1] - annotation.b_centroid_pc,
+        axis=1,
+    )
+    np.testing.assert_allclose(annotation.scores, b_distance - a_distance)
     assert np.allclose(
         annotation.margins,
         np.abs(annotation.scores),
     )
+
+
+def test_ab_score_uses_pc_space_not_rank() -> None:
+    pcs = np.array([[-3.0], [-1.0], [1.0], [3.0]])
+    rank1 = np.array([0.0, 0.1, 0.9, 1.0])
+    rank2 = np.array([0.0, 0.0, 100.0, 100.0])
+    features1 = ab_feature_matrix(pcs, rank1, 1)
+    features2 = ab_feature_matrix(pcs, rank2, 1)
+    annotation = AbAnnotation(
+        labels=np.array(["B", "B", "A", "A"], dtype=object),
+        rank=rank1,
+        split="kmeans2",
+        fallback=False,
+        fallback_reason=None,
+        scores=np.zeros(4),
+        margins=np.zeros(4),
+        a_indices=np.array([2, 3]),
+        b_indices=np.array([0, 1]),
+        a_centroids_pc=features1[[2, 3], :1].mean(axis=0, keepdims=True),
+        b_centroid_pc=features1[[0, 1], :1].mean(axis=0),
+    )
+    forest1 = build_cis_forest(
+        "chr1",
+        pcs,
+        np.ones(4, dtype=np.int64),
+        n_pcs=1,
+        branch_k=2,
+        seed=0,
+    )
+    forest2 = build_cis_forest(
+        "chr1",
+        pcs,
+        np.ones(4, dtype=np.int64),
+        n_pcs=1,
+        branch_k=2,
+        seed=0,
+    )
+
+    annotate_cis_forest(forest1, annotation, features1, n_pcs=1)
+    annotate_cis_forest(forest2, annotation, features2, n_pcs=1)
+
+    scores1 = [node.ab_score for node in forest1.trees[0].nodes]
+    scores2 = [node.ab_score for node in forest2.trees[0].nodes]
+    assert scores1 == pytest.approx(scores2)
 
 
 def test_annotate_ab_kmeans3_merges_two_highest_signal_clusters() -> None:
@@ -44,7 +96,7 @@ def test_annotate_ab_kmeans3_merges_two_highest_signal_clusters() -> None:
     rank = np.array([0.0, 0.1, 0.5, 0.9, 1.0])
     features = ab_feature_matrix(pcs, rank, 1)
 
-    annotation = annotate_ab(features, rank, 5, "kmeans3", 0)
+    annotation = annotate_ab(features, rank, 5, "kmeans3", 0, n_pcs=1)
 
     assert not annotation.fallback
     assert annotation.a_indices.size + annotation.b_indices.size == 5
@@ -71,6 +123,7 @@ def test_annotate_ab_excludes_uninformative_domains() -> None:
             4,
             "kmeans2",
             0,
+            n_pcs=1,
             clusterable=clusterable,
         )
 
@@ -94,6 +147,7 @@ def test_annotate_ab_rejects_too_few_domains() -> None:
             1,
             "kmeans2",
             0,
+            n_pcs=1,
         )
 
 
@@ -108,6 +162,7 @@ def test_annotate_ab_degenerate(monkeypatch) -> None:
         4,
         "kmeans2",
         0,
+        n_pcs=1,
     )
 
     assert annotation.fallback
@@ -116,9 +171,9 @@ def test_annotate_ab_degenerate(monkeypatch) -> None:
 
 def test_annotate_ab_rejects_invalid_inputs() -> None:
     with pytest.raises(ClusteringError):
-        annotate_ab(np.zeros((2, 2)), np.zeros(3), 3, "kmeans2", 0)
+        annotate_ab(np.zeros((2, 2)), np.zeros(3), 3, "kmeans2", 0, n_pcs=1)
     with pytest.raises(ClusteringError):
-        annotate_ab(np.zeros((2, 2)), np.zeros(2), 2, "bad", 0)
+        annotate_ab(np.zeros((2, 2)), np.zeros(2), 2, "bad", 0, n_pcs=1)
 
 
 def test_annotate_cis_forest_composition() -> None:
@@ -146,7 +201,7 @@ def test_annotate_cis_forest_composition() -> None:
         b_indices=np.array([2, 3]),
     )
 
-    annotate_cis_forest(forest, annotation, features)
+    annotate_cis_forest(forest, annotation, features, n_pcs=1)
 
     root = forest.trees[0].nodes[forest.trees[0].root_id]
     assert root.ab_label is None
@@ -165,7 +220,7 @@ def test_build_ab_forest_two_roots() -> None:
     bins = np.ones(4, dtype=np.int64)
     rank = np.array([0.0, 0.1, 0.9, 1.0])
     features = ab_feature_matrix(pcs, rank, 1)
-    annotation = annotate_ab(features, rank, 4, "kmeans2", 0)
+    annotation = annotate_ab(features, rank, 4, "kmeans2", 0, n_pcs=1)
 
     forest = build_ab_forest(
         "chr1",
@@ -184,7 +239,7 @@ def test_build_ab_forest_two_roots() -> None:
     assert forest.groups[0].tolist() == annotation.a_indices.tolist()
     assert forest.groups[1].tolist() == annotation.b_indices.tolist()
 
-    annotate_cis_forest(forest, annotation, features)
+    annotate_cis_forest(forest, annotation, features, n_pcs=1)
     assert forest.trees[0].nodes[0].ab_label == "A"
     assert forest.trees[1].nodes[0].ab_label == "B"
 
@@ -221,7 +276,7 @@ def test_annotate_cis_forest_node_scores_match_leaf_domains() -> None:
     pcs = np.array([[-3.0], [-1.0], [1.0], [3.0]])
     rank = np.array([0.0, 0.1, 0.9, 1.0])
     features = ab_feature_matrix(pcs, rank, 1)
-    annotation = annotate_ab(features, rank, 4, "kmeans2", 0)
+    annotation = annotate_ab(features, rank, 4, "kmeans2", 0, n_pcs=1)
     forest = build_cis_forest(
         "chr1",
         pcs,
@@ -231,7 +286,7 @@ def test_annotate_cis_forest_node_scores_match_leaf_domains() -> None:
         seed=0,
     )
 
-    annotate_cis_forest(forest, annotation, features)
+    annotate_cis_forest(forest, annotation, features, n_pcs=1)
 
     for tree, group in zip(forest.trees, forest.groups):
         for node in tree.nodes:
@@ -265,8 +320,8 @@ def test_node_label_follows_score_without_mixed_threshold() -> None:
         margins=np.zeros(4),
         a_indices=np.array([0, 1, 2]),
         b_indices=np.array([3]),
-        a_centroids=features[[0, 1, 2]].mean(axis=0, keepdims=True),
-        b_centroid=features[3],
+        a_centroids_pc=features[[0, 1, 2], :1].mean(axis=0, keepdims=True),
+        b_centroid_pc=features[3, :1],
     )
     forest = build_cis_forest(
         "chr1",
@@ -277,7 +332,7 @@ def test_node_label_follows_score_without_mixed_threshold() -> None:
         seed=0,
     )
 
-    annotate_cis_forest(forest, annotation, features)
+    annotate_cis_forest(forest, annotation, features, n_pcs=1)
 
     root = forest.trees[0].nodes[forest.trees[0].root_id]
     assert root.ab_frac_a == pytest.approx(0.75)

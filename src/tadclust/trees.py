@@ -65,7 +65,11 @@ class CisForest:
 
 @dataclass
 class AbAnnotation:
-    """Per-domain A/B labels, ranks, and continuous scores."""
+    """Per-domain A/B labels, ranks, and continuous scores.
+
+    The A/B centroids are stored in the standardized PC subspace. The signal
+    rank is used only to fit and orient the centroids, not to score domains.
+    """
 
     labels: np.ndarray
     rank: np.ndarray
@@ -76,8 +80,8 @@ class AbAnnotation:
     margins: np.ndarray
     a_indices: np.ndarray
     b_indices: np.ndarray
-    a_centroids: np.ndarray = field(default_factory=lambda: np.zeros((0, 0)))
-    b_centroid: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    a_centroids_pc: np.ndarray = field(default_factory=lambda: np.zeros((0, 0)))
+    b_centroid_pc: np.ndarray = field(default_factory=lambda: np.zeros(0))
 
 
 def format_path_label(root_label: str, path: list[int]) -> str:
@@ -409,11 +413,15 @@ def annotate_ab(
     n_domains: int,
     ab_split: str,
     seed: int,
+    *,
+    n_pcs: int,
     clusterable: np.ndarray | None = None,
 ) -> AbAnnotation:
     """Assign per-domain A/B labels and boundary scores.
 
-    The feature matrix must end with the standardized signal rank.
+    The feature matrix must end with the standardized signal rank. K-means runs
+    in that augmented space, but scores are derived in the projected
+    standardized PC subspace.
     """
     values = np.asarray(features, dtype=np.float64)
     ranks = np.asarray(rank, dtype=np.float64)
@@ -435,7 +443,14 @@ def annotate_ab(
     if n_domains < 2:
         raise ClusteringError("A/B split requires at least two domains")
 
-    partition = _ab_partition(values, n_domains, ab_split, seed, mask)
+    partition = _ab_partition(
+        values,
+        n_domains,
+        ab_split,
+        seed,
+        mask,
+        n_pcs,
+    )
     if partition is None:
         return AbAnnotation(
             labels=labels,
@@ -455,8 +470,8 @@ def annotate_ab(
         partition_margins,
         a_indices,
         b_indices,
-        a_centroids,
-        b_centroid,
+        a_centroids_pc,
+        b_centroid_pc,
     ) = partition
     return AbAnnotation(
         labels=partition_labels,
@@ -468,8 +483,8 @@ def annotate_ab(
         margins=partition_margins,
         a_indices=a_indices,
         b_indices=b_indices,
-        a_centroids=a_centroids,
-        b_centroid=b_centroid,
+        a_centroids_pc=a_centroids_pc,
+        b_centroid_pc=b_centroid_pc,
     )
 
 
@@ -479,6 +494,7 @@ def _ab_partition(
     ab_split: str,
     seed: int,
     clusterable: np.ndarray,
+    n_pcs: int,
 ) -> (
     tuple[
         np.ndarray,
@@ -491,6 +507,10 @@ def _ab_partition(
     ]
     | None
 ):
+    pc_dim = min(n_pcs, features.shape[1] - 1)
+    if pc_dim < 1:
+        return None
+
     indices = np.flatnonzero(clusterable)
     if indices.size < 2:
         return None
@@ -527,8 +547,8 @@ def _ab_partition(
     if a_indices.size == 0 or b_indices.size == 0:
         return None
 
-    a_centroids = centroids[a_clusters]
-    b_centroid = centroids[b_clusters[0]]
+    a_centroids_pc = centroids[a_clusters][:, :pc_dim]
+    b_centroid_pc = centroids[b_clusters[0]][:pc_dim]
     labels = np.full(n_domains, None, dtype=object)
     labels[a_indices] = "A"
     labels[b_indices] = "B"
@@ -536,24 +556,39 @@ def _ab_partition(
     margins = np.full(n_domains, np.nan, dtype=np.float64)
 
     for domain in indices:
-        a_distance = np.min(np.linalg.norm(a_centroids - features[domain], axis=1))
-        b_distance = np.linalg.norm(b_centroid - features[domain])
+        point = features[domain, :pc_dim]
+        a_distance = np.min(np.linalg.norm(a_centroids_pc - point, axis=1))
+        b_distance = np.linalg.norm(b_centroid_pc - point)
         # Positive score is the A side, matching the track convention A > B.
         score = b_distance - a_distance
         scores[domain] = score
         margins[domain] = abs(score)
 
-    return labels, scores, margins, a_indices, b_indices, a_centroids, b_centroid
+    return (
+        labels,
+        scores,
+        margins,
+        a_indices,
+        b_indices,
+        a_centroids_pc,
+        b_centroid_pc,
+    )
 
 
 def annotate_cis_forest(
     forest: CisForest,
     annotation: AbAnnotation,
     features: np.ndarray,
+    *,
+    n_pcs: int,
 ) -> None:
     """Attach per-node A/B composition, rank, labels, and boundary scores."""
     values = np.asarray(features, dtype=np.float64)
-    has_centroids = annotation.a_centroids.size > 0 and annotation.b_centroid.size > 0
+    pc_dim = min(n_pcs, values.shape[1] - 1)
+    pc_values = values[:, :pc_dim]
+    has_centroids = (
+        annotation.a_centroids_pc.size > 0 and annotation.b_centroid_pc.size > 0
+    )
 
     for tree, group in zip(forest.trees, forest.groups):
         for node in tree.nodes:
@@ -564,16 +599,18 @@ def annotate_cis_forest(
             )
 
             if has_centroids and domain_ids.size:
-                node_feature = values[domain_ids].mean(axis=0)
+                node_feature = pc_values[domain_ids].mean(axis=0)
                 a_distance = float(
                     np.min(
                         np.linalg.norm(
-                            annotation.a_centroids - node_feature,
+                            annotation.a_centroids_pc - node_feature,
                             axis=1,
                         )
                     )
                 )
-                b_distance = float(np.linalg.norm(annotation.b_centroid - node_feature))
+                b_distance = float(
+                    np.linalg.norm(annotation.b_centroid_pc - node_feature)
+                )
                 node.ab_score = b_distance - a_distance
             else:
                 node.ab_score = None
