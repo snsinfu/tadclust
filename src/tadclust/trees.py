@@ -101,8 +101,10 @@ def build_branching_tree(
 ) -> BranchingTree:
     """Build a full tree by recursively splitting nodes with k-means.
 
-    Children are ordered by descending mean PC1. Callers should canonicalize
-    the PC1 sign before calling this function when deterministic paths matter.
+    Children are ordered by ascending mean PC1: child 0 is the negative (B)
+    side and the last child is the positive (A) side. Callers should
+    canonicalize the PC1 sign before calling this function when deterministic
+    paths matter.
     """
     values = np.asarray(pcs, dtype=np.float64)
     bins = np.asarray(domain_bins, dtype=np.int64)
@@ -202,7 +204,8 @@ def _split_member_domains(
     seed: int,
 ) -> list[np.ndarray] | None:
     # Small nodes become singletons directly. Larger nodes use k-means, then
-    # sort children by mean PC1 so paths do not depend on k-means label order.
+    # sort children by ascending mean PC1 so paths do not depend on k-means
+    # label order.
     if domain_indices.size <= 1:
         return None
     if domain_indices.size <= branch_k:
@@ -234,7 +237,6 @@ def _sort_by_mean_pc1(
     return sorted(
         parts,
         key=lambda part: pcs[part, 0].mean(),
-        reverse=True,
     )
 
 
