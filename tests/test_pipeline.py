@@ -82,13 +82,13 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert result.cis_leaves.height == 4
     assert result.cis_leaves["domain_id"].to_list() == [0, 1, 2, 3]
     assert result.cis_leaves["pcs"].dtype == pl.Array(pl.Float64, 2)
-    assert result.cis_leaves["root_label"].unique().to_list() == ["root"]
+    assert result.cis_leaves["root_label"].unique().to_list() == ["chrom"]
     assert result.cis_leaves["source_row"].to_list() == [0, 1, 2, 3]
     assert "ab_label" not in result.cis_leaves.columns
     assert "trans_path" not in result.cis_leaves.columns
 
     assert "ab_label" not in result.cis_nodes.columns
-    assert set(result.cis_nodes["root_label"].unique().to_list()) == {"root"}
+    assert set(result.cis_nodes["root_label"].unique().to_list()) == {"chrom"}
     assert result.cis_nodes["parent_id"].null_count() == 2
     assert_node_references(result.cis_nodes)
 
@@ -236,6 +236,10 @@ def test_cluster_with_trans(three_chrom_mcool, trans_tads, tmp_path) -> None:
     assert "trans_path" in result.cis_leaves.columns
     assert "trans_path_label" in result.cis_leaves.columns
     assert "trans_depth" in result.cis_leaves.columns
+    assert result.trans_nodes["root_label"].unique().to_list() == ["genome"]
+    assert set(
+        result.cis_leaves["trans_root_label"].drop_nulls().unique().to_list()
+    ) == {"genome"}
     assert {"chroms", "chrom_domain_counts"}.issubset(result.trans_nodes.columns)
     assert result.qc["trans"]["enabled"] is True
     assert result.qc["trans"]["skipped"] is None

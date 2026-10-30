@@ -11,6 +11,8 @@ from .config import AB_SPLIT_CHOICES
 from .errors import ClusteringError
 
 AB_NODE_PURITY = 0.8
+CHROM_ROOT_LABEL = "chrom"
+GENOME_ROOT_LABEL = "genome"
 _TREE_SEED_NAMESPACE = 0
 _AB_SEED_NAMESPACE = 1
 
@@ -89,7 +91,7 @@ def build_branching_tree(
     n_pcs: int,
     seed: int,
     branch_k: int,
-    root_label: str = "root",
+    root_label: str = CHROM_ROOT_LABEL,
 ) -> BranchingTree:
     """Build a full tree by recursively splitting nodes with k-means.
 
@@ -350,7 +352,7 @@ def build_cis_forest(
         n_pcs=n_pcs,
         seed=seed,
         branch_k=branch_k,
-        root_label="root",
+        root_label=CHROM_ROOT_LABEL,
     )
     return _make_cis_forest(
         chrom,
@@ -596,7 +598,7 @@ def build_ab_forest(
             n_pcs=n_pcs,
             seed=seed,
             branch_k=branch_k,
-            root_label="root",
+            root_label=CHROM_ROOT_LABEL,
         )
         if annotation.fallback_reason is not None:
             tree.nodes[tree.root_id].stop_reason = annotation.fallback_reason

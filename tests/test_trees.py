@@ -149,7 +149,7 @@ def test_single_domain_is_root_leaf() -> None:
     root = tree.nodes[tree.root_id]
     assert root.is_leaf
     assert root.path == []
-    assert format_path_label(tree.root_label, root.path) == "root"
+    assert format_path_label(tree.root_label, root.path) == "chrom"
     assert root.depth == 0
     assert root.domain_indices.tolist() == [0]
     assert root.n_bins == 5
@@ -183,8 +183,8 @@ def test_binary_tree_paths_and_gain() -> None:
     assert low.domain_indices.tolist() == [0, 1]
     assert high.path == [0]
     assert low.path == [1]
-    assert format_path_label(tree.root_label, high.path) == "root.0"
-    assert format_path_label(tree.root_label, low.path) == "root.1"
+    assert format_path_label(tree.root_label, high.path) == "chrom.0"
+    assert format_path_label(tree.root_label, low.path) == "chrom.1"
     assert high.centroid.tolist() == [2.0]
     assert low.centroid.tolist() == [-2.0]
     assert high.n_bins == 70
@@ -194,10 +194,10 @@ def test_binary_tree_paths_and_gain() -> None:
     assert [
         format_path_label(tree.root_label, leaves[domain].path) for domain in range(4)
     ] == [
-        "root.1.1",
-        "root.1.0",
-        "root.0.1",
-        "root.0.0",
+        "chrom.1.1",
+        "chrom.1.0",
+        "chrom.0.1",
+        "chrom.0.0",
     ]
     assert [leaves[domain].depth for domain in range(4)] == [2, 2, 2, 2]
     assert sorted(leaves) == [0, 1, 2, 3]
@@ -288,7 +288,7 @@ def test_build_cis_forest_groups_and_offsets() -> None:
 
     assert forest.node_offsets == [10]
     assert forest.groups[0].tolist() == [0, 1, 2, 3]
-    assert forest.trees[0].root_label == "root"
+    assert forest.trees[0].root_label == "chrom"
 
     leaves = leaf_by_domain(forest.trees[0])
     global_leaf_ids = [
@@ -300,10 +300,10 @@ def test_build_cis_forest_groups_and_offsets() -> None:
         format_path_label(forest.trees[0].root_label, leaves[domain].path)
         for domain in range(4)
     ] == [
-        "root.1.1",
-        "root.1.0",
-        "root.0.1",
-        "root.0.0",
+        "chrom.1.1",
+        "chrom.1.0",
+        "chrom.0.1",
+        "chrom.0.0",
     ]
 
 

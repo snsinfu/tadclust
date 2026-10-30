@@ -23,6 +23,7 @@ from .matrix import (
     pcs_from_log_oe,
 )
 from .trees import (
+    GENOME_ROOT_LABEL,
     BranchingTree,
     build_branching_tree,
 )
@@ -437,6 +438,7 @@ def build_trans_tree(
         n_pcs=n_pcs,
         seed=seed,
         branch_k=branch_k,
+        root_label=GENOME_ROOT_LABEL,
     )
     return TransTreeResult(
         pcs=pcs,

@@ -200,6 +200,6 @@ def test_build_ab_forest_degenerate_fallback() -> None:
     )
 
     assert len(forest.trees) == 1
-    assert forest.trees[0].root_label == "root"
+    assert forest.trees[0].root_label == "chrom"
     assert forest.trees[0].nodes[0].stop_reason == "ab_degenerate"
     assert forest.groups[0].tolist() == [0, 1]
