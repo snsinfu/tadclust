@@ -34,7 +34,7 @@ class ClusterConfig:
     oe_pseudocount: float = 1.0
     dp_lambda_scale: float = 1.0
     tree_n_pcs: int = 5
-    tree_branch_k: int = 3
+    tree_branch_k: int = 2
     trans_enabled: bool = False
     trans_null: str = "pair"
     ab_feature_track: str | Path | None = None

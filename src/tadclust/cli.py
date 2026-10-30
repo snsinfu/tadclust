@@ -117,7 +117,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     advanced.add_argument(
         "--tree-branch-k",
         type=int,
-        default=3,
+        default=2,
         help="clusters per tree split",
     )
     advanced.add_argument(

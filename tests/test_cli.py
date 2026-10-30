@@ -9,7 +9,7 @@ import pytest
 from conftest import write_tads, write_track
 
 from tadclust import __version__
-from tadclust.cli import main
+from tadclust.cli import main, parse_args
 
 
 def base_tads(tmp_path):
@@ -73,6 +73,21 @@ def uniform_cli_args(mcool, tmp_path, *extra):
         "2",
         *extra,
     ]
+
+
+def test_cli_default_tree_branch_k() -> None:
+    args = parse_args(
+        [
+            "--mcool",
+            "test.mcool",
+            "--tad-table",
+            "domains.tsv",
+            "--out-dir",
+            "out",
+        ]
+    )
+
+    assert args.tree_branch_k == 2
 
 
 def test_cli_cis_run(mcool, tmp_path) -> None:
