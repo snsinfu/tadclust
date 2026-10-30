@@ -396,12 +396,9 @@ def _unit_ab_fields(
 ) -> dict[str, Any]:
     label = annotation.labels[local_index]
     score = annotation.scores[local_index]
-    feature_rank = float(annotation.feature_rank[local_index])
     return {
         "ab_label": label,
-        "ab_feature_rank": feature_rank,
         "ab_score": None if np.isnan(score) else float(score),
-        "ab_feature_rank_mean": feature_rank,
         "ab_frac_a": None if label is None else 1.0 if label == "A" else 0.0,
         "ab_purity": None if label is None else 1.0,
     }
@@ -410,9 +407,7 @@ def _unit_ab_fields(
 def _node_ab_fields(node: TreeNode) -> dict[str, Any]:
     return {
         "ab_label": node.ab_label,
-        "ab_feature_rank": None,
         "ab_score": node.ab_score,
-        "ab_feature_rank_mean": node.ab_feature_rank_mean,
         "ab_frac_a": node.ab_frac_a,
         "ab_purity": node.ab_purity,
     }

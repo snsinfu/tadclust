@@ -41,7 +41,6 @@ TRANS_LEAVES_TSV_COLUMNS = [
 ]
 CIS_LEAVES_AB_COLUMNS = [
     "ab_label",
-    "ab_feature_rank",
     "ab_score",
 ]
 CIS_LEAVES_AB_TSV_COLUMNS = [
@@ -55,7 +54,6 @@ CIS_LEAVES_AB_TSV_COLUMNS = [
     "path_label",
     "depth",
     "ab_label",
-    "ab_feature_rank",
     "ab_score",
 ]
 
@@ -323,9 +321,7 @@ def test_write_ab_and_trans_outputs(
     assert leaves.schema["trans_path"] == pl.List(pl.Int64)
     assert "ab_label" in leaves.columns
     assert "ab_margin" not in leaves.columns
-    assert {"ab_label", "ab_feature_rank", "ab_score", "ab_feature_rank_mean"} <= set(
-        nodes.columns
-    )
+    assert {"ab_label", "ab_score", "ab_frac_a", "ab_purity"} <= set(nodes.columns)
     assert "ab_margin" not in nodes.columns
     assert "ab_score" in leaves_ab.columns
     assert "ab_margin" not in leaves_ab.columns

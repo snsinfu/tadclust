@@ -35,7 +35,6 @@ def cis_leaves_schema(
         schema.update(
             {
                 "ab_label": pl.String,
-                "ab_feature_rank": pl.Float64,
                 "ab_score": pl.Float64,
             }
         )
@@ -84,9 +83,7 @@ def cis_nodes_schema(n_pcs: int, include_ab: bool) -> Schema:
         schema.update(
             {
                 "ab_label": pl.String,
-                "ab_feature_rank": pl.Float64,
                 "ab_score": pl.Float64,
-                "ab_feature_rank_mean": pl.Float64,
                 "ab_frac_a": pl.Float64,
                 "ab_purity": pl.Float64,
             }
@@ -108,7 +105,6 @@ def cis_leaves_ab_schema() -> Schema:
         "path_label": pl.String,
         "depth": pl.Int64,
         "ab_label": pl.String,
-        "ab_feature_rank": pl.Float64,
         "ab_score": pl.Float64,
     }
 

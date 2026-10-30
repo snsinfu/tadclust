@@ -244,7 +244,6 @@ def test_annotate_cis_forest_composition() -> None:
     assert root.ab_label is None
     assert root.ab_frac_a == 0.5
     assert root.ab_purity == 0.5
-    assert root.ab_feature_rank_mean == 0.5
 
     for node in forest.trees[0].nodes:
         assert node.ab_label is None

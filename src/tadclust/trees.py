@@ -36,7 +36,6 @@ class TreeNode:
     ab_label: str | None = None
     ab_frac_a: float | None = None
     ab_purity: float | None = None
-    ab_feature_rank_mean: float | None = None
     ab_score: float | None = None
 
     @property
@@ -597,10 +596,6 @@ def annotate_cis_forest(
     for tree, group in zip(forest.trees, forest.groups):
         for node in tree.nodes:
             unit_ids = group[node.unit_indices]
-            unit_feature_ranks = annotation.feature_rank[unit_ids]
-            node.ab_feature_rank_mean = (
-                float(unit_feature_ranks.mean()) if unit_feature_ranks.size else None
-            )
 
             if has_centroids and unit_ids.size:
                 node_feature = pc_values[unit_ids].mean(axis=0)

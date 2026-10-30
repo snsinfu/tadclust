@@ -96,7 +96,6 @@ def cis_leaves_schema(include_trans: bool, include_ab: bool):
         schema.extend(
             [
                 ("ab_label", pl.String),
-                ("ab_feature_rank", pl.Float64),
                 ("ab_score", pl.Float64),
             ]
         )
@@ -140,9 +139,7 @@ def cis_nodes_schema(include_ab: bool, n_pcs: int = 3):
         schema.extend(
             [
                 ("ab_label", pl.String),
-                ("ab_feature_rank", pl.Float64),
                 ("ab_score", pl.Float64),
-                ("ab_feature_rank_mean", pl.Float64),
                 ("ab_frac_a", pl.Float64),
                 ("ab_purity", pl.Float64),
             ]
@@ -172,7 +169,6 @@ TRANS_LEAVES_TSV_COLUMNS = [
 
 CIS_LEAVES_AB_COLUMNS = [
     "ab_label",
-    "ab_feature_rank",
     "ab_score",
 ]
 
@@ -187,7 +183,6 @@ CIS_LEAVES_AB_TSV_COLUMNS = [
     "path_label",
     "depth",
     "ab_label",
-    "ab_feature_rank",
     "ab_score",
 ]
 
@@ -203,7 +198,6 @@ CIS_LEAVES_AB_SCHEMA = [
     ("path_label", pl.String),
     ("depth", pl.Int64),
     ("ab_label", pl.String),
-    ("ab_feature_rank", pl.Float64),
     ("ab_score", pl.Float64),
 ]
 
