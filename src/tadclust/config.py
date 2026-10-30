@@ -38,7 +38,6 @@ class ClusterConfig:
     trans_enabled: bool = False
     trans_null: str = "pair"
     ab_feature_track: str | Path | None = None
-    ab_split_policy: str | None = None
     workers: int = 1
     seed: int = 0
 
@@ -138,21 +137,6 @@ class ClusterConfig:
                 field="seed",
             )
 
-        if (
-            self.ab_split_policy is not None
-            and self.ab_split_policy not in AB_SPLIT_POLICY_CHOICES
-        ):
-            raise ConfigError(
-                f"ab_split_policy must be one of {AB_SPLIT_POLICY_CHOICES}, "
-                f"got {self.ab_split_policy!r}",
-                field="ab_split_policy",
-            )
-        if self.ab_feature_track is None and self.ab_split_policy is not None:
-            raise ConfigError(
-                "ab_split_policy requires ab_feature_track",
-                notes=("supply a feature track or omit ab_split_policy",),
-                field="ab_split_policy",
-            )
         if (
             self.ab_feature_track is not None
             and not Path(self.ab_feature_track).is_file()

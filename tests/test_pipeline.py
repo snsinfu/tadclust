@@ -331,7 +331,7 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
 
     ab_qc = result.qc["ab"]
     assert ab_qc["enabled"] is True
-    assert ab_qc["split_policy"] == "kmeans2"
+    assert "split_policy" not in ab_qc
     assert ab_qc["n_units_a"] + ab_qc["n_units_b"] == 8
     assert set(ab_qc["per_chromosome"]) == {"chr1", "chr2"}
     assert "n_nodes_a" not in ab_qc

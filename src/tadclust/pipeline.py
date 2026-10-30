@@ -234,7 +234,6 @@ def _build_cis_results(
     config: ClusterConfig,
     track: FeatureTrack | None,
 ) -> list[_ChromosomeResult]:
-    split_policy = config.ab_split_policy or "kmeans2"
     results: list[_ChromosomeResult] = []
     cis_node_base = 0
     ab_node_base = 0
@@ -262,7 +261,7 @@ def _build_cis_results(
                 features,
                 feature_rank,
                 len(selection.unit_selection.units),
-                split_policy,
+                "kmeans2",
                 config.seed,
                 n_pcs=config.tree_n_pcs,
                 clusterable=clusterable,
@@ -667,11 +666,6 @@ def _build_params(
     params["working_binsize_mode"] = choice.mode
     params["input_mode"] = source.mode
     params["chromosomes"] = chromosomes
-    params["ab_split_policy"] = (
-        (config.ab_split_policy or "kmeans2")
-        if config.ab_feature_track is not None
-        else None
-    )
     params["dp_lambda_resolved"] = {
         result.chrom: result.selection.dp_lambda for result in results
     }
@@ -700,7 +694,7 @@ def _build_qc(
         "n_residuals": n_residuals,
         "cis": _cis_qc(results),
         "trans": _trans_qc(trans_run, config),
-        "ab": _ab_qc(results, config) if is_ab else {"enabled": False},
+        "ab": _ab_qc(results) if is_ab else {"enabled": False},
     }
 
 
@@ -757,7 +751,6 @@ def _cis_qc(results: list[_ChromosomeResult]) -> dict[str, Any]:
 
 def _ab_qc(
     results: list[_ChromosomeResult],
-    config: ClusterConfig,
 ) -> dict[str, Any]:
     per_chromosome: dict[str, Any] = {}
     n_units_a = 0
@@ -818,7 +811,6 @@ def _ab_qc(
 
     return {
         "enabled": True,
-        "split_policy": config.ab_split_policy or "kmeans2",
         "per_chromosome": per_chromosome,
         "n_chroms_split": n_chroms_split,
         "n_chroms_fallback": n_chroms_fallback,

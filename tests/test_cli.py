@@ -200,7 +200,7 @@ def test_cli_ab_run(mcool, tmp_path) -> None:
     leaves = pl.read_parquet(out / "cis_leaves.parquet")
     assert "ab_label" in leaves.columns
     manifest = json.loads((out / "manifest.json").read_text())
-    assert manifest["params"]["ab_split_policy"] == "kmeans2"
+    assert "ab_split_policy" not in manifest["params"]
 
 
 def test_cli_rejects_ab_split_policy(mcool, tmp_path) -> None:

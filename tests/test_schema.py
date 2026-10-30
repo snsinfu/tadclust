@@ -262,7 +262,6 @@ def test_ab_golden_schema(mcool, tmp_path) -> None:
         ab_tads(tmp_path),
         tmp_path,
         ab_feature_track=ab_track(tmp_path),
-        ab_split_policy="kmeans2",
     )
     result = cluster(config)
     write_outputs(result, config)
@@ -332,7 +331,7 @@ def test_manifest_contract(mcool, tmp_path) -> None:
     assert manifest["cli"] is None
     assert manifest["params"]["working_binsize"] == 500
     assert manifest["params"]["working_binsize_mode"] == "explicit"
-    assert manifest["params"]["ab_split_policy"] is None
+    assert "ab_split_policy" not in manifest["params"]
     assert manifest["qc"]["n_units"] == 4
     assert manifest["output_files"] == [
         "cis_leaves.parquet",
@@ -404,7 +403,6 @@ def test_ab_leaves_derived_from_ab_nodes(mcool, tmp_path) -> None:
         ab_tads(tmp_path),
         tmp_path,
         ab_feature_track=ab_track(tmp_path),
-        ab_split_policy="kmeans2",
     )
     result = cluster(config)
     assert result.cis_nodes_ab is not None

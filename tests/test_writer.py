@@ -279,7 +279,6 @@ def test_write_ab_and_trans_outputs(
         trans_tads,
         tmp_path,
         ab_feature_track=trans_track,
-        ab_split_policy="kmeans2",
         trans_enabled=True,
         trans_null="grand",
     )
@@ -400,7 +399,6 @@ def test_overwrite_removes_stale_optional_tables(
         trans_tads,
         tmp_path,
         ab_feature_track=trans_track,
-        ab_split_policy="kmeans2",
         trans_enabled=True,
         trans_null="grand",
     )
