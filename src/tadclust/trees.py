@@ -64,12 +64,12 @@ class CisForest:
 
 @dataclass
 class AbAnnotation:
-    """Per-unit A/B labels, feature ranks, and normalized continuous signals.
+    """Per-unit A/B labels, feature ranks, and continuous signals.
 
     The A/B centroids are stored in the standardized PC subspace. The feature
     rank is used only to fit and orient the centroids, not to score units.
-    Signals are normalized signed margins in [-1, 1]; margins hold their
-    absolute values.
+    Signals are raw signed projections on the A-B centroid axis. They are
+    unbounded, positive on the A side, and expressed in standardized-PC units.
     """
 
     labels: np.ndarray
@@ -77,7 +77,6 @@ class AbAnnotation:
     fallback: bool
     fallback_reason: str | None
     signals: np.ndarray
-    margins: np.ndarray
     a_indices: np.ndarray
     b_indices: np.ndarray
     a_centroid_pc: np.ndarray = field(default_factory=lambda: np.zeros(0))
@@ -416,11 +415,12 @@ def annotate_ab(
     n_pcs: int,
     clusterable: np.ndarray | None = None,
 ) -> AbAnnotation:
-    """Assign per-unit A/B labels and normalized boundary signals.
+    """Assign per-unit A/B labels and continuous signals.
 
     The feature matrix must end with the standardized feature rank. K-means runs
     in that augmented space, but signals and labels are derived in the projected
-    standardized PC subspace. Signals are normalized signed margins in [-1, 1].
+    standardized PC subspace. Signals are raw signed projections on the A-B
+    centroid axis; positive is the A side.
     """
     values = np.asarray(features, dtype=np.float64)
     feature_ranks = np.asarray(feature_rank, dtype=np.float64)
@@ -433,7 +433,6 @@ def annotate_ab(
 
     labels = np.full(n_units, None, dtype=object)
     signals = np.full(n_units, np.nan, dtype=np.float64)
-    margins = np.full(n_units, np.nan, dtype=np.float64)
     empty = np.zeros(0, dtype=np.int64)
     mask = _resolve_clusterable(values, values.shape[1], clusterable)
 
@@ -454,7 +453,6 @@ def annotate_ab(
             fallback=True,
             fallback_reason="ab_degenerate",
             signals=signals,
-            margins=margins,
             a_indices=empty,
             b_indices=empty,
         )
@@ -462,7 +460,6 @@ def annotate_ab(
     (
         partition_labels,
         partition_signals,
-        partition_margins,
         a_indices,
         b_indices,
         a_centroid_pc,
@@ -474,7 +471,6 @@ def annotate_ab(
         fallback=False,
         fallback_reason=None,
         signals=partition_signals,
-        margins=partition_margins,
         a_indices=a_indices,
         b_indices=b_indices,
         a_centroid_pc=a_centroid_pc,
@@ -482,22 +478,22 @@ def annotate_ab(
     )
 
 
-def _normalized_ab_signal(
+def _ab_signal(
     point: np.ndarray,
     a_centroid_pc: np.ndarray,
     b_centroid_pc: np.ndarray,
 ) -> float:
-    """Return the signed A/B margin normalized to [-1, 1].
+    """Return the raw signed projection on the A-B centroid axis.
 
-    The scale is the distance between the A and B centroids. The A centroid
-    maps to +1 and the B centroid maps to -1.
+    The signal is positive on the A side and expressed in standardized-PC
+    units. It is not normalized by the centroid separation and is not clipped.
     """
-    a_distance = float(np.linalg.norm(a_centroid_pc - point))
-    b_distance = float(np.linalg.norm(b_centroid_pc - point))
-    scale = float(np.linalg.norm(a_centroid_pc - b_centroid_pc))
+    direction = a_centroid_pc - b_centroid_pc
+    scale = float(np.linalg.norm(direction))
     if scale <= 0.0:
         return 0.0
-    return float(np.clip((b_distance - a_distance) / scale, -1.0, 1.0))
+    midpoint = (a_centroid_pc + b_centroid_pc) / 2.0
+    return float(np.dot(point - midpoint, direction / scale))
 
 
 def _ab_partition(
@@ -508,7 +504,6 @@ def _ab_partition(
     n_pcs: int,
 ) -> (
     tuple[
-        np.ndarray,
         np.ndarray,
         np.ndarray,
         np.ndarray,
@@ -550,14 +545,11 @@ def _ab_partition(
     a_centroid_pc = centroids[a_cluster, :pc_dim]
     b_centroid_pc = centroids[b_cluster, :pc_dim]
     signals = np.full(n_units, np.nan, dtype=np.float64)
-    margins = np.full(n_units, np.nan, dtype=np.float64)
 
     for unit in indices:
         point = features[unit, :pc_dim]
         # Positive signal is the A side, matching the track convention A > B.
-        signal = _normalized_ab_signal(point, a_centroid_pc, b_centroid_pc)
-        signals[unit] = signal
-        margins[unit] = abs(signal)
+        signals[unit] = _ab_signal(point, a_centroid_pc, b_centroid_pc)
 
     labels = np.full(n_units, None, dtype=object)
     a_indices = indices[signals[indices] > 0.0]
@@ -570,7 +562,6 @@ def _ab_partition(
     return (
         labels,
         signals,
-        margins,
         a_indices,
         b_indices,
         a_centroid_pc,
@@ -585,10 +576,11 @@ def annotate_cis_forest(
     *,
     n_pcs: int,
 ) -> None:
-    """Attach per-node A/B composition, feature rank, labels, and normalized signals.
+    """Attach per-node A/B composition, labels, and continuous signals.
 
     Signals use the node's mean standardized PC vector and the projected A/B
-    centroids. Values are normalized signed margins in [-1, 1].
+    centroids. They are raw signed projections on the A-B axis, positive on
+    the A side.
     """
     values = np.asarray(features, dtype=np.float64)
     pc_dim = min(n_pcs, values.shape[1] - 1)
@@ -603,7 +595,7 @@ def annotate_cis_forest(
 
             if has_centroids and unit_ids.size:
                 node_feature = pc_values[unit_ids].mean(axis=0)
-                node.ab_signal = _normalized_ab_signal(
+                node.ab_signal = _ab_signal(
                     node_feature,
                     annotation.a_centroid_pc,
                     annotation.b_centroid_pc,

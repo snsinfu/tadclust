@@ -317,8 +317,10 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
         result.cis_nodes,
         result.cis_nodes_ab,
     ):
-        values = table["ab_signal"].drop_nulls().abs().to_numpy()
-        assert np.all(values <= 1.0 + 1e-12)
+        assert "ab_signal" in table.columns
+        assert "ab_score" not in table.columns
+        values = table["ab_signal"].drop_nulls().to_numpy()
+        assert np.all(np.isfinite(values))
     assert "ab_label" in result.cis_leaves_ab.columns
     assert "ab_feature_rank" not in result.cis_leaves.columns
     assert "ab_feature_rank" not in result.cis_leaves_ab.columns

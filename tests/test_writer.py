@@ -311,14 +311,18 @@ def test_write_ab_and_trans_outputs(
     assert leaves.schema["trans_path"] == pl.List(pl.Int64)
     assert "ab_label" in leaves.columns
     assert "ab_margin" not in leaves.columns
+    assert "ab_score" not in leaves.columns
     assert {"ab_label", "ab_signal", "ab_frac_a", "ab_frac_b", "ab_purity"} <= set(
         nodes.columns
     )
     assert "ab_margin" not in nodes.columns
+    assert "ab_score" not in nodes.columns
     assert "ab_signal" in leaves_ab.columns
     assert "ab_margin" not in leaves_ab.columns
+    assert "ab_score" not in leaves_ab.columns
     assert "ab_label" in nodes_ab.columns
     assert "ab_margin" not in nodes_ab.columns
+    assert "ab_score" not in nodes_ab.columns
     assert trans_nodes.schema["chroms"] == pl.List(pl.String)
     assert trans_nodes.schema["chrom_unit_counts"] == pl.List(pl.Int64)
     assert trans_nodes.schema["unit_id"] == pl.Int64

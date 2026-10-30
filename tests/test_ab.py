@@ -33,26 +33,11 @@ def test_annotate_ab_kmeans2() -> None:
     assert annotation.a_centroid_pc.shape == (1,)
     assert np.all(annotation.signals[annotation.a_indices] > 0)
     assert np.all(annotation.signals[annotation.b_indices] < 0)
-    a_distance = np.linalg.norm(
-        features[:, :1] - annotation.a_centroid_pc,
-        axis=1,
-    )
-    b_distance = np.linalg.norm(
-        features[:, :1] - annotation.b_centroid_pc,
-        axis=1,
-    )
-    scale = np.linalg.norm(
-        annotation.a_centroid_pc - annotation.b_centroid_pc,
-    )
-    np.testing.assert_allclose(
-        annotation.signals,
-        (b_distance - a_distance) / scale,
-    )
-    assert np.all(np.abs(annotation.signals) <= 1.0)
-    assert np.allclose(
-        annotation.margins,
-        np.abs(annotation.signals),
-    )
+    direction = annotation.a_centroid_pc - annotation.b_centroid_pc
+    unit = direction / np.linalg.norm(direction)
+    midpoint = (annotation.a_centroid_pc + annotation.b_centroid_pc) / 2.0
+    expected = (features[:, :1] - midpoint) @ unit
+    np.testing.assert_allclose(annotation.signals, expected)
 
 
 def test_ab_signal_uses_pc_space_not_rank() -> None:
@@ -67,7 +52,6 @@ def test_ab_signal_uses_pc_space_not_rank() -> None:
         fallback=False,
         fallback_reason=None,
         signals=np.zeros(4),
-        margins=np.zeros(4),
         a_indices=np.array([2, 3]),
         b_indices=np.array([0, 1]),
         a_centroid_pc=features1[[2, 3], :1].mean(axis=0),
@@ -150,7 +134,6 @@ def test_annotate_ab_excludes_uninformative_units() -> None:
 
     assert annotation.labels[0] is None
     assert np.isnan(annotation.signals[0])
-    assert np.isnan(annotation.margins[0])
     assert 0 not in annotation.a_indices.tolist()
     assert 0 not in annotation.b_indices.tolist()
     assert set(annotation.a_indices.tolist() + annotation.b_indices.tolist()) == {
@@ -212,7 +195,6 @@ def test_annotate_cis_forest_composition() -> None:
         fallback=False,
         fallback_reason=None,
         signals=np.zeros(4),
-        margins=np.zeros(4),
         a_indices=np.array([0, 1]),
         b_indices=np.array([2, 3]),
     )
@@ -251,7 +233,6 @@ def test_annotate_cis_forest_fractions_include_unlabeled_units() -> None:
         fallback=False,
         fallback_reason=None,
         signals=np.zeros(4),
-        margins=np.zeros(4),
         a_indices=np.array([0]),
         b_indices=np.array([2, 3]),
     )
@@ -300,7 +281,6 @@ def test_build_ab_forest_degenerate_fallback() -> None:
         fallback=True,
         fallback_reason="ab_degenerate",
         signals=np.full(2, np.nan),
-        margins=np.full(2, np.nan),
         a_indices=np.zeros(0, dtype=np.int64),
         b_indices=np.zeros(0, dtype=np.int64),
     )
@@ -336,26 +316,61 @@ def test_annotate_cis_forest_node_signals_match_leaf_units() -> None:
 
     annotate_cis_forest(forest, annotation, features, n_pcs=1)
 
-    for tree in forest.trees:
-        for node in tree.nodes:
-            if node.ab_signal is not None:
-                assert -1.0 <= node.ab_signal <= 1.0
-
     for tree, group in zip(forest.trees, forest.groups):
         for node in tree.nodes:
+            unit_ids = group[node.unit_indices]
+            assert node.ab_signal == pytest.approx(
+                np.mean(annotation.signals[unit_ids])
+            )
             if not node.is_leaf:
                 continue
-            unit = int(group[node.unit_indices[0]])
+            unit = int(unit_ids[0])
             assert node.ab_signal == pytest.approx(annotation.signals[unit])
             assert node.ab_label == annotation.labels[unit]
 
     root = forest.trees[0].nodes[forest.trees[0].root_id]
     assert root.ab_signal is not None
-    assert root.ab_signal == pytest.approx(0.0)
     if root.ab_signal == 0.0:
         assert root.ab_label is None
     else:
         assert root.ab_label == ("A" if root.ab_signal > 0 else "B")
+
+
+def test_ab_signal_is_unbounded_beyond_centroid() -> None:
+    pcs = np.array([[-1.0], [0.0], [1.0], [3.0]])
+    rank = np.array([0.0, 0.2, 0.8, 1.0])
+    features = np.column_stack([pcs, rank])
+    annotation = AbAnnotation(
+        labels=np.array(["B", "B", "A", "A"], dtype=object),
+        feature_rank=rank,
+        fallback=False,
+        fallback_reason=None,
+        signals=np.zeros(4),
+        a_indices=np.array([2, 3]),
+        b_indices=np.array([0, 1]),
+        a_centroid_pc=np.array([1.0]),
+        b_centroid_pc=np.array([-1.0]),
+    )
+    forest = build_cis_forest(
+        "chr1",
+        pcs,
+        np.ones(4, dtype=np.int64),
+        n_pcs=1,
+        branch_k=2,
+        seed=0,
+    )
+
+    annotate_cis_forest(forest, annotation, features, n_pcs=1)
+
+    leaf_signals = {}
+    for tree, group in zip(forest.trees, forest.groups):
+        for node in tree.nodes:
+            if node.is_leaf:
+                unit = int(group[node.unit_indices[0]])
+                leaf_signals[unit] = node.ab_signal
+
+    assert leaf_signals[3] == pytest.approx(3.0)
+    assert leaf_signals[3] > 1.0
 
 
 def test_node_label_follows_signal_without_mixed_threshold() -> None:
@@ -369,7 +384,6 @@ def test_node_label_follows_signal_without_mixed_threshold() -> None:
         fallback=False,
         fallback_reason=None,
         signals=np.zeros(4),
-        margins=np.zeros(4),
         a_indices=np.array([0, 1, 2]),
         b_indices=np.array([3]),
         a_centroid_pc=features[[0, 1, 2], :1].mean(axis=0),
