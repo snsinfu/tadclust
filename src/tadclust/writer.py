@@ -21,6 +21,9 @@ SchemaValue = pl.DataType | type[pl.DataType]
 Schema = dict[str, SchemaValue]
 
 SCHEMA_VERSION = "2.0"
+_TSV_NULL_INT = -1
+_TSV_NULL_FLOAT = float("nan")
+_TSV_NULL_STRING = "NA"
 KNOWN_OUTPUTS = (
     "cis_leaves.parquet",
     "cis_leaves.tsv",
@@ -60,7 +63,7 @@ def write_outputs(
             _stage_tsv(
                 result.cis_leaves,
                 output_dir / "cis_leaves.tsv",
-                _cis_leaves_tsv_columns(config.tree_n_pcs, include_trans),
+                _cis_leaves_schema(config.tree_n_pcs, include_trans),
             )
         )
         staged.append(
@@ -83,7 +86,7 @@ def write_outputs(
                 _stage_tsv(
                     result.cis_leaves_ab,
                     output_dir / "cis_leaves_ab.tsv",
-                    _cis_leaves_ab_tsv_columns(),
+                    _cis_leaves_ab_schema(),
                 )
             )
         if result.cis_nodes_ab is not None:
@@ -161,12 +164,21 @@ def _stage_parquet(
 def _stage_tsv(
     table: pl.DataFrame,
     path: Path,
-    columns: list[str],
+    schema: Schema,
 ) -> tuple[Path, Path]:
-    frame = table.select(columns)
+    scalar_schema = _scalar_tsv_schema(schema)
+    frame = table.select(list(scalar_schema))
+    frame = frame.with_columns(
+        pl.col(name).cast(_tsv_column_dtype(dtype))
+        for name, dtype in scalar_schema.items()
+    )
+    frame = frame.with_columns(
+        pl.col(name).fill_null(_tsv_null_sentinel(dtype))
+        for name, dtype in frame.schema.items()
+    )
     temporary = _temporary_path(path)
     try:
-        frame.write_csv(temporary, separator="\t", null_value="")
+        frame.write_csv(temporary, separator="\t", null_value=_TSV_NULL_STRING)
     except Exception:
         if temporary.exists():
             temporary.unlink()
@@ -260,16 +272,27 @@ def _cis_leaves_schema(
     return schema
 
 
-def _cis_leaves_tsv_columns(n_pcs: int, include_trans: bool) -> list[str]:
-    return _scalar_tsv_columns(_cis_leaves_schema(n_pcs, include_trans))
+def _scalar_tsv_schema(schema: Schema) -> Schema:
+    return {
+        name: dtype for name, dtype in schema.items() if not _is_nested_dtype(dtype)
+    }
 
 
-def _cis_leaves_ab_tsv_columns() -> list[str]:
-    return _scalar_tsv_columns(_cis_leaves_ab_schema())
+def _tsv_column_dtype(dtype: SchemaValue) -> SchemaValue:
+    resolved = dtype() if isinstance(dtype, type) else dtype
+    if resolved == pl.Boolean:
+        return pl.String
+    return dtype
 
 
-def _scalar_tsv_columns(schema: Schema) -> list[str]:
-    return [name for name, dtype in schema.items() if not _is_nested_dtype(dtype)]
+def _tsv_null_sentinel(dtype: pl.DataType) -> object:
+    if dtype.is_integer():
+        return _TSV_NULL_INT
+    if dtype.is_float():
+        return _TSV_NULL_FLOAT
+    if dtype == pl.String:
+        return _TSV_NULL_STRING
+    raise OutputError(f"unsupported TSV column dtype: {dtype}")
 
 
 def _is_nested_dtype(dtype: SchemaValue) -> bool:

@@ -8,13 +8,18 @@ from pathlib import Path
 
 import polars as pl
 import pytest
-from conftest import write_tads, write_track
+from conftest import write_mcool, write_tads, write_track
 
 import tadclust
 from tadclust.config import ClusterConfig
 from tadclust.errors import OutputError
 from tadclust.pipeline import cluster
-from tadclust.writer import SCHEMA_VERSION, _temporary_path, write_outputs
+from tadclust.writer import (
+    SCHEMA_VERSION,
+    _stage_tsv,
+    _temporary_path,
+    write_outputs,
+)
 
 CIS_LEAVES_TSV_COLUMNS = [
     "domain_id",
@@ -53,6 +58,31 @@ CIS_LEAVES_AB_TSV_COLUMNS = [
 
 def read_tsv(path: Path) -> pl.DataFrame:
     return pl.read_csv(path, separator="\t", infer_schema_length=0)
+
+
+def test_stage_tsv_replaces_nulls_with_type_sentinels(tmp_path) -> None:
+    table = pl.DataFrame(
+        {
+            "i": [1, None],
+            "f": [2.5, None],
+            "s": ["x", None],
+            "b": [True, None],
+        }
+    )
+    schema = {
+        "i": pl.Int64,
+        "f": pl.Float64,
+        "s": pl.String,
+        "b": pl.Boolean,
+    }
+
+    temporary, _ = _stage_tsv(table, tmp_path / "out.tsv", schema)
+
+    assert temporary.read_text().splitlines() == [
+        "i\tf\ts\tb",
+        "1\t2.5\tx\ttrue",
+        "-1\tNaN\tNA\tNA",
+    ]
 
 
 def base_tads(tmp_path):
@@ -191,6 +221,53 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     )
     assert "pcs" not in leaves_tsv.columns
     assert "path" not in leaves_tsv.columns
+
+
+def test_uniform_bin_tsv_nulls_use_sentinels(tmp_path) -> None:
+    mcool = write_mcool(
+        tmp_path,
+        resolutions=(500,),
+        chroms=("chr1",),
+        chrom_size=3000,
+        empty_bins={0, 1},
+    )
+    track = write_track(
+        tmp_path,
+        [
+            ("chr1", index * 500, (index + 1) * 500, float(index + 1))
+            for index in range(6)
+        ],
+    )
+    config = make_config(
+        mcool,
+        None,
+        tmp_path,
+        annotation_path=None,
+        ab_signal_track=track,
+    )
+    result = cluster(config)
+    write_outputs(result, config)
+    out = tmp_path / "out"
+
+    parquet = pl.read_parquet(out / "cis_leaves.parquet")
+    assert parquet["source_row"].null_count() == parquet.height
+
+    for name in ("cis_leaves.tsv", "cis_leaves_ab.tsv"):
+        text = (out / name).read_text()
+        for line in text.splitlines():
+            assert all(cell != "" for cell in line.split("\t"))
+
+    leaves = read_tsv(out / "cis_leaves.tsv")
+    assert leaves["source_row"].to_list() == ["-1"] * leaves.height
+    unclustered = leaves.filter(pl.col("start").cast(pl.Int64) < 1000)
+    assert unclustered["root_label"].to_list() == ["NA", "NA"]
+    assert unclustered["path_label"].to_list() == ["NA", "NA"]
+    assert unclustered["depth"].to_list() == ["-1", "-1"]
+
+    leaves_ab = read_tsv(out / "cis_leaves_ab.tsv")
+    unclustered_ab = leaves_ab.filter(pl.col("start").cast(pl.Int64) < 1000)
+    assert unclustered_ab["ab_label"].to_list() == ["NA", "NA"]
+    assert unclustered_ab["ab_score"].to_list() == ["NaN", "NaN"]
 
 
 def test_write_ab_and_trans_outputs(
