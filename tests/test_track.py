@@ -133,16 +133,16 @@ def test_overlap_weighted_values() -> None:
             }
         )
     )
-    domains = [
+    units = [
         SimpleNamespace(start=25, end=75),
         SimpleNamespace(start=200, end=300),
     ]
 
-    values = overlap_weighted_values(track, domains, "chr1")
+    values = overlap_weighted_values(track, units, "chr1")
 
     assert values[0] == 2.0
     assert np.isnan(values[1])
-    missing = overlap_weighted_values(track, domains, "chr2")
+    missing = overlap_weighted_values(track, units, "chr2")
     assert np.all(np.isnan(missing))
 
 

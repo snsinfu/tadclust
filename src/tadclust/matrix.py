@@ -36,16 +36,16 @@ class FineUnitMatrices(ObservedExpected):
 
 
 @dataclass(frozen=True)
-class DomainMatrices(ObservedExpected):
-    """Selected-domain O/E matrices and principal components."""
+class UnitMatrices(ObservedExpected):
+    """Selected-unit O/E matrices and principal components."""
 
     pcs: np.ndarray
     eigenvalues: np.ndarray
     variance_fraction: np.ndarray
 
     @classmethod
-    def from_fine_unit_matrices(cls, fine: FineUnitMatrices) -> DomainMatrices:
-        """Reuse fine-unit matrices when selected domains are the fine units."""
+    def from_fine_unit_matrices(cls, fine: FineUnitMatrices) -> UnitMatrices:
+        """Reuse fine-unit matrices when selected units are the fine units."""
         return cls(
             observed=fine.observed,
             expected=fine.expected,
@@ -310,7 +310,7 @@ def orient_pcs_to_feature(
     values = np.array(pcs, dtype=np.float64, copy=True)
     ranks = np.asarray(feature_rank, dtype=np.float64)
     if values.ndim != 2:
-        raise ClusteringError("domain PCs must be a two-dimensional array")
+        raise ClusteringError("unit PCs must be a two-dimensional array")
     if values.shape[0] != ranks.shape[0]:
         raise ClusteringError("PC and feature-rank lengths differ")
     if values.shape[1] == 0 or values.shape[0] < 2:
@@ -465,8 +465,8 @@ def compute_fine_unit_matrices(
     )
 
 
-def compute_domain_matrices(
-    domain_map: sparse.csr_array | sparse.csr_matrix | np.ndarray,
+def compute_unit_matrices(
+    unit_map: sparse.csr_array | sparse.csr_matrix | np.ndarray,
     observed_fine: np.ndarray,
     expected_fine: np.ndarray,
     *,
@@ -474,15 +474,15 @@ def compute_domain_matrices(
     clip_min: float,
     clip_max: float,
     n_pcs: int,
-    label: str = "domains",
-) -> DomainMatrices:
-    """Aggregate fine O/E to selected domains and compute domain PCs."""
+    label: str = "units",
+) -> UnitMatrices:
+    """Aggregate fine O/E to selected units and compute unit PCs."""
     observed = np.asarray(
-        domain_map.T @ observed_fine @ domain_map,
+        unit_map.T @ observed_fine @ unit_map,
         dtype=np.float64,
     )
     expected = np.asarray(
-        domain_map.T @ expected_fine @ domain_map,
+        unit_map.T @ expected_fine @ unit_map,
         dtype=np.float64,
     )
 
@@ -502,7 +502,7 @@ def compute_domain_matrices(
         n_pcs,
         label=label,
     )
-    return DomainMatrices(
+    return UnitMatrices(
         observed=observed,
         expected=expected,
         log_oe=log_oe,

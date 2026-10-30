@@ -1,4 +1,4 @@
-"""Deterministic branching k-means trees over domain PCs."""
+"""Deterministic branching k-means trees over unit PCs."""
 
 from __future__ import annotations
 
@@ -25,10 +25,10 @@ class TreeNode:
     children: list[int] = field(default_factory=list)
     depth: int = 0
     path: list[int] = field(default_factory=list)
-    domain_indices: np.ndarray = field(
+    unit_indices: np.ndarray = field(
         default_factory=lambda: np.zeros(0, dtype=np.int64)
     )
-    n_bins: int = 0
+    n_working_bins: int = 0
     centroid: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=np.float64))
     sse: float = 0.0
     split_gain: float | None = None
@@ -65,10 +65,10 @@ class CisForest:
 
 @dataclass
 class AbAnnotation:
-    """Per-domain A/B labels, feature ranks, and continuous scores.
+    """Per-unit A/B labels, feature ranks, and continuous scores.
 
     The A/B centroids are stored in the standardized PC subspace. The feature
-    rank is used only to fit and orient the centroids, not to score domains.
+    rank is used only to fit and orient the centroids, not to score units.
     """
 
     labels: np.ndarray
@@ -93,7 +93,7 @@ def format_path_label(root_label: str, path: list[int]) -> str:
 
 def build_branching_tree(
     pcs: np.ndarray,
-    domain_bins: np.ndarray,
+    unit_bins: np.ndarray,
     n_pcs: int,
     seed: int,
     branch_k: int,
@@ -107,14 +107,14 @@ def build_branching_tree(
     paths matter.
     """
     values = np.asarray(pcs, dtype=np.float64)
-    bins = np.asarray(domain_bins, dtype=np.int64)
+    bins = np.asarray(unit_bins, dtype=np.int64)
     if values.ndim != 2:
-        raise ClusteringError("domain PCs must be a two-dimensional array")
-    n_domains = values.shape[0]
-    if n_domains == 0:
-        raise ClusteringError("cannot build a tree from an empty domain set")
-    if bins.shape[0] != n_domains:
-        raise ClusteringError("domain PCs and domain bin counts have different lengths")
+        raise ClusteringError("unit PCs must be a two-dimensional array")
+    n_units = values.shape[0]
+    if n_units == 0:
+        raise ClusteringError("cannot build a tree from an empty unit set")
+    if bins.shape[0] != n_units:
+        raise ClusteringError("unit PCs and unit bin counts have different lengths")
     if branch_k < 2:
         raise ClusteringError("branch_k must be at least 2")
     if n_pcs < 1:
@@ -124,17 +124,17 @@ def build_branching_tree(
     root_id = _new_node(
         nodes=nodes,
         parent_id=None,
-        domain_indices=np.arange(n_domains, dtype=np.int64),
+        unit_indices=np.arange(n_units, dtype=np.int64),
         path=[],
         pcs=values,
-        domain_bins=bins,
+        unit_bins=bins,
         n_pcs=n_pcs,
     )
 
     # Split order does not change the final full tree: every node is split
     # independently. Depth-first recursion keeps node ids deterministic without
     # a priority queue.
-    if n_domains > 1:
+    if n_units > 1:
         _split_recursive(
             nodes,
             root_id,
@@ -145,7 +145,7 @@ def build_branching_tree(
             seed,
         )
 
-    _leaf_lookup(nodes, n_domains)
+    _leaf_lookup(nodes, n_units)
     return BranchingTree(
         nodes=nodes,
         root_id=root_id,
@@ -157,16 +157,16 @@ def _split_recursive(
     nodes: list[TreeNode],
     node_id: int,
     pcs: np.ndarray,
-    domain_bins: np.ndarray,
+    unit_bins: np.ndarray,
     n_pcs: int,
     branch_k: int,
     seed: int,
 ) -> None:
     node = nodes[node_id]
     node_seed = derive_seed(seed, _TREE_SEED_NAMESPACE, *node.path)
-    parts = _split_member_domains(
+    parts = _split_member_units(
         pcs,
-        node.domain_indices,
+        node.unit_indices,
         n_pcs=n_pcs,
         branch_k=branch_k,
         seed=node_seed,
@@ -180,7 +180,7 @@ def _split_recursive(
         node_id,
         parts,
         pcs,
-        domain_bins,
+        unit_bins,
         n_pcs,
     )
     for child_id in node.children:
@@ -188,16 +188,16 @@ def _split_recursive(
             nodes,
             child_id,
             pcs,
-            domain_bins,
+            unit_bins,
             n_pcs,
             branch_k,
             seed,
         )
 
 
-def _split_member_domains(
+def _split_member_units(
     pcs: np.ndarray,
-    domain_indices: np.ndarray,
+    unit_indices: np.ndarray,
     *,
     n_pcs: int,
     branch_k: int,
@@ -206,16 +206,14 @@ def _split_member_domains(
     # Small nodes become singletons directly. Larger nodes use k-means, then
     # sort children by ascending mean PC1 so paths do not depend on k-means
     # label order.
-    if domain_indices.size <= 1:
+    if unit_indices.size <= 1:
         return None
-    if domain_indices.size <= branch_k:
-        parts = [
-            domain_indices[index : index + 1] for index in range(domain_indices.size)
-        ]
+    if unit_indices.size <= branch_k:
+        parts = [unit_indices[index : index + 1] for index in range(unit_indices.size)]
         return _sort_by_mean_pc1(parts, pcs)
 
     labels, _ = kmeans_labels(
-        pcs[domain_indices],
+        pcs[unit_indices],
         branch_k,
         n_pcs,
         seed,
@@ -224,7 +222,7 @@ def _split_member_domains(
     if unique.size < 2:
         return None
 
-    parts = [domain_indices[inverse == cluster] for cluster in range(unique.size)]
+    parts = [unit_indices[inverse == cluster] for cluster in range(unique.size)]
     return _sort_by_mean_pc1(parts, pcs)
 
 
@@ -245,21 +243,21 @@ def _append_children(
     parent_id: int,
     parts: list[np.ndarray],
     pcs: np.ndarray,
-    domain_bins: np.ndarray,
+    unit_bins: np.ndarray,
     n_pcs: int,
 ) -> None:
     parent = nodes[parent_id]
     child_sse = 0.0
 
-    for child_index, domain_indices in enumerate(parts):
+    for child_index, unit_indices in enumerate(parts):
         path = [*parent.path, child_index]
         child_id = _new_node(
             nodes=nodes,
             parent_id=parent_id,
-            domain_indices=domain_indices,
+            unit_indices=unit_indices,
             path=path,
             pcs=pcs,
-            domain_bins=domain_bins,
+            unit_bins=unit_bins,
             n_pcs=n_pcs,
         )
         parent.children.append(child_id)
@@ -276,14 +274,14 @@ def _new_node(
     *,
     nodes: list[TreeNode],
     parent_id: int | None,
-    domain_indices: np.ndarray,
+    unit_indices: np.ndarray,
     path: list[int],
     pcs: np.ndarray,
-    domain_bins: np.ndarray,
+    unit_bins: np.ndarray,
     n_pcs: int,
 ) -> int:
     node_id = len(nodes)
-    values = _node_values(pcs, domain_indices, n_pcs)
+    values = _node_values(pcs, unit_indices, n_pcs)
     centroid = values.mean(axis=0)
     sse = float(((values - centroid) ** 2).sum())
 
@@ -293,8 +291,8 @@ def _new_node(
             parent_id=parent_id,
             depth=len(path),
             path=list(path),
-            domain_indices=domain_indices,
-            n_bins=int(domain_bins[domain_indices].sum()),
+            unit_indices=unit_indices,
+            n_working_bins=int(unit_bins[unit_indices].sum()),
             centroid=centroid,
             sse=sse,
         )
@@ -304,33 +302,33 @@ def _new_node(
 
 def _node_values(
     pcs: np.ndarray,
-    domain_indices: np.ndarray,
+    unit_indices: np.ndarray,
     n_pcs: int,
 ) -> np.ndarray:
     if pcs.shape[1] == 0:
-        return np.zeros((domain_indices.size, 1), dtype=np.float64)
+        return np.zeros((unit_indices.size, 1), dtype=np.float64)
     n_features = max(1, min(n_pcs, pcs.shape[1]))
-    return np.asarray(pcs[domain_indices, :n_features], dtype=np.float64)
+    return np.asarray(pcs[unit_indices, :n_features], dtype=np.float64)
 
 
 def _leaf_lookup(
     nodes: list[TreeNode],
-    n_domains: int,
+    n_units: int,
 ) -> np.ndarray:
-    leaf_of_domain = np.full(n_domains, -1, dtype=np.int64)
+    leaf_of_unit = np.full(n_units, -1, dtype=np.int64)
     for node in nodes:
         if node.is_leaf:
-            leaf_of_domain[node.domain_indices] = node.node_id
+            leaf_of_unit[node.unit_indices] = node.node_id
 
-    if np.any(leaf_of_domain < 0):
-        raise ClusteringError("tree left some domains unassigned")
-    return leaf_of_domain
+    if np.any(leaf_of_unit < 0):
+        raise ClusteringError("tree left some units unassigned")
+    return leaf_of_unit
 
 
 def build_cis_forest(
     chrom: str,
     pcs: np.ndarray,
-    domain_bins: np.ndarray,
+    unit_bins: np.ndarray,
     *,
     n_pcs: int,
     branch_k: int,
@@ -340,7 +338,7 @@ def build_cis_forest(
 ) -> CisForest:
     """Build a single-root cis forest for one chromosome."""
     values = np.asarray(pcs)
-    bins = np.asarray(domain_bins, dtype=np.int64)
+    bins = np.asarray(unit_bins, dtype=np.int64)
     mask = _resolve_clusterable(values, n_pcs, clusterable)
     indices = np.flatnonzero(mask)
     if indices.size == 0:
@@ -375,13 +373,13 @@ def _resolve_clusterable(
     n_features: int,
     clusterable: np.ndarray | None,
 ) -> np.ndarray:
-    """Return a validated domain mask of rows used for clustering."""
+    """Return a validated unit mask of rows used for clustering."""
     if clusterable is None:
         return informative_mask(values, n_features)
 
     mask = np.asarray(clusterable, dtype=bool)
     if mask.ndim != 1 or mask.shape[0] != values.shape[0]:
-        raise ClusteringError("clusterable mask length does not match the domain count")
+        raise ClusteringError("clusterable mask length does not match the unit count")
     return mask
 
 
@@ -412,14 +410,14 @@ def _make_cis_forest(
 def annotate_ab(
     features: np.ndarray,
     feature_rank: np.ndarray,
-    n_domains: int,
+    n_units: int,
     split_policy: str,
     seed: int,
     *,
     n_pcs: int,
     clusterable: np.ndarray | None = None,
 ) -> AbAnnotation:
-    """Assign per-domain A/B labels and boundary scores.
+    """Assign per-unit A/B labels and boundary scores.
 
     The feature matrix must end with the standardized feature rank. K-means runs
     in that augmented space, but scores and labels are derived in the projected
@@ -427,27 +425,27 @@ def annotate_ab(
     """
     values = np.asarray(features, dtype=np.float64)
     feature_ranks = np.asarray(feature_rank, dtype=np.float64)
-    if feature_ranks.shape[0] != n_domains:
-        raise ClusteringError("A/B feature-rank length does not match the domain count")
-    if values.shape[0] != n_domains:
-        raise ClusteringError("A/B feature length does not match the domain count")
+    if feature_ranks.shape[0] != n_units:
+        raise ClusteringError("A/B feature-rank length does not match the unit count")
+    if values.shape[0] != n_units:
+        raise ClusteringError("A/B feature length does not match the unit count")
     if values.ndim != 2 or values.shape[1] == 0:
         raise ClusteringError("A/B features must have at least one column")
     if split_policy not in AB_SPLIT_POLICY_CHOICES:
         raise ClusteringError(f"unknown A/B split policy: {split_policy!r}")
 
-    labels = np.full(n_domains, None, dtype=object)
-    scores = np.full(n_domains, np.nan, dtype=np.float64)
-    margins = np.full(n_domains, np.nan, dtype=np.float64)
+    labels = np.full(n_units, None, dtype=object)
+    scores = np.full(n_units, np.nan, dtype=np.float64)
+    margins = np.full(n_units, np.nan, dtype=np.float64)
     empty = np.zeros(0, dtype=np.int64)
     mask = _resolve_clusterable(values, values.shape[1], clusterable)
 
-    if n_domains < 2:
-        raise ClusteringError("A/B split requires at least two domains")
+    if n_units < 2:
+        raise ClusteringError("A/B split requires at least two units")
 
     partition = _ab_partition(
         values,
-        n_domains,
+        n_units,
         split_policy,
         seed,
         mask,
@@ -492,7 +490,7 @@ def annotate_ab(
 
 def _ab_partition(
     features: np.ndarray,
-    n_domains: int,
+    n_units: int,
     split_policy: str,
     seed: int,
     clusterable: np.ndarray,
@@ -546,19 +544,19 @@ def _ab_partition(
 
     a_centroids_pc = centroids[a_clusters][:, :pc_dim]
     b_centroid_pc = centroids[b_clusters[0]][:pc_dim]
-    scores = np.full(n_domains, np.nan, dtype=np.float64)
-    margins = np.full(n_domains, np.nan, dtype=np.float64)
+    scores = np.full(n_units, np.nan, dtype=np.float64)
+    margins = np.full(n_units, np.nan, dtype=np.float64)
 
-    for domain in indices:
-        point = features[domain, :pc_dim]
+    for unit in indices:
+        point = features[unit, :pc_dim]
         a_distance = np.min(np.linalg.norm(a_centroids_pc - point, axis=1))
         b_distance = np.linalg.norm(b_centroid_pc - point)
         # Positive score is the A side, matching the track convention A > B.
         score = b_distance - a_distance
-        scores[domain] = score
-        margins[domain] = abs(score)
+        scores[unit] = score
+        margins[unit] = abs(score)
 
-    labels = np.full(n_domains, None, dtype=object)
+    labels = np.full(n_units, None, dtype=object)
     a_indices = indices[scores[indices] > 0.0]
     b_indices = indices[scores[indices] < 0.0]
     if a_indices.size == 0 or b_indices.size == 0:
@@ -598,16 +596,14 @@ def annotate_cis_forest(
 
     for tree, group in zip(forest.trees, forest.groups):
         for node in tree.nodes:
-            domain_ids = group[node.domain_indices]
-            domain_feature_ranks = annotation.feature_rank[domain_ids]
+            unit_ids = group[node.unit_indices]
+            unit_feature_ranks = annotation.feature_rank[unit_ids]
             node.ab_feature_rank_mean = (
-                float(domain_feature_ranks.mean())
-                if domain_feature_ranks.size
-                else None
+                float(unit_feature_ranks.mean()) if unit_feature_ranks.size else None
             )
 
-            if has_centroids and domain_ids.size:
-                node_feature = pc_values[domain_ids].mean(axis=0)
+            if has_centroids and unit_ids.size:
+                node_feature = pc_values[unit_ids].mean(axis=0)
                 a_distance = float(
                     np.min(
                         np.linalg.norm(
@@ -623,13 +619,13 @@ def annotate_cis_forest(
             else:
                 node.ab_score = None
 
-            domain_labels = annotation.labels[domain_ids]
+            unit_labels = annotation.labels[unit_ids]
             known = np.asarray(
-                [label is not None for label in domain_labels],
+                [label is not None for label in unit_labels],
                 dtype=bool,
             )
             if known.any():
-                n_a = int(np.sum(domain_labels[known] == "A"))
+                n_a = int(np.sum(unit_labels[known] == "A"))
                 frac_a = n_a / int(known.sum())
                 node.ab_frac_a = frac_a
                 node.ab_purity = max(frac_a, 1.0 - frac_a)
@@ -651,7 +647,7 @@ def annotate_cis_forest(
 def build_ab_forest(
     chrom: str,
     pcs: np.ndarray,
-    domain_bins: np.ndarray,
+    unit_bins: np.ndarray,
     *,
     annotation: AbAnnotation,
     n_pcs: int,
@@ -662,7 +658,7 @@ def build_ab_forest(
 ) -> CisForest:
     """Build an A/B-rooted forest, or a fallback single-root forest."""
     values = np.asarray(pcs)
-    bins = np.asarray(domain_bins, dtype=np.int64)
+    bins = np.asarray(unit_bins, dtype=np.int64)
 
     if annotation.fallback:
         mask = _resolve_clusterable(values, n_pcs, clusterable)

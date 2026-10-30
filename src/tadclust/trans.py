@@ -15,7 +15,7 @@ from threadpoolctl import threadpool_limits
 
 from .clustering import informative_mask
 from .config import TRANS_NULL_CHOICES
-from .domains import SelectedDomain
+from .domains import SelectedUnit
 from .errors import ClusteringError, McoolError
 from .matrix import (
     canonicalize_pc1_sign,
@@ -32,12 +32,12 @@ CHUNK_ROWS = 10_000_000
 
 
 class PairInfo(NamedTuple):
-    """Domain offsets and sizes for one chromosome pair."""
+    """Unit offsets and sizes for one chromosome pair."""
 
-    domain_offset_a: int
-    domain_offset_b: int
-    n_domains_a: int
-    n_domains_b: int
+    unit_offset_a: int
+    unit_offset_b: int
+    n_units_a: int
+    n_units_b: int
 
 
 class ScanTask(NamedTuple):
@@ -48,7 +48,7 @@ class ScanTask(NamedTuple):
 
 
 class BlockSum(NamedTuple):
-    """One chromosome-pair domain block summed from a scan chunk."""
+    """One chromosome-pair unit block summed from a scan chunk."""
 
     chrom_a: int
     chrom_b: int
@@ -64,7 +64,7 @@ class PairSum(NamedTuple):
 
 
 class ChunkResult(NamedTuple):
-    """Domain blocks, grand total, and pair totals from one scan chunk."""
+    """Unit blocks, grand total, and pair totals from one scan chunk."""
 
     blocks: list[BlockSum]
     total: float
@@ -73,25 +73,25 @@ class ChunkResult(NamedTuple):
 
 @dataclass(frozen=True)
 class TransInput:
-    """Selected domains for one chromosome, in genomic order."""
+    """Selected units for one chromosome, in genomic order."""
 
     chrom: str
-    domains: Sequence[SelectedDomain]
+    units: Sequence[SelectedUnit]
 
 
 @dataclass(frozen=True)
 class PixelMap:
-    """Global bin-to-domain mapping and chromosome-pair bookkeeping."""
+    """Global bin-to-unit mapping and chromosome-pair bookkeeping."""
 
-    bin_to_domain: np.ndarray
-    domain_chrom: np.ndarray
+    bin_to_unit: np.ndarray
+    unit_chrom: np.ndarray
     col_sums: np.ndarray
     n_bins_chrom: dict[str, int]
     chrom_bin_ranges: dict[str, tuple[int, int]]
     bin1_offsets: np.ndarray
     pair_info: dict[tuple[int, int], PairInfo]
     pair_counts: dict[tuple[int, int], int]
-    n_domains: int
+    n_units: int
     n_chrom: int
     pair_count: int
 
@@ -115,11 +115,11 @@ class TransInfo:
 
 @dataclass(frozen=True)
 class TransMatrix:
-    """A symmetric trans log2 O/E matrix and domain metadata."""
+    """A symmetric trans log2 O/E matrix and unit metadata."""
 
     log_oe: np.ndarray
     info: TransInfo
-    domain_chrom: np.ndarray
+    unit_chrom: np.ndarray
     col_sums: np.ndarray
     chrom_names: list[str]
 
@@ -132,7 +132,7 @@ class TransTreeResult:
     eigenvalues: np.ndarray
     variance_fraction: np.ndarray
     tree: BranchingTree
-    domain_indices: np.ndarray
+    unit_indices: np.ndarray
 
 
 def trans_matrix(
@@ -158,16 +158,16 @@ def trans_matrix(
     if workers < 1:
         raise ClusteringError("workers must be at least 1")
 
-    n_domains = sum(len(item.domains) for item in inputs)
-    if n_domains == 0:
-        raise ClusteringError("trans clustering has no selected domains")
+    n_units = sum(len(item.units) for item in inputs)
+    if n_units == 0:
+        raise ClusteringError("trans clustering has no selected units")
 
     chrom_names = [item.chrom for item in inputs]
     alpha_mode = "global" if null == "grand" else "per_pair"
 
     if len(inputs) < 2:
         return TransMatrix(
-            log_oe=np.zeros((n_domains, n_domains), dtype=np.float64),
+            log_oe=np.zeros((n_units, n_units), dtype=np.float64),
             info=TransInfo(
                 null=null,
                 alpha_mode=alpha_mode,
@@ -181,8 +181,8 @@ def trans_matrix(
                 pair_alphas={},
                 pair_counts={},
             ),
-            domain_chrom=np.zeros(n_domains, dtype=np.int64),
-            col_sums=np.zeros(n_domains, dtype=np.int64),
+            unit_chrom=np.zeros(n_units, dtype=np.int64),
+            col_sums=np.zeros(n_units, dtype=np.int64),
             chrom_names=chrom_names,
         )
 
@@ -222,7 +222,7 @@ def trans_matrix(
         handle.close()
 
     observed_upper = np.zeros(
-        (pixel_map.n_domains, pixel_map.n_domains),
+        (pixel_map.n_units, pixel_map.n_units),
         dtype=np.float64,
     )
     pair_totals: dict[tuple[int, int], float] = {}
@@ -235,11 +235,11 @@ def trans_matrix(
             pair_totals[key] = pair_totals.get(key, 0.0) + pair_sum.total
         for block_sum in chunk.blocks:
             info = pixel_map.pair_info[(block_sum.chrom_a, block_sum.chrom_b)]
-            a0 = info.domain_offset_a
-            b0 = info.domain_offset_b
+            a0 = info.unit_offset_a
+            b0 = info.unit_offset_b
             observed_upper[
-                a0 : a0 + info.n_domains_a,
-                b0 : b0 + info.n_domains_b,
+                a0 : a0 + info.n_units_a,
+                b0 : b0 + info.n_units_b,
             ] += block_sum.block
 
     observed = observed_upper + observed_upper.T
@@ -270,10 +270,10 @@ def trans_matrix(
                 else pseudocount * pair_mean * min_bins * min_bins
             )
             pair_alphas[key] = pair_alpha
-            a0 = info.domain_offset_a
-            b0 = info.domain_offset_b
-            a1 = a0 + info.n_domains_a
-            b1 = b0 + info.n_domains_b
+            a0 = info.unit_offset_a
+            b0 = info.unit_offset_b
+            a1 = a0 + info.n_units_a
+            b1 = b0 + info.n_units_b
             col_i = pixel_map.col_sums[a0:a1]
             col_j = pixel_map.col_sums[b0:b1]
             expected = mean * col_i[:, None] * col_j[None, :]
@@ -303,7 +303,7 @@ def trans_matrix(
     return TransMatrix(
         log_oe=values,
         info=info,
-        domain_chrom=pixel_map.domain_chrom,
+        unit_chrom=pixel_map.unit_chrom,
         col_sums=pixel_map.col_sums,
         chrom_names=chrom_names,
     )
@@ -314,29 +314,29 @@ def build_pixel_map(
     group: h5py.Group,
     inputs: Sequence[TransInput],
 ) -> PixelMap:
-    """Map working-resolution bins to global selected domains by bin center."""
+    """Map working-resolution bins to global selected units by bin center."""
     chrom_offset = _dataset(group, "indexes/chrom_offset")
     bin1_offset = _dataset(group, "indexes/bin1_offset")
     bins_chrom = _dataset(group, "bins/chrom")
-    n_bins = int(bins_chrom.shape[0])
+    n_working_bins = int(bins_chrom.shape[0])
 
     chrom_index = {
         str(name): index for index, name in enumerate(cooler_object.chromnames)
     }
-    n_domains = sum(len(item.domains) for item in inputs)
-    bin_to_domain = np.full(n_bins, -1, dtype=np.int64)
-    domain_chrom = np.full(n_domains, -1, dtype=np.int64)
-    col_sums = np.zeros(n_domains, dtype=np.int64)
+    n_units = sum(len(item.units) for item in inputs)
+    bin_to_unit = np.full(n_working_bins, -1, dtype=np.int64)
+    unit_chrom = np.full(n_units, -1, dtype=np.int64)
+    col_sums = np.zeros(n_units, dtype=np.int64)
     n_bins_chrom: dict[str, int] = {}
     chrom_bin_ranges: dict[str, tuple[int, int]] = {}
     pair_info: dict[tuple[int, int], PairInfo] = {}
     pair_counts: dict[tuple[int, int], int] = {}
     offsets: list[int] = []
-    domain_offset = 0
+    unit_offset = 0
 
     for input_index, item in enumerate(inputs):
-        if not item.domains:
-            raise ClusteringError(f"{item.chrom}: trans input has no domains")
+        if not item.units:
+            raise ClusteringError(f"{item.chrom}: trans input has no units")
         if item.chrom in n_bins_chrom:
             raise ClusteringError(f"duplicate trans chromosome: {item.chrom}")
         if item.chrom not in chrom_index:
@@ -355,17 +355,17 @@ def build_pixel_map(
                 f"{item.chrom}: bin count does not match the mcool index"
             )
 
-        domain_starts = np.asarray(
-            [domain.start for domain in item.domains],
+        unit_starts = np.asarray(
+            [unit.start for unit in item.units],
             dtype=np.float64,
         )
-        local = np.searchsorted(domain_starts, centers, side="right") - 1
-        local = np.clip(local, 0, len(item.domains) - 1).astype(np.int64)
-        bin_to_domain[start_bin:end_bin] = local + domain_offset
-        col_sums[domain_offset : domain_offset + len(item.domains)] = np.bincount(
-            local, minlength=len(item.domains)
+        local = np.searchsorted(unit_starts, centers, side="right") - 1
+        local = np.clip(local, 0, len(item.units) - 1).astype(np.int64)
+        bin_to_unit[start_bin:end_bin] = local + unit_offset
+        col_sums[unit_offset : unit_offset + len(item.units)] = np.bincount(
+            local, minlength=len(item.units)
         )
-        domain_chrom[domain_offset : domain_offset + len(item.domains)] = input_index
+        unit_chrom[unit_offset : unit_offset + len(item.units)] = input_index
 
         n_bins_chrom[item.chrom] = end_bin - start_bin
         chrom_bin_ranges[item.chrom] = (start_bin, end_bin)
@@ -373,30 +373,30 @@ def build_pixel_map(
             prior_offset = offsets[prior]
             pair_info[(prior, input_index)] = PairInfo(
                 prior_offset,
-                domain_offset,
-                len(inputs[prior].domains),
-                len(item.domains),
+                unit_offset,
+                len(inputs[prior].units),
+                len(item.units),
             )
             pair_counts[(prior, input_index)] = n_bins_chrom[inputs[prior].chrom] * (
                 end_bin - start_bin
             )
 
-        offsets.append(domain_offset)
-        domain_offset += len(item.domains)
+        offsets.append(unit_offset)
+        unit_offset += len(item.units)
 
-    if np.any(domain_chrom < 0):
-        raise ClusteringError("trans pixel map left some domains unassigned")
+    if np.any(unit_chrom < 0):
+        raise ClusteringError("trans pixel map left some units unassigned")
 
     return PixelMap(
-        bin_to_domain=bin_to_domain,
-        domain_chrom=domain_chrom,
+        bin_to_unit=bin_to_unit,
+        unit_chrom=unit_chrom,
         col_sums=col_sums,
         n_bins_chrom=n_bins_chrom,
         chrom_bin_ranges=chrom_bin_ranges,
         bin1_offsets=np.asarray(bin1_offset[:], dtype=np.int64),
         pair_info=pair_info,
         pair_counts=pair_counts,
-        n_domains=n_domains,
+        n_units=n_units,
         n_chrom=len(inputs),
         pair_count=sum(pair_counts.values()),
     )
@@ -404,19 +404,17 @@ def build_pixel_map(
 
 def build_trans_tree(
     trans: TransMatrix,
-    domain_bins: np.ndarray,
+    unit_bins: np.ndarray,
     *,
     n_pcs: int,
     branch_k: int,
     seed: int,
 ) -> TransTreeResult:
     """Compute trans PCs and build the trans tree."""
-    bins = np.asarray(domain_bins, dtype=np.int64)
-    n_domains = trans.log_oe.shape[0]
-    if bins.shape[0] != n_domains:
-        raise ClusteringError(
-            "trans matrix and domain bin counts have different lengths"
-        )
+    bins = np.asarray(unit_bins, dtype=np.int64)
+    n_units = trans.log_oe.shape[0]
+    if bins.shape[0] != n_units:
+        raise ClusteringError("trans matrix and unit bin counts have different lengths")
 
     pcs, eigenvalues, fractions = pcs_from_log_oe(
         trans.log_oe,
@@ -427,10 +425,10 @@ def build_trans_tree(
     pcs = canonicalize_pc1_sign(pcs)
     indices = np.flatnonzero(informative_mask(pcs, n_pcs))
     if indices.size == 0:
-        if n_domains == 1:
+        if n_units == 1:
             indices = np.arange(1, dtype=np.int64)
         else:
-            raise ClusteringError("trans tree has no informative domains")
+            raise ClusteringError("trans tree has no informative units")
 
     tree = build_branching_tree(
         pcs[indices],
@@ -445,7 +443,7 @@ def build_trans_tree(
         eigenvalues=eigenvalues,
         variance_fraction=fractions,
         tree=tree,
-        domain_indices=indices,
+        unit_indices=indices,
     )
 
 
@@ -552,20 +550,20 @@ def _scan_chunk(
         dtype=np.float64,
     )
 
-    domain1 = pixel_map.bin_to_domain[bin1]
-    domain2 = pixel_map.bin_to_domain[bin2]
-    keep = (domain1 >= 0) & (domain2 >= 0)
+    unit1 = pixel_map.bin_to_unit[bin1]
+    unit2 = pixel_map.bin_to_unit[bin2]
+    keep = (unit1 >= 0) & (unit2 >= 0)
 
-    chrom1 = pixel_map.domain_chrom[np.where(keep, domain1, 0)]
-    chrom2 = pixel_map.domain_chrom[np.where(keep, domain2, 0)]
+    chrom1 = pixel_map.unit_chrom[np.where(keep, unit1, 0)]
+    chrom2 = pixel_map.unit_chrom[np.where(keep, unit2, 0)]
     keep &= chrom1 != chrom2
     if not keep.any():
         return ChunkResult([], 0.0, [])
 
     bin1 = bin1[keep]
     bin2 = bin2[keep]
-    domain1 = domain1[keep]
-    domain2 = domain2[keep]
+    unit1 = unit1[keep]
+    unit2 = unit2[keep]
     chrom1 = chrom1[keep]
     chrom2 = chrom2[keep]
     values = counts[keep]
@@ -573,16 +571,16 @@ def _scan_chunk(
         values = values * weight[bin1] * weight[bin2]
 
     swap = chrom1 > chrom2
-    domain1_sorted = np.where(swap, domain2, domain1)
-    domain2_sorted = np.where(swap, domain1, domain2)
+    unit1_sorted = np.where(swap, unit2, unit1)
+    unit2_sorted = np.where(swap, unit1, unit2)
     chrom1_sorted = np.where(swap, chrom2, chrom1)
     chrom2_sorted = np.where(swap, chrom1, chrom2)
 
     keys = chrom1_sorted * pixel_map.n_chrom + chrom2_sorted
     order = np.argsort(keys, kind="stable")
     keys = keys[order]
-    domain1_sorted = domain1_sorted[order]
-    domain2_sorted = domain2_sorted[order]
+    unit1_sorted = unit1_sorted[order]
+    unit2_sorted = unit2_sorted[order]
     values = values[order]
 
     cuts = np.flatnonzero(np.diff(keys)) + 1
@@ -598,15 +596,13 @@ def _scan_chunk(
         j = key % pixel_map.n_chrom
         info = pixel_map.pair_info[(i, j)]
         local = (
-            domain1_sorted[block_start:block_end] - info.domain_offset_a
-        ) * info.n_domains_b + (
-            domain2_sorted[block_start:block_end] - info.domain_offset_b
-        )
+            unit1_sorted[block_start:block_end] - info.unit_offset_a
+        ) * info.n_units_b + (unit2_sorted[block_start:block_end] - info.unit_offset_b)
         block = np.bincount(
             local,
             weights=values[block_start:block_end],
-            minlength=info.n_domains_a * info.n_domains_b,
-        ).reshape(info.n_domains_a, info.n_domains_b)
+            minlength=info.n_units_a * info.n_units_b,
+        ).reshape(info.n_units_a, info.n_units_b)
         pair_sum = float(values[block_start:block_end].sum())
         blocks.append(BlockSum(i, j, block))
         pair_sums.append(PairSum(i, j, pair_sum))

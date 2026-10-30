@@ -17,12 +17,12 @@ from tadclust.trees import (
 )
 
 
-def leaf_by_domain(tree):
+def leaf_by_unit(tree):
     leaves = {}
     for node in tree.nodes:
         if node.is_leaf:
-            for domain in node.domain_indices.tolist():
-                leaves[domain] = node
+            for unit in node.unit_indices.tolist():
+                leaves[unit] = node
     return leaves
 
 
@@ -95,7 +95,7 @@ def test_kmeans_labels_clamps_duplicate_rows_without_warning() -> None:
     assert centers.shape == (2, 1)
 
 
-def test_build_cis_forest_excludes_uninformative_domains() -> None:
+def test_build_cis_forest_excludes_uninformative_units() -> None:
     pcs = np.array([[0.0], [0.0], [1.0], [2.0], [3.0]])
 
     with warnings.catch_warnings():
@@ -111,15 +111,15 @@ def test_build_cis_forest_excludes_uninformative_domains() -> None:
 
     assert forest.groups[0].tolist() == [2, 3, 4]
     referenced = {
-        int(domain)
+        int(unit)
         for tree in forest.trees
         for node in tree.nodes
-        for domain in node.domain_indices.tolist()
+        for unit in node.unit_indices.tolist()
     }
     assert referenced == {0, 1, 2}
 
 
-def test_build_cis_forest_keeps_single_informative_domain() -> None:
+def test_build_cis_forest_keeps_single_informative_unit() -> None:
     pcs = np.array([[0.0], [2.0], [0.0]])
 
     forest = build_cis_forest(
@@ -134,10 +134,10 @@ def test_build_cis_forest_keeps_single_informative_domain() -> None:
     assert forest.groups[0].tolist() == [1]
     root = forest.trees[0].nodes[forest.trees[0].root_id]
     assert root.is_leaf
-    assert root.domain_indices.tolist() == [0]
+    assert root.unit_indices.tolist() == [0]
 
 
-def test_single_domain_is_root_leaf() -> None:
+def test_single_unit_is_root_leaf() -> None:
     tree = build_branching_tree(
         np.array([[1.0]]),
         np.array([5]),
@@ -151,8 +151,8 @@ def test_single_domain_is_root_leaf() -> None:
     assert root.path == []
     assert format_path_label(tree.root_label, root.path) == "chrom"
     assert root.depth == 0
-    assert root.domain_indices.tolist() == [0]
-    assert root.n_bins == 5
+    assert root.unit_indices.tolist() == [0]
+    assert root.n_working_bins == 5
     assert root.split_gain is None
     assert len(tree.nodes) == 1
 
@@ -170,8 +170,8 @@ def test_binary_tree_paths_and_gain() -> None:
 
     root = tree.nodes[tree.root_id]
     assert not root.is_leaf
-    assert root.domain_indices.tolist() == [0, 1, 2, 3]
-    assert root.n_bins == 100
+    assert root.unit_indices.tolist() == [0, 1, 2, 3]
+    assert root.n_working_bins == 100
     assert root.centroid.tolist() == [0.0]
     assert root.sse == 20.0
     assert root.split_gain == pytest.approx(0.8)
@@ -179,27 +179,27 @@ def test_binary_tree_paths_and_gain() -> None:
 
     low = tree.nodes[root.children[0]]
     high = tree.nodes[root.children[1]]
-    assert high.domain_indices.tolist() == [2, 3]
-    assert low.domain_indices.tolist() == [0, 1]
+    assert high.unit_indices.tolist() == [2, 3]
+    assert low.unit_indices.tolist() == [0, 1]
     assert low.path == [0]
     assert high.path == [1]
     assert format_path_label(tree.root_label, low.path) == "chrom.0"
     assert format_path_label(tree.root_label, high.path) == "chrom.1"
     assert high.centroid.tolist() == [2.0]
     assert low.centroid.tolist() == [-2.0]
-    assert high.n_bins == 70
-    assert low.n_bins == 30
+    assert high.n_working_bins == 70
+    assert low.n_working_bins == 30
 
-    leaves = leaf_by_domain(tree)
+    leaves = leaf_by_unit(tree)
     assert [
-        format_path_label(tree.root_label, leaves[domain].path) for domain in range(4)
+        format_path_label(tree.root_label, leaves[unit].path) for unit in range(4)
     ] == [
         "chrom.0.0",
         "chrom.0.1",
         "chrom.1.0",
         "chrom.1.1",
     ]
-    assert [leaves[domain].depth for domain in range(4)] == [2, 2, 2, 2]
+    assert [leaves[unit].depth for unit in range(4)] == [2, 2, 2, 2]
     assert sorted(leaves) == [0, 1, 2, 3]
 
 
@@ -215,7 +215,7 @@ def test_child_order_is_mean_pc1() -> None:
 
     root = tree.nodes[tree.root_id]
     mean_values = [
-        pcs[tree.nodes[child].domain_indices, 0].mean() for child in root.children
+        pcs[tree.nodes[child].unit_indices, 0].mean() for child in root.children
     ]
     assert len(root.children) == 3
     assert mean_values == sorted(mean_values)
@@ -246,7 +246,7 @@ def test_singleton_split_orders_by_pc1() -> None:
     )
 
     root = tree.nodes[tree.root_id]
-    assert [tree.nodes[child].domain_indices.tolist() for child in root.children] == [
+    assert [tree.nodes[child].unit_indices.tolist() for child in root.children] == [
         [2],
         [1],
         [0],
@@ -271,7 +271,7 @@ def test_degenerate_split_stops(monkeypatch) -> None:
     root = tree.nodes[tree.root_id]
     assert root.is_leaf
     assert root.stop_reason == "degenerate"
-    assert root.domain_indices.tolist() == [0, 1, 2, 3]
+    assert root.unit_indices.tolist() == [0, 1, 2, 3]
 
 
 def test_build_cis_forest_groups_and_offsets() -> None:
@@ -290,15 +290,15 @@ def test_build_cis_forest_groups_and_offsets() -> None:
     assert forest.groups[0].tolist() == [0, 1, 2, 3]
     assert forest.trees[0].root_label == "chrom"
 
-    leaves = leaf_by_domain(forest.trees[0])
+    leaves = leaf_by_unit(forest.trees[0])
     global_leaf_ids = [
-        leaves[domain].node_id + forest.node_offsets[0] for domain in range(4)
+        leaves[unit].node_id + forest.node_offsets[0] for unit in range(4)
     ]
     assert len(set(global_leaf_ids)) == 4
     assert all(node_id >= 10 for node_id in global_leaf_ids)
     assert [
-        format_path_label(forest.trees[0].root_label, leaves[domain].path)
-        for domain in range(4)
+        format_path_label(forest.trees[0].root_label, leaves[unit].path)
+        for unit in range(4)
     ] == [
         "chrom.0.0",
         "chrom.0.1",

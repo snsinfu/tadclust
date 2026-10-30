@@ -1,4 +1,4 @@
-"""Tests for the flat domain tree used by uniform bins."""
+"""Tests for the flat unit tree used by uniform bins."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ def test_build_flat_tree() -> None:
     assert tree.nodes[tree.root_id].children == [1, 2, 3, 4]
     assert [fine.start for fine in tree.fine_units] == [0, 500, 1000, 1500]
     assert [fine.end for fine in tree.fine_units] == [500, 1000, 1500, 2000]
-    assert [fine.n_bins for fine in tree.fine_units] == [1, 1, 1, 1]
+    assert [fine.n_working_bins for fine in tree.fine_units] == [1, 1, 1, 1]
     assert all(not fine.is_tad for fine in tree.fine_units)
     assert [fine.owner_node_id for fine in tree.fine_units] == [1, 2, 3, 4]
 

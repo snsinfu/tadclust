@@ -27,14 +27,14 @@ def test_headed_table_keeps_only_three_columns(tmp_path) -> None:
 
     tads = read_tads(path)
 
-    assert tads.rows.columns == ["chrom", "start", "end", "source_row"]
+    assert tads.rows.columns == ["chrom", "start", "end", "tad_table_row"]
     assert tads.rows.schema == {
         "chrom": pl.String,
         "start": pl.Int64,
         "end": pl.Int64,
-        "source_row": pl.Int64,
+        "tad_table_row": pl.Int64,
     }
-    assert tads.rows["source_row"].to_list() == [0, 1]
+    assert tads.rows["tad_table_row"].to_list() == [0, 1]
     assert tads.rows["start"].to_list() == [0, 100]
     assert tads.chroms == ["chr1"]
     assert tads.lengths.tolist() == [100, 100]
@@ -52,7 +52,7 @@ def test_headed_columns_can_be_reordered(tmp_path) -> None:
         "chrom": "chr1",
         "start": 0,
         "end": 100,
-        "source_row": 0,
+        "tad_table_row": 0,
     }
 
 
@@ -65,7 +65,7 @@ def test_headerless_uses_first_three_columns(tmp_path) -> None:
     tads = read_tads(path)
 
     assert tads.rows["chrom"].to_list() == ["chr1", "chr2"]
-    assert tads.rows["source_row"].to_list() == [0, 1]
+    assert tads.rows["tad_table_row"].to_list() == [0, 1]
 
 
 def test_comment_line_is_skipped_and_rows_keep_data_order(tmp_path) -> None:
@@ -76,7 +76,7 @@ def test_comment_line_is_skipped_and_rows_keep_data_order(tmp_path) -> None:
 
     tads = read_tads(path)
 
-    assert tads.rows["source_row"].to_list() == [0, 1]
+    assert tads.rows["tad_table_row"].to_list() == [0, 1]
     assert tads.rows["start"].to_list() == [10, 200]
 
 
@@ -88,7 +88,7 @@ def test_comments_between_rows_are_skipped(tmp_path) -> None:
 
     tads = read_tads(path)
 
-    assert tads.rows["source_row"].to_list() == [0, 1]
+    assert tads.rows["tad_table_row"].to_list() == [0, 1]
     assert tads.rows["start"].to_list() == [0, 100]
 
 
@@ -204,13 +204,13 @@ def test_check_against_chromsizes_rejects_missing_coordinates() -> None:
             "chrom": ["chr1"],
             "start": [None],
             "end": [100],
-            "source_row": [0],
+            "tad_table_row": [0],
         },
         schema={
             "chrom": pl.String,
             "start": pl.Int64,
             "end": pl.Int64,
-            "source_row": pl.Int64,
+            "tad_table_row": pl.Int64,
         },
     )
     tads = TadTable(rows=rows)
@@ -228,7 +228,7 @@ def test_tad_table_can_be_constructed_directly() -> None:
             "chrom": ["chr1"],
             "start": [0],
             "end": [100],
-            "source_row": [0],
+            "tad_table_row": [0],
         }
     )
     tads = TadTable(rows=rows)

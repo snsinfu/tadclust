@@ -22,7 +22,7 @@ _ROW_SCHEMA = {
     "chrom": pl.String,
     "start": pl.Int64,
     "end": pl.Int64,
-    "source_row": pl.Int64,
+    "tad_table_row": pl.Int64,
 }
 
 
@@ -93,7 +93,7 @@ def check_against_chromsizes(
         raise InputError(
             "TAD start and end must be integers",
             path=path,
-            row=int(missing["source_row"][0]),
+            row=int(missing["tad_table_row"][0]),
         )
 
     sizes = pl.DataFrame(
@@ -111,7 +111,7 @@ def check_against_chromsizes(
             f"{row['chrom']}: interval end {row['end']} exceeds chromosome size "
             f"{row['chrom_size']}",
             path=path,
-            row=int(row["source_row"]),
+            row=int(row["tad_table_row"]),
         )
 
 
@@ -129,9 +129,9 @@ def _make_schema(has_header: bool, width: int) -> dict[str, type]:
     }
 
 
-def _add_source_row(table: pl.DataFrame) -> pl.DataFrame:
-    return table.with_row_index(name="source_row").with_columns(
-        pl.col("source_row").cast(pl.Int64)
+def _add_tad_table_row(table: pl.DataFrame) -> pl.DataFrame:
+    return table.with_row_index(name="tad_table_row").with_columns(
+        pl.col("tad_table_row").cast(pl.Int64)
     )
 
 
@@ -165,7 +165,7 @@ def _select_and_validate(
             dict(zip(first_three, REQUIRED_COLUMNS, strict=True))
         )
 
-    table = _add_source_row(table)
+    table = _add_tad_table_row(table)
     bad_chrom = table.filter(
         pl.col("chrom").is_null() | (pl.col("chrom").str.strip_chars() == "")
     )
@@ -173,7 +173,7 @@ def _select_and_validate(
         raise InputError(
             "TAD table has an empty chromosome name",
             path=str(path),
-            row=int(bad_chrom["source_row"][0]),
+            row=int(bad_chrom["tad_table_row"][0]),
         )
 
     missing = table.filter(pl.col("start").is_null() | pl.col("end").is_null())
@@ -181,7 +181,7 @@ def _select_and_validate(
         raise InputError(
             "TAD start and end must be integers",
             path=str(path),
-            row=int(missing["source_row"][0]),
+            row=int(missing["tad_table_row"][0]),
             notes=("empty or missing coordinates are not allowed",),
         )
 
@@ -190,7 +190,7 @@ def _select_and_validate(
         raise InputError(
             "TAD start must be non-negative",
             path=str(path),
-            row=int(negative["source_row"][0]),
+            row=int(negative["tad_table_row"][0]),
         )
 
     ordered = table.filter(pl.col("end") <= pl.col("start"))
@@ -198,7 +198,7 @@ def _select_and_validate(
         raise InputError(
             "TAD end must be greater than start",
             path=str(path),
-            row=int(ordered["source_row"][0]),
+            row=int(ordered["tad_table_row"][0]),
         )
 
     _reject_duplicates(table, path)
@@ -208,7 +208,7 @@ def _select_and_validate(
 def _reject_duplicates(table: pl.DataFrame, path: Path) -> None:
     duplicate_groups = (
         table.group_by("chrom", "start", "end")
-        .agg(pl.col("source_row").alias("rows"))
+        .agg(pl.col("tad_table_row").alias("rows"))
         .filter(pl.col("rows").list.len() > 1)
     )
     if not duplicate_groups.height:

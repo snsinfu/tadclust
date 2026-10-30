@@ -472,7 +472,7 @@ def test_cluster_parallel_matches_serial(mcool, tmp_path) -> None:
     )
 
 
-def test_zero_contact_cis_domain_is_unclustered(tmp_path) -> None:
+def test_zero_contact_cis_unit_is_unclustered(tmp_path) -> None:
     mcool = write_mcool(
         tmp_path,
         resolutions=(500,),
@@ -500,7 +500,7 @@ def test_zero_contact_cis_domain_is_unclustered(tmp_path) -> None:
     assert result.qc["cis"]["per_chromosome"]["chr1"]["n_unclustered"] == 2
 
 
-def test_zero_contact_ab_domain_is_unclustered(tmp_path) -> None:
+def test_zero_contact_ab_unit_is_unclustered(tmp_path) -> None:
     mcool = write_mcool(
         tmp_path,
         resolutions=(500,),
@@ -536,7 +536,7 @@ def test_zero_contact_ab_domain_is_unclustered(tmp_path) -> None:
     assert result.qc["ab"]["n_unclustered"] == 2
 
 
-def test_zero_contact_trans_domains_are_unclustered(tmp_path) -> None:
+def test_zero_contact_trans_units_are_unclustered(tmp_path) -> None:
     mcool = write_mcool(
         tmp_path,
         resolutions=(500,),

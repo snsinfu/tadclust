@@ -12,7 +12,7 @@ import polars as pl
 
 from .clustering import informative_mask
 from .config import ClusterConfig
-from .domains import ChromosomeTree, DomainSelection
+from .domains import ChromosomeTree, UnitSelection
 from .errors import ClusteringError
 from .matrix import orient_pcs_to_feature
 from .mcool import (
@@ -71,9 +71,9 @@ class ClusterResult:
 class _ChromosomeResult:
     chrom: str
     tree: ChromosomeTree
-    selection: DomainSelection
+    selection: UnitSelection
     pcs: np.ndarray
-    domain_bins: np.ndarray
+    unit_bins: np.ndarray
     forest: CisForest
     annotation: AbAnnotation | None
     ab_forest: CisForest | None
@@ -85,7 +85,7 @@ class _ChromosomeResult:
 class _TransRun:
     matrix: TransMatrix
     tree_result: TransTreeResult
-    domain_bins: np.ndarray
+    unit_bins: np.ndarray
 
 
 def _make_source(config: ClusterConfig) -> CisSource:
@@ -241,7 +241,7 @@ def _build_cis_results(
 
     for selection in selections:
         base_pcs = selection.pcs
-        domain_bins = selection.domain_bins
+        unit_bins = selection.unit_bins
         annotation = None
         n_uncovered = 0
 
@@ -251,7 +251,7 @@ def _build_cis_results(
         else:
             values = overlap_weighted_values(
                 track,
-                selection.domain_selection.domains,
+                selection.unit_selection.units,
                 selection.chrom,
             )
             feature_rank, n_uncovered = fill_and_rank(values, selection.chrom)
@@ -261,7 +261,7 @@ def _build_cis_results(
             annotation = annotate_ab(
                 features,
                 feature_rank,
-                len(selection.domain_selection.domains),
+                len(selection.unit_selection.units),
                 split_policy,
                 config.seed,
                 n_pcs=config.tree_n_pcs,
@@ -271,7 +271,7 @@ def _build_cis_results(
         forest = build_cis_forest(
             selection.chrom,
             pcs,
-            domain_bins,
+            unit_bins,
             n_pcs=config.tree_n_pcs,
             branch_k=config.tree_branch_k,
             seed=config.seed,
@@ -291,7 +291,7 @@ def _build_cis_results(
             ab_forest = build_ab_forest(
                 selection.chrom,
                 pcs,
-                domain_bins,
+                unit_bins,
                 annotation=annotation,
                 n_pcs=config.tree_n_pcs,
                 branch_k=config.tree_branch_k,
@@ -311,9 +311,9 @@ def _build_cis_results(
             _ChromosomeResult(
                 chrom=selection.chrom,
                 tree=selection.tree,
-                selection=selection.domain_selection,
+                selection=selection.unit_selection,
                 pcs=pcs,
-                domain_bins=domain_bins,
+                unit_bins=unit_bins,
                 forest=forest,
                 annotation=annotation,
                 ab_forest=ab_forest,
@@ -334,7 +334,7 @@ def _run_trans(
     if not config.trans_enabled or len(results) < 2:
         return None
 
-    inputs = [TransInput(result.chrom, result.selection.domains) for result in results]
+    inputs = [TransInput(result.chrom, result.selection.units) for result in results]
     matrix = trans_matrix(
         config.mcool_path,
         choice.value,
@@ -347,10 +347,10 @@ def _run_trans(
         null=config.trans_null,
         workers=config.workers,
     )
-    domain_bins = np.concatenate([result.domain_bins for result in results])
+    unit_bins = np.concatenate([result.unit_bins for result in results])
     tree_result = build_trans_tree(
         matrix,
-        domain_bins,
+        unit_bins,
         n_pcs=config.tree_n_pcs,
         branch_k=config.tree_branch_k,
         seed=config.seed,
@@ -358,30 +358,30 @@ def _run_trans(
     return _TransRun(
         matrix=matrix,
         tree_result=tree_result,
-        domain_bins=domain_bins,
+        unit_bins=unit_bins,
     )
 
 
-def _leaf_domain_fields(
+def _leaf_unit_fields(
     result: _ChromosomeResult,
     local_index: int,
-    domain_id: int,
+    unit_id: int,
     n_pcs: int,
 ) -> dict[str, Any]:
-    domain = result.selection.domains[local_index]
+    unit = result.selection.units[local_index]
     return {
-        "domain_id": domain_id,
-        "start": domain.start,
-        "end": domain.end,
-        "kind": domain.kind,
-        "source_row": domain.source_row,
-        "n_bins": domain.n_bins,
+        "domain_id": unit_id,
+        "start": unit.start,
+        "end": unit.end,
+        "kind": unit.unit_kind,
+        "source_row": unit.tad_table_row,
+        "n_bins": unit.n_working_bins,
         "self_oe": float(result.selection.matrices.self_oe[local_index]),
         "pcs": [float(value) for value in result.pcs[local_index, :n_pcs]],
     }
 
 
-def _null_domain_fields() -> dict[str, Any]:
+def _null_unit_fields() -> dict[str, Any]:
     return {
         "domain_id": None,
         "start": None,
@@ -393,7 +393,7 @@ def _null_domain_fields() -> dict[str, Any]:
     }
 
 
-def _domain_ab_fields(
+def _unit_ab_fields(
     annotation: AbAnnotation,
     local_index: int,
 ) -> dict[str, Any]:
@@ -436,8 +436,8 @@ def _node_fields(
         "path": list(node.path),
         "path_label": format_path_label(root_label, node.path),
         "is_leaf": node.is_leaf,
-        "n_domains": len(node.domain_indices),
-        "n_bins": node.n_bins,
+        "n_domains": len(node.unit_indices),
+        "n_bins": node.n_working_bins,
         "node_sse": node.sse,
         "node_split_gain": node.split_gain,
         "children": [child + offset for child in node.children],
@@ -464,12 +464,12 @@ def _cis_node_rows(
     use_ab_forest: bool = False,
 ) -> pl.DataFrame:
     rows: list[dict[str, Any]] = []
-    domain_base = 0
+    unit_base = 0
 
     for result in results:
         forest = result.ab_forest if use_ab_forest else result.forest
         annotation = _result_annotation(result, include_composition)
-        domains = result.selection.domains
+        units = result.selection.units
         covered: set[int] = set()
 
         if forest is not None:
@@ -487,32 +487,32 @@ def _cis_node_rows(
                     )
                     if not node.is_leaf:
                         row = dict(base)
-                        row.update(_null_domain_fields())
+                        row.update(_null_unit_fields())
                         if annotation is not None:
                             row.update(_node_ab_fields(node))
                         rows.append(row)
                         continue
 
-                    # Leaf nodes are flattened to one row per member domain.
-                    for member in node.domain_indices.tolist():
+                    # Leaf nodes are flattened to one row per member unit.
+                    for member in node.unit_indices.tolist():
                         local_index = int(group[member])
                         row = dict(base)
                         row.update(
-                            _leaf_domain_fields(
+                            _leaf_unit_fields(
                                 result,
                                 local_index,
-                                domain_base + local_index,
+                                unit_base + local_index,
                                 n_pcs,
                             )
                         )
                         if annotation is not None:
-                            row.update(_domain_ab_fields(annotation, local_index))
+                            row.update(_unit_ab_fields(annotation, local_index))
                         rows.append(row)
                         covered.add(local_index)
 
-        # Domains without a tree node still need a row so that cis_leaves is
+        # Units without a tree node still need a row so that cis_leaves is
         # a simple projection of cis_nodes.
-        for local_index in range(len(domains)):
+        for local_index in range(len(units)):
             if local_index in covered:
                 continue
             row: dict[str, Any] = {
@@ -531,18 +531,18 @@ def _cis_node_rows(
                 "stop_reason": None,
             }
             row.update(
-                _leaf_domain_fields(
+                _leaf_unit_fields(
                     result,
                     local_index,
-                    domain_base + local_index,
+                    unit_base + local_index,
                     n_pcs,
                 )
             )
             if annotation is not None:
-                row.update(_domain_ab_fields(annotation, local_index))
+                row.update(_unit_ab_fields(annotation, local_index))
             rows.append(row)
 
-        domain_base += len(domains)
+        unit_base += len(units)
 
     return pl.DataFrame(rows).with_columns(
         pl.col("pcs").cast(pl.Array(pl.Float64, n_pcs))
@@ -592,15 +592,15 @@ def _trans_node_rows(trans_run: _TransRun | None) -> pl.DataFrame | None:
         return None
 
     tree = trans_run.tree_result.tree
-    domain_chrom = trans_run.matrix.domain_chrom
-    global_indices = trans_run.tree_result.domain_indices
+    unit_chrom = trans_run.matrix.unit_chrom
+    global_indices = trans_run.tree_result.unit_indices
     chrom_names = trans_run.matrix.chrom_names
     rows: list[dict[str, Any]] = []
 
     for node in tree.nodes:
         counts = Counter(
-            chrom_names[int(domain_chrom[global_indices[member]])]
-            for member in node.domain_indices.tolist()
+            chrom_names[int(unit_chrom[global_indices[member]])]
+            for member in node.unit_indices.tolist()
         )
         chroms = sorted(counts)
         base: dict[str, Any] = {
@@ -614,8 +614,8 @@ def _trans_node_rows(trans_run: _TransRun | None) -> pl.DataFrame | None:
                 node.path,
             ),
             "is_leaf": node.is_leaf,
-            "n_domains": len(node.domain_indices),
-            "n_bins": node.n_bins,
+            "n_domains": len(node.unit_indices),
+            "n_bins": node.n_working_bins,
             "node_sse": node.sse,
             "node_split_gain": node.split_gain,
             "children": list(node.children),
@@ -629,7 +629,7 @@ def _trans_node_rows(trans_run: _TransRun | None) -> pl.DataFrame | None:
             rows.append(row)
             continue
 
-        for member in node.domain_indices.tolist():
+        for member in node.unit_indices.tolist():
             row = dict(base)
             row["domain_id"] = int(global_indices[member])
             rows.append(row)
@@ -676,18 +676,18 @@ def _build_qc(
     choice: ResolutionChoice,
     is_ab: bool,
 ) -> dict[str, Any]:
-    domains = [domain for result in results for domain in result.selection.domains]
-    n_tads = sum(domain.kind == "tad" for domain in domains)
-    n_bin_domains = sum(domain.kind == "bin" for domain in domains)
-    n_residuals = sum(domain.kind == "residual" for domain in domains)
+    units = [unit for result in results for unit in result.selection.units]
+    n_tads = sum(unit.unit_kind == "tad" for unit in units)
+    n_bin_units = sum(unit.unit_kind == "bin" for unit in units)
+    n_residuals = sum(unit.unit_kind == "residual" for unit in units)
 
     return {
         "working_binsize": choice.value,
         "working_binsize_mode": choice.mode,
         "n_chromosomes": len(results),
-        "n_domains": len(domains),
+        "n_domains": len(units),
         "n_tads": n_tads,
-        "n_bin_domains": n_bin_domains,
+        "n_bin_domains": n_bin_units,
         "n_residuals": n_residuals,
         "cis": _cis_qc(results),
         "trans": _trans_qc(trans_run, config),
@@ -705,19 +705,19 @@ def _cis_qc(results: list[_ChromosomeResult]) -> dict[str, Any]:
         nodes = [node for tree in result.forest.trees for node in tree.nodes]
         n_nodes = len(nodes)
         n_leaves = sum(node.is_leaf for node in nodes)
-        n_tads = sum(domain.kind == "tad" for domain in result.selection.domains)
-        n_bin_domains = sum(domain.kind == "bin" for domain in result.selection.domains)
+        n_tads = sum(unit.unit_kind == "tad" for unit in result.selection.units)
+        n_bin_units = sum(unit.unit_kind == "bin" for unit in result.selection.units)
         n_residuals = sum(
-            domain.kind == "residual" for domain in result.selection.domains
+            unit.unit_kind == "residual" for unit in result.selection.units
         )
         n_clustered = int(result.clusterable.sum())
-        n_unclustered = len(result.selection.domains) - n_clustered
+        n_unclustered = len(result.selection.units) - n_clustered
         matrices = result.selection.matrices
         per_chromosome[result.chrom] = {
             "n_fine": result.tree.n_fine,
-            "n_domains": len(result.selection.domains),
+            "n_domains": len(result.selection.units),
             "n_tads": n_tads,
-            "n_bin_domains": n_bin_domains,
+            "n_bin_domains": n_bin_units,
             "n_residuals": n_residuals,
             "n_clustered": n_clustered,
             "n_unclustered": n_unclustered,
@@ -751,8 +751,8 @@ def _ab_qc(
     config: ClusterConfig,
 ) -> dict[str, Any]:
     per_chromosome: dict[str, Any] = {}
-    n_domains_a = 0
-    n_domains_b = 0
+    n_units_a = 0
+    n_units_b = 0
     n_nodes_a = 0
     n_nodes_b = 0
     n_unclustered = 0
@@ -771,8 +771,8 @@ def _ab_qc(
         b_mask = np.asarray([label == "B" for label in labels], dtype=bool)
         n_a = int(a_mask.sum())
         n_b = int(b_mask.sum())
-        n_domains_a += n_a
-        n_domains_b += n_b
+        n_units_a += n_a
+        n_units_b += n_b
         chrom_unclustered = int((~result.clusterable).sum())
         n_unclustered += chrom_unclustered
 
@@ -813,8 +813,8 @@ def _ab_qc(
         "per_chromosome": per_chromosome,
         "n_chroms_split": n_chroms_split,
         "n_chroms_fallback": n_chroms_fallback,
-        "n_domains_a": n_domains_a,
-        "n_domains_b": n_domains_b,
+        "n_domains_a": n_units_a,
+        "n_domains_b": n_units_b,
         "n_unclustered": n_unclustered,
         "unconstrained_forest": {
             "n_nodes_a": n_nodes_a,
@@ -863,10 +863,8 @@ def _trans_qc(
         "eigenvalues": tree_result.eigenvalues.tolist(),
         "variance_fraction": tree_result.variance_fraction.tolist(),
         "n_domains": matrix.log_oe.shape[0],
-        "n_clustered": int(tree_result.domain_indices.size),
-        "n_unclustered": (
-            matrix.log_oe.shape[0] - int(tree_result.domain_indices.size)
-        ),
+        "n_clustered": int(tree_result.unit_indices.size),
+        "n_unclustered": (matrix.log_oe.shape[0] - int(tree_result.unit_indices.size)),
         "n_nodes": len(nodes),
         "n_leaves": sum(node.is_leaf for node in nodes),
         "max_depth": max((node.depth for node in nodes), default=0),

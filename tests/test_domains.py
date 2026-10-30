@@ -14,8 +14,8 @@ from tadclust.domains import (
     build_flat_tree,
     is_disjoint,
     map_bins_to_fine,
-    select_domains,
-    selected_domains,
+    select_units,
+    selected_units,
     total_weighted_variance,
 )
 from tadclust.errors import ClusteringError, InputError
@@ -81,7 +81,7 @@ def hierarchy_rows():
 def test_build_tree_hierarchy_and_gaps(tmp_path) -> None:
     tree = make_tree(tmp_path, hierarchy_rows())
 
-    by_row = {node.source_row: node for node in tree.nodes.values()}
+    by_row = {node.tad_table_row: node for node in tree.nodes.values()}
     root = tree.nodes[tree.root_id]
 
     assert by_row[0].parent_id == root.node_id
@@ -118,9 +118,11 @@ def test_whole_chromosome_row_is_root_metadata(tmp_path) -> None:
     )
 
     root = tree.nodes[tree.root_id]
-    assert [tree.nodes[child].source_row for child in root.children] == [1, 2]
+    assert [tree.nodes[child].tad_table_row for child in root.children] == [1, 2]
     assert {
-        node.source_row for node in tree.nodes.values() if node.node_id != tree.root_id
+        node.tad_table_row
+        for node in tree.nodes.values()
+        if node.node_id != tree.root_id
     } == {1, 2}
     assert [(fine.start, fine.end, fine.is_tad) for fine in tree.fine_units] == [
         (0, 1000, True),
@@ -135,8 +137,8 @@ def test_whole_chromosome_only_becomes_residual(tmp_path) -> None:
     fine = tree.fine_units[0]
     assert (fine.start, fine.end, fine.is_tad) == (0, 2000, False)
 
-    domains, _, _ = selected_domains(tree, [])
-    assert [(domain.kind, domain.start, domain.end) for domain in domains] == [
+    units, _, _ = selected_units(tree, [])
+    assert [(unit.unit_kind, unit.start, unit.end) for unit in units] == [
         ("residual", 0, 2000)
     ]
 
@@ -180,7 +182,7 @@ def test_gaps_before_and_after_children(tmp_path) -> None:
         (600, 800, False),
         (800, 1000, False),
     ]
-    by_row = {node.source_row: node for node in tree.nodes.values()}
+    by_row = {node.tad_table_row: node for node in tree.nodes.values()}
     assert by_row[0].fine_lo == 1
     assert by_row[0].fine_hi == 4
     assert by_row[1].fine_lo == 2
@@ -214,7 +216,7 @@ def test_assign_bin_counts_and_map(tmp_path) -> None:
     assign_bin_counts(tree, centers)
     mapping = map_bins_to_fine(tree, centers)
 
-    assert [fine.n_bins for fine in tree.fine_units] == [4, 2, 4, 10]
+    assert [fine.n_working_bins for fine in tree.fine_units] == [4, 2, 4, 10]
     assert tree.n_bins_chrom == 20
     assert (
         mapping.tolist()
@@ -268,10 +270,13 @@ def test_antichain_dp_chooses_cheaper_cut(tmp_path) -> None:
     centers = (np.arange(20) + 0.5) * 100.0
     assign_bin_counts(tree, centers)
 
-    by_row = {node.source_row: node.node_id for node in tree.nodes.values()}
+    by_row = {node.tad_table_row: node.node_id for node in tree.nodes.values()}
     masses = {
         node.node_id: int(
-            sum(fine.n_bins for fine in tree.fine_units[node.fine_lo : node.fine_hi])
+            sum(
+                fine.n_working_bins
+                for fine in tree.fine_units[node.fine_lo : node.fine_hi]
+            )
         )
         for node in tree.nodes.values()
     }
@@ -302,44 +307,44 @@ def test_antichain_dp_chooses_cheaper_cut(tmp_path) -> None:
     ]
 
 
-def test_selected_domains_tile_the_chromosome(tmp_path) -> None:
+def test_selected_units_tile_the_chromosome(tmp_path) -> None:
     tree = make_tree(tmp_path, hierarchy_rows())
     centers = (np.arange(20) + 0.5) * 100.0
     assign_bin_counts(tree, centers)
-    by_row = {node.source_row: node.node_id for node in tree.nodes.values()}
+    by_row = {node.tad_table_row: node.node_id for node in tree.nodes.values()}
 
-    domains, fine_to_domain, domain_map = selected_domains(
+    units, fine_to_unit, unit_map = selected_units(
         tree,
         [by_row[0], by_row[3]],
     )
 
-    assert [(domain.kind, domain.start, domain.end) for domain in domains] == [
+    assert [(unit.unit_kind, unit.start, unit.end) for unit in units] == [
         ("tad", 0, 1000),
         ("tad", 1000, 2000),
     ]
-    assert [domain.source_row for domain in domains] == [0, 3]
-    assert [domain.n_bins for domain in domains] == [10, 10]
-    assert fine_to_domain.tolist() == [0, 0, 0, 1]
-    assert domain_map.shape == (4, 2)
-    assert np.all(np.asarray(domain_map.sum(axis=1)) == 1)
+    assert [unit.tad_table_row for unit in units] == [0, 3]
+    assert [unit.n_working_bins for unit in units] == [10, 10]
+    assert fine_to_unit.tolist() == [0, 0, 0, 1]
+    assert unit_map.shape == (4, 2)
+    assert np.all(np.asarray(unit_map.sum(axis=1)) == 1)
 
 
-def test_selected_domains_include_residual_runs(tmp_path) -> None:
+def test_selected_units_include_residual_runs(tmp_path) -> None:
     tree = make_tree(tmp_path, hierarchy_rows())
     centers = (np.arange(20) + 0.5) * 100.0
     assign_bin_counts(tree, centers)
-    by_row = {node.source_row: node.node_id for node in tree.nodes.values()}
+    by_row = {node.tad_table_row: node.node_id for node in tree.nodes.values()}
 
-    domains, _, _ = selected_domains(tree, [by_row[1]])
+    units, _, _ = selected_units(tree, [by_row[1]])
 
-    assert [(domain.kind, domain.start, domain.end) for domain in domains] == [
+    assert [(unit.unit_kind, unit.start, unit.end) for unit in units] == [
         ("tad", 0, 400),
         ("residual", 400, 2000),
     ]
-    assert domains[1].source_row is None
+    assert units[1].tad_table_row is None
 
 
-def test_select_domains_disjoint_keeps_tad_rows(tmp_path) -> None:
+def test_select_units_disjoint_keeps_tad_rows(tmp_path) -> None:
     tree = make_tree(
         tmp_path,
         [
@@ -362,7 +367,7 @@ def test_select_domains_disjoint_keeps_tad_rows(tmp_path) -> None:
     )
     fine = make_fine(pcs, [1, 1, 1, 1, 1])
 
-    selection = select_domains(
+    selection = select_units(
         tree,
         fine,
         n_pcs=2,
@@ -378,17 +383,17 @@ def test_select_domains_disjoint_keeps_tad_rows(tmp_path) -> None:
     assert selection.objective == 0.0
     assert selection.dp_lambda == 0.0
     assert selection.cut == [1, 2, 3]
-    assert len(selection.domains) == 5
-    assert sum(domain.kind == "tad" for domain in selection.domains) == 3
-    assert sum(domain.kind == "residual" for domain in selection.domains) == 2
+    assert len(selection.units) == 5
+    assert sum(unit.unit_kind == "tad" for unit in selection.units) == 3
+    assert sum(unit.unit_kind == "residual" for unit in selection.units) == 2
     assert not any(
-        domain.kind == "tad" and domain.start == 0 and domain.end == 500
-        for domain in selection.domains
+        unit.unit_kind == "tad" and unit.start == 0 and unit.end == 500
+        for unit in selection.units
     )
     assert selection.matrices.pcs.shape[0] == 5
 
 
-def test_select_domains_flat_tree_uses_bin_kind_and_reuses_matrices() -> None:
+def test_select_units_flat_tree_uses_bin_kind_and_reuses_matrices() -> None:
     starts = np.array([0, 500, 1000, 1500])
     ends = np.array([500, 1000, 1500, 2000])
     tree = build_flat_tree(starts, ends, "chr1", 2000)
@@ -402,7 +407,7 @@ def test_select_domains_flat_tree_uses_bin_kind_and_reuses_matrices() -> None:
         [1, 1, 1, 1],
     )
 
-    selection = select_domains(
+    selection = select_units(
         tree,
         fine,
         n_pcs=2,
@@ -412,15 +417,15 @@ def test_select_domains_flat_tree_uses_bin_kind_and_reuses_matrices() -> None:
         dp_lambda_scale=100.0,
         tree_branch_k=3,
         seed=0,
-        selected_kind="bin",
+        unit_kind="bin",
     )
 
-    assert [domain.kind for domain in selection.domains] == ["bin"] * 4
-    assert [domain.source_row for domain in selection.domains] == [None] * 4
-    assert [domain.start for domain in selection.domains] == [0, 500, 1000, 1500]
-    assert [domain.end for domain in selection.domains] == [500, 1000, 1500, 2000]
-    assert selection.fine_to_domain.tolist() == [0, 1, 2, 3]
-    assert np.array_equal(selection.domain_map.toarray(), np.eye(4))
+    assert [unit.unit_kind for unit in selection.units] == ["bin"] * 4
+    assert [unit.tad_table_row for unit in selection.units] == [None] * 4
+    assert [unit.start for unit in selection.units] == [0, 500, 1000, 1500]
+    assert [unit.end for unit in selection.units] == [500, 1000, 1500, 2000]
+    assert selection.fine_to_unit.tolist() == [0, 1, 2, 3]
+    assert np.array_equal(selection.unit_map.toarray(), np.eye(4))
     assert selection.matrices.pcs is fine.pcs
     assert selection.matrices.observed is fine.observed
     assert selection.cut_size == 4
@@ -428,7 +433,7 @@ def test_select_domains_flat_tree_uses_bin_kind_and_reuses_matrices() -> None:
     assert selection.dp_lambda == 0.0
 
 
-def test_select_domains_lambda_controls_internal_nodes(tmp_path) -> None:
+def test_select_units_lambda_controls_internal_nodes(tmp_path) -> None:
     tree = make_tree(
         tmp_path,
         [
@@ -449,7 +454,7 @@ def test_select_domains_lambda_controls_internal_nodes(tmp_path) -> None:
     )
     fine = make_fine(pcs, [5, 5, 10])
 
-    merged = select_domains(
+    merged = select_units(
         tree,
         fine,
         n_pcs=2,
@@ -460,7 +465,7 @@ def test_select_domains_lambda_controls_internal_nodes(tmp_path) -> None:
         tree_branch_k=3,
         seed=0,
     )
-    split = select_domains(
+    split = select_units(
         tree,
         fine,
         n_pcs=2,
@@ -471,7 +476,7 @@ def test_select_domains_lambda_controls_internal_nodes(tmp_path) -> None:
         tree_branch_k=3,
         seed=0,
     )
-    automatic = select_domains(
+    automatic = select_units(
         tree,
         fine,
         n_pcs=2,
@@ -483,15 +488,15 @@ def test_select_domains_lambda_controls_internal_nodes(tmp_path) -> None:
         seed=0,
     )
 
-    assert len(merged.domains) == 2
-    assert [domain.kind for domain in merged.domains] == ["tad", "tad"]
-    assert [domain.start for domain in merged.domains] == [0, 1000]
+    assert len(merged.units) == 2
+    assert [unit.unit_kind for unit in merged.units] == ["tad", "tad"]
+    assert [unit.start for unit in merged.units] == [0, 1000]
     assert merged.cut_size == 2
     assert merged.dp_lambda == pytest.approx(10.0 * math.log(3))
     assert merged.matrices.pcs.shape == (2, 2)
 
-    assert len(split.domains) == 3
-    assert [domain.kind for domain in split.domains] == ["tad", "tad", "tad"]
+    assert len(split.units) == 3
+    assert [unit.unit_kind for unit in split.units] == ["tad", "tad", "tad"]
     assert split.cut_size == 3
     assert split.dp_lambda == 0.0
     assert automatic.dp_lambda == pytest.approx(math.log(3))

@@ -125,11 +125,11 @@ def _make_schema(has_header: bool, width: int) -> dict[str, type]:
 
 def overlap_weighted_values(
     track: FeatureTrack,
-    domains,
+    units,
     chrom: str,
 ) -> np.ndarray:
-    """Return overlap-length-weighted track values for selected domains."""
-    values = np.full(len(domains), np.nan, dtype=np.float64)
+    """Return overlap-length-weighted track values for selected units."""
+    values = np.full(len(units), np.nan, dtype=np.float64)
 
     match track.for_chrom(chrom):
         case None:
@@ -143,10 +143,10 @@ def overlap_weighted_values(
             chrom=chrom,
         )
 
-    for index, domain in enumerate(domains):
-        overlap = np.minimum(ends, domain.end) - np.maximum(
+    for index, unit in enumerate(units):
+        overlap = np.minimum(ends, unit.end) - np.maximum(
             starts,
-            domain.start,
+            unit.start,
         )
         overlap = np.where(overlap > 0, overlap, 0.0)
         coverage = overlap.sum()
@@ -160,20 +160,20 @@ def fill_and_rank(
     values: np.ndarray,
     chrom: str,
 ) -> tuple[np.ndarray, int]:
-    """Fill uncovered domains with the chromosome median, then rank."""
+    """Fill uncovered units with the chromosome median, then rank."""
     values = np.asarray(values, dtype=np.float64)
     covered = np.isfinite(values)
     n_uncovered = int((~covered).sum())
     if not covered.any():
         raise TrackError(
-            f"{chrom}: no feature track intervals overlap selected domains",
+            f"{chrom}: no feature track intervals overlap selected units",
             chrom=chrom,
         )
 
     filled = np.where(covered, values, np.nanmedian(values))
     if np.allclose(filled, filled[0]):
         raise TrackError(
-            f"{chrom}: feature track is constant over selected domains",
+            f"{chrom}: feature track is constant over selected units",
             chrom=chrom,
         )
 
@@ -190,7 +190,7 @@ def ab_feature_matrix(
     values = np.asarray(pcs, dtype=np.float64)
     ranks = np.asarray(feature_rank, dtype=np.float64)
     if values.ndim != 2:
-        raise ClusteringError("domain PCs must be a two-dimensional array")
+        raise ClusteringError("unit PCs must be a two-dimensional array")
     if values.shape[0] != ranks.shape[0]:
         raise ClusteringError("PC and feature-rank lengths differ")
 

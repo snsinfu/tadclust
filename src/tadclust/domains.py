@@ -1,4 +1,4 @@
-"""Laminar TAD trees, fine units, and SSE-DP domain selection."""
+"""Laminar TAD trees, fine units, and SSE-DP unit selection."""
 
 from __future__ import annotations
 
@@ -11,19 +11,19 @@ import polars as pl
 from scipy import sparse
 
 from .errors import ClusteringError, InputError
-from .matrix import DomainMatrices, FineUnitMatrices, compute_domain_matrices
+from .matrix import FineUnitMatrices, UnitMatrices, compute_unit_matrices
 from .tads import TadTable
 
 
 @dataclass
-class DomainNode:
+class UnitNode:
     """One TAD annotation node or the synthetic chromosome root."""
 
     node_id: int
     chrom: str
     start: int
     end: int
-    source_row: int | None
+    tad_table_row: int | None
     parent_id: int | None = None
     children: list[int] = field(default_factory=list)
     fine_lo: int = 0
@@ -40,7 +40,7 @@ class FineUnit:
     end: int
     owner_node_id: int
     is_tad: bool
-    n_bins: int = 0
+    n_working_bins: int = 0
 
 
 @dataclass
@@ -49,7 +49,7 @@ class ChromosomeTree:
 
     chrom: str
     chromsize: int
-    nodes: dict[int, DomainNode]
+    nodes: dict[int, UnitNode]
     root_id: int
     fine_units: list[FineUnit]
     n_bins_chrom: int = 0
@@ -60,28 +60,28 @@ class ChromosomeTree:
 
 
 @dataclass
-class SelectedDomain:
-    """One row of the selected partition: a TAD or a residual gap."""
+class SelectedUnit:
+    """One row of the selected partition: a TAD, a residual gap, or a bin."""
 
-    domain_id: int
+    unit_id: int
     chrom: str
     start: int
     end: int
-    kind: str
-    source_row: int | None
+    unit_kind: str
+    tad_table_row: int | None
     fine_indices: np.ndarray
-    n_bins: int
+    n_working_bins: int
 
 
 @dataclass(frozen=True)
-class DomainSelection:
-    """Selected domains, their matrices, PCs, and DP diagnostics."""
+class UnitSelection:
+    """Selected units, their matrices, PCs, and DP diagnostics."""
 
     tree: ChromosomeTree
-    domains: list[SelectedDomain]
-    fine_to_domain: np.ndarray
-    domain_map: sparse.csr_array | sparse.csr_matrix
-    matrices: DomainMatrices
+    units: list[SelectedUnit]
+    fine_to_unit: np.ndarray
+    unit_map: sparse.csr_array | sparse.csr_matrix
+    matrices: UnitMatrices
     cut: list[int]
     cut_size: int
     objective: float
@@ -98,7 +98,7 @@ def build_chromosome_tree(
     # Build a TAD tree by scanning a flat, sorted list of interval annotations.
     # Stack is used to keep track of nesting.
     table = tads.rows.filter(pl.col("chrom") == chrom).sort(
-        ["start", "end", "source_row"],
+        ["start", "end", "tad_table_row"],
         descending=[False, True, False],
     )
     if table.height == 0:
@@ -109,12 +109,12 @@ def build_chromosome_tree(
     whole_chromosome = (pl.col("start") == 0) & (pl.col("end") == chromsize)
     table = table.filter(~whole_chromosome)
 
-    root = DomainNode(
+    root = UnitNode(
         node_id=0,
         chrom=chrom,
         start=0,
         end=chromsize,
-        source_row=None,
+        tad_table_row=None,
     )
     nodes = {root.node_id: root}
     stack = [root.node_id]
@@ -122,15 +122,15 @@ def build_chromosome_tree(
     for row in table.iter_rows(named=True):
         start = row["start"]
         end = row["end"]
-        source_row = row["source_row"]
-        _check_interval(start, end, chromsize, chrom, source_row)
+        tad_table_row = row["tad_table_row"]
+        _check_interval(start, end, chromsize, chrom, tad_table_row)
 
-        node = DomainNode(
+        node = UnitNode(
             node_id=len(nodes),
             chrom=chrom,
             start=start,
             end=end,
-            source_row=source_row,
+            tad_table_row=tad_table_row,
         )
 
         # Close finished nesting levels.
@@ -141,14 +141,14 @@ def build_chromosome_tree(
             if candidate.end > start:
                 raise InputError(
                     f"{chrom}: TAD intervals overlap but are not nested",
-                    row=source_row,
+                    row=tad_table_row,
                 )
             stack.pop()
 
         if not stack:
             raise InputError(
                 f"{chrom}: TAD interval is outside the chromosome root",
-                row=source_row,
+                row=tad_table_row,
             )
 
         parent = nodes[stack[-1]]
@@ -164,7 +164,7 @@ def build_chromosome_tree(
     fine_units: list[FineUnit] = []
 
     # Walk the completed containment tree to find unannotated gaps between
-    # sibling TADs; gaps become fine units that later form residual domains.
+    # sibling TADs; gaps become fine units that later form residual units.
     def visit(node_id: int) -> None:
         node = nodes[node_id]
         fine_lo = len(fine_units)
@@ -238,12 +238,12 @@ def build_flat_tree(
     ends = np.asarray(ends, dtype=np.int64)
     _check_flat_bins(starts, ends, chrom, chromsize)
 
-    root = DomainNode(
+    root = UnitNode(
         node_id=0,
         chrom=chrom,
         start=0,
         end=chromsize,
-        source_row=None,
+        tad_table_row=None,
         fine_lo=0,
         fine_hi=len(starts),
     )
@@ -252,12 +252,12 @@ def build_flat_tree(
 
     for index, (start, end) in enumerate(zip(starts, ends, strict=True)):
         node_id = index + 1
-        node = DomainNode(
+        node = UnitNode(
             node_id=node_id,
             chrom=chrom,
             start=int(start),
             end=int(end),
-            source_row=None,
+            tad_table_row=None,
             parent_id=root.node_id,
             fine_lo=index,
             fine_hi=index + 1,
@@ -272,7 +272,7 @@ def build_flat_tree(
                 end=int(end),
                 owner_node_id=node_id,
                 is_tad=False,
-                n_bins=1,
+                n_working_bins=1,
             )
         )
 
@@ -304,7 +304,7 @@ def assign_bin_counts(
     for fine in tree.fine_units:
         lo = int(np.searchsorted(centers, fine.start, side="left"))
         hi = int(np.searchsorted(centers, fine.end, side="left"))
-        fine.n_bins = max(0, hi - lo)
+        fine.n_working_bins = max(0, hi - lo)
     tree.n_bins_chrom = len(centers)
 
 
@@ -361,7 +361,7 @@ def node_costs(
     total_variance: float,
     dp_lambda: float,
 ) -> dict[int, float]:
-    """Return the SSE-based cost of keeping each node as one domain."""
+    """Return the SSE-based cost of keeping each node as one unit."""
     values = np.asarray(pcs, dtype=np.float64)
     weights = np.asarray(bins_per_fine_unit, dtype=np.float64)
     costs: dict[int, float] = {}
@@ -402,8 +402,8 @@ def antichain_dp(
         order.append(node_id)
         stack.extend(nodes[node_id].children)
 
-    # keep: one domain for the whole node. expand: replace it by all children.
-    # The synthetic root can only expand, so it is never a selected domain.
+    # keep: one unit for the whole node. expand: replace it by all children.
+    # The synthetic root can only expand, so it is never a selected unit.
     best: dict[int, float] = {}
     expand: dict[int, float] = {}
     for node_id in reversed(order):
@@ -449,16 +449,16 @@ def antichain_dp(
     return selected
 
 
-def selected_domains(
+def selected_units(
     tree: ChromosomeTree,
     cut: list[int],
     *,
-    kind: str = "tad",
-) -> tuple[list[SelectedDomain], np.ndarray, sparse.csr_array | sparse.csr_matrix]:
+    unit_kind: str = "tad",
+) -> tuple[list[SelectedUnit], np.ndarray, sparse.csr_array | sparse.csr_matrix]:
     """Turn a selected antichain plus uncovered fine units into a partition."""
     n_fine = tree.n_fine
     covered = np.zeros(n_fine, dtype=bool)
-    domains: list[SelectedDomain] = []
+    units: list[SelectedUnit] = []
 
     for node_id in cut:
         node = tree.nodes[node_id]
@@ -469,21 +469,23 @@ def selected_domains(
             )
         if covered[node.fine_lo : node.fine_hi].any():
             raise ClusteringError(
-                f"{tree.chrom}: selected TAD domains overlap",
+                f"{tree.chrom}: selected TAD units overlap",
                 chrom=tree.chrom,
             )
         covered[node.fine_lo : node.fine_hi] = True
         indices = np.arange(node.fine_lo, node.fine_hi, dtype=np.int64)
-        domains.append(
-            SelectedDomain(
-                domain_id=-1,
+        units.append(
+            SelectedUnit(
+                unit_id=-1,
                 chrom=tree.chrom,
                 start=node.start,
                 end=node.end,
-                kind=kind,
-                source_row=node.source_row,
+                unit_kind=unit_kind,
+                tad_table_row=node.tad_table_row,
                 fine_indices=indices,
-                n_bins=int(sum(tree.fine_units[i].n_bins for i in indices)),
+                n_working_bins=int(
+                    sum(tree.fine_units[i].n_working_bins for i in indices)
+                ),
             )
         )
 
@@ -494,42 +496,44 @@ def selected_domains(
         run_ends = np.r_[breaks + 1, len(uncovered)]
         for start_index, end_index in zip(run_starts, run_ends):
             run = uncovered[start_index:end_index]
-            domains.append(
-                SelectedDomain(
-                    domain_id=-1,
+            units.append(
+                SelectedUnit(
+                    unit_id=-1,
                     chrom=tree.chrom,
                     start=tree.fine_units[run[0]].start,
                     end=tree.fine_units[run[-1]].end,
-                    kind="residual",
-                    source_row=None,
+                    unit_kind="residual",
+                    tad_table_row=None,
                     fine_indices=run,
-                    n_bins=int(sum(tree.fine_units[i].n_bins for i in run)),
+                    n_working_bins=int(
+                        sum(tree.fine_units[i].n_working_bins for i in run)
+                    ),
                 )
             )
 
-    domains.sort(key=lambda domain: domain.start)
-    for domain_id, domain in enumerate(domains):
-        domain.domain_id = domain_id
+    units.sort(key=lambda unit: unit.start)
+    for unit_id, unit in enumerate(units):
+        unit.unit_id = unit_id
 
-    fine_to_domain = np.full(n_fine, -1, dtype=np.int64)
-    domain_map = sparse.lil_matrix(
-        (n_fine, len(domains)),
+    fine_to_unit = np.full(n_fine, -1, dtype=np.int64)
+    unit_map = sparse.lil_matrix(
+        (n_fine, len(units)),
         dtype=np.float64,
     )
-    for domain in domains:
-        domain_map[domain.fine_indices, domain.domain_id] = 1.0
-        fine_to_domain[domain.fine_indices] = domain.domain_id
+    for unit in units:
+        unit_map[unit.fine_indices, unit.unit_id] = 1.0
+        fine_to_unit[unit.fine_indices] = unit.unit_id
 
-    if np.any(fine_to_domain < 0):
+    if np.any(fine_to_unit < 0):
         raise ClusteringError(
-            f"{tree.chrom}: fine units were not assigned to a domain",
+            f"{tree.chrom}: fine units were not assigned to a unit",
             chrom=tree.chrom,
         )
 
-    return domains, fine_to_domain, domain_map.tocsr()
+    return units, fine_to_unit, unit_map.tocsr()
 
 
-def select_domains(
+def select_units(
     tree: ChromosomeTree,
     fine: FineUnitMatrices,
     *,
@@ -540,9 +544,9 @@ def select_domains(
     dp_lambda_scale: float,
     tree_branch_k: int,
     seed: int,
-    selected_kind: str = "tad",
-) -> DomainSelection:
-    """Select domains, aggregate O/E, and compute domain PCs."""
+    unit_kind: str = "tad",
+) -> UnitSelection:
+    """Select units, aggregate O/E, and compute unit PCs."""
     bins_per_fine_unit = np.asarray(
         fine.bins_per_fine_unit,
         dtype=np.float64,
@@ -577,29 +581,29 @@ def select_domains(
         cut = antichain_dp(tree, costs, masses)
         objective = sum(costs[node_id] for node_id in cut)
 
-    domains, fine_to_domain, domain_map = selected_domains(
+    units, fine_to_unit, unit_map = selected_units(
         tree,
         cut,
-        kind=selected_kind,
+        unit_kind=unit_kind,
     )
-    if np.array_equal(fine_to_domain, np.arange(tree.n_fine, dtype=np.int64)):
-        matrices = DomainMatrices.from_fine_unit_matrices(fine)
+    if np.array_equal(fine_to_unit, np.arange(tree.n_fine, dtype=np.int64)):
+        matrices = UnitMatrices.from_fine_unit_matrices(fine)
     else:
-        matrices = compute_domain_matrices(
-            domain_map,
+        matrices = compute_unit_matrices(
+            unit_map,
             fine.observed,
             fine.expected,
             pseudocount=pseudocount,
             clip_min=clip_min,
             clip_max=clip_max,
             n_pcs=n_pcs,
-            label=f"domains:{tree.chrom}",
+            label=f"units:{tree.chrom}",
         )
-    return DomainSelection(
+    return UnitSelection(
         tree=tree,
-        domains=domains,
-        fine_to_domain=fine_to_domain,
-        domain_map=domain_map,
+        units=units,
+        fine_to_unit=fine_to_unit,
+        unit_map=unit_map,
         matrices=matrices,
         cut=cut,
         cut_size=len(cut),
@@ -641,22 +645,22 @@ def _check_interval(
     end: int,
     chromsize: int,
     chrom: str,
-    source_row: int,
+    tad_table_row: int,
 ) -> None:
     if start is None or end is None:
         raise InputError(
             f"{chrom}: TAD interval has a missing coordinate",
-            row=source_row,
+            row=tad_table_row,
         )
     if start < 0 or end > chromsize or end <= start:
         raise InputError(
             f"{chrom}: TAD {start}-{end} is outside [0, {chromsize})",
-            row=source_row,
+            row=tad_table_row,
         )
 
 
 def _check_siblings(
-    nodes: dict[int, DomainNode],
+    nodes: dict[int, UnitNode],
     chrom: str,
 ) -> None:
     for node in nodes.values():
@@ -670,7 +674,7 @@ def _check_siblings(
             if left.end > right.start:
                 raise InputError(
                     f"{chrom}: TAD intervals overlap but are not nested",
-                    row=right.source_row,
+                    row=right.tad_table_row,
                 )
 
 

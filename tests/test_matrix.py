@@ -8,9 +8,9 @@ import pytest
 from tadclust.errors import ClusteringError
 from tadclust.matrix import (
     canonicalize_pc1_sign,
-    compute_domain_matrices,
     compute_fine_unit_matrices,
     compute_top_pcs,
+    compute_unit_matrices,
     cosine_normalize,
     distance_bin_edges,
     expected_by_distance,
@@ -267,7 +267,7 @@ def test_compute_fine_unit_matrices_rejects_out_of_range_bin_map(
         )
 
 
-def test_compute_domain_matrices_aggregate_fine_pairs() -> None:
+def test_compute_unit_matrices_aggregate_fine_pairs() -> None:
     observed_fine = np.array(
         [
             [1.0, 2.0, 3.0, 4.0],
@@ -277,7 +277,7 @@ def test_compute_domain_matrices_aggregate_fine_pairs() -> None:
         ]
     )
     expected_fine = np.ones((4, 4))
-    domain_map = np.array(
+    unit_map = np.array(
         [
             [1.0, 0.0],
             [1.0, 0.0],
@@ -286,8 +286,8 @@ def test_compute_domain_matrices_aggregate_fine_pairs() -> None:
         ]
     )
 
-    matrices = compute_domain_matrices(
-        domain_map,
+    matrices = compute_unit_matrices(
+        unit_map,
         observed_fine,
         expected_fine,
         pseudocount=1.0,
@@ -296,8 +296,8 @@ def test_compute_domain_matrices_aggregate_fine_pairs() -> None:
         n_pcs=1,
     )
 
-    assert np.allclose(matrices.observed, domain_map.T @ observed_fine @ domain_map)
-    assert np.allclose(matrices.expected, domain_map.T @ expected_fine @ domain_map)
+    assert np.allclose(matrices.observed, unit_map.T @ observed_fine @ unit_map)
+    assert np.allclose(matrices.expected, unit_map.T @ expected_fine @ unit_map)
     assert np.allclose(np.diag(matrices.log_oe), 0.0)
     assert matrices.self_oe.shape == (2,)
     assert matrices.pcs.shape == (2, 1)

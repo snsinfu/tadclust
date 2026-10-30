@@ -15,7 +15,7 @@ def cis_leaves_schema(
     include_trans: bool,
     include_ab: bool,
 ) -> Schema:
-    """Return the per-domain cis leaf table schema."""
+    """Return the per-unit cis leaf table schema."""
     schema: Schema = {
         "domain_id": pl.Int64,
         "chrom": pl.String,
@@ -54,7 +54,7 @@ def cis_leaves_schema(
 def cis_nodes_schema(n_pcs: int, include_ab: bool) -> Schema:
     """Return the canonical cis node table schema.
 
-    Leaf nodes are flattened to one row per member domain, so every column of
+    Leaf nodes are flattened to one row per member unit, so every column of
     ``cis_leaves`` (except trans columns) is also a ``cis_nodes`` column.
     """
     schema: Schema = {

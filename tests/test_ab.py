@@ -146,7 +146,7 @@ def test_ab_degenerate_when_pc_centroids_coincide() -> None:
     assert annotation.b_indices.size == 0
 
 
-def test_annotate_ab_excludes_uninformative_domains() -> None:
+def test_annotate_ab_excludes_uninformative_units() -> None:
     pcs = np.array([[0.0], [1.0], [2.0], [3.0]])
     rank = np.array([0.0, 0.2, 0.8, 1.0])
     features = ab_feature_matrix(pcs, rank, 1)
@@ -176,7 +176,7 @@ def test_annotate_ab_excludes_uninformative_domains() -> None:
     }
 
 
-def test_annotate_ab_rejects_too_few_domains() -> None:
+def test_annotate_ab_rejects_too_few_units() -> None:
     with pytest.raises(ClusteringError):
         annotate_ab(
             np.zeros((1, 2)),
@@ -309,7 +309,7 @@ def test_build_ab_forest_degenerate_fallback() -> None:
     assert forest.groups[0].tolist() == [0, 1]
 
 
-def test_annotate_cis_forest_node_scores_match_leaf_domains() -> None:
+def test_annotate_cis_forest_node_scores_match_leaf_units() -> None:
     pcs = np.array([[-3.0], [-1.0], [1.0], [3.0]])
     rank = np.array([0.0, 0.1, 0.9, 1.0])
     features = ab_feature_matrix(pcs, rank, 1)
@@ -329,9 +329,9 @@ def test_annotate_cis_forest_node_scores_match_leaf_domains() -> None:
         for node in tree.nodes:
             if not node.is_leaf:
                 continue
-            domain = int(group[node.domain_indices[0]])
-            assert node.ab_score == pytest.approx(annotation.scores[domain])
-            assert node.ab_label == annotation.labels[domain]
+            unit = int(group[node.unit_indices[0]])
+            assert node.ab_score == pytest.approx(annotation.scores[unit])
+            assert node.ab_label == annotation.labels[unit]
 
     root = forest.trees[0].nodes[forest.trees[0].root_id]
     assert root.ab_score is not None

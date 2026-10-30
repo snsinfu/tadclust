@@ -10,7 +10,7 @@ import numpy as np
 from threadpoolctl import threadpool_limits
 
 from .config import ClusterConfig
-from .domains import ChromosomeTree, DomainSelection, select_domains
+from .domains import ChromosomeTree, UnitSelection, select_units
 from .matrix import canonicalize_pc1_sign, compute_fine_unit_matrices
 from .mcool import open_cooler
 from .sources import CisSource
@@ -22,9 +22,9 @@ class ChromosomeSelection:
 
     chrom: str
     tree: ChromosomeTree
-    domain_selection: DomainSelection
+    unit_selection: UnitSelection
     pcs: np.ndarray
-    domain_bins: np.ndarray
+    unit_bins: np.ndarray
 
 
 def run_cis_serial(
@@ -34,7 +34,7 @@ def run_cis_serial(
     chromosomes: list[str],
     cooler_object: cooler.Cooler,
 ) -> list[ChromosomeSelection]:
-    """Select domains for each chromosome in the current process."""
+    """Select units for each chromosome in the current process."""
     return [
         _select_chromosome(
             config,
@@ -54,7 +54,7 @@ def run_cis_parallel(
     chromosomes: list[str],
     resolution: int,
 ) -> list[ChromosomeSelection]:
-    """Select domains in a spawn pool; results stay in chromosome order."""
+    """Select units in a spawn pool; results stay in chromosome order."""
     context = mp.get_context("spawn")
     with context.Pool(
         processes=config.workers,
@@ -124,7 +124,7 @@ def _select_chromosome(
         clip_max=config.oe_clip_max,
         n_pcs=config.tree_n_pcs,
     )
-    selection = select_domains(
+    selection = select_units(
         tree,
         fine,
         n_pcs=config.tree_n_pcs,
@@ -134,17 +134,17 @@ def _select_chromosome(
         dp_lambda_scale=config.dp_lambda_scale,
         tree_branch_k=config.tree_branch_k,
         seed=config.seed,
-        selected_kind=source.domain_kind,
+        unit_kind=source.unit_kind,
     )
     pcs = canonicalize_pc1_sign(selection.matrices.pcs)
-    domain_bins = np.asarray(
-        [domain.n_bins for domain in selection.domains],
+    unit_bins = np.asarray(
+        [unit.n_working_bins for unit in selection.units],
         dtype=np.int64,
     )
     return ChromosomeSelection(
         chrom=chrom,
         tree=tree,
-        domain_selection=selection,
+        unit_selection=selection,
         pcs=pcs,
-        domain_bins=domain_bins,
+        unit_bins=unit_bins,
     )

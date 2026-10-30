@@ -27,7 +27,7 @@ class AnnotationSource:
     table: TadTable
     path: str
     mode: ClassVar[str] = "annotation"
-    domain_kind: ClassVar[str] = "tad"
+    unit_kind: ClassVar[str] = "tad"
 
     def resolution_lengths(self) -> np.ndarray:
         return self.table.lengths
@@ -59,7 +59,7 @@ class UniformBinSource:
     """Chromosome units derived directly from working-resolution mcool bins."""
 
     mode: ClassVar[str] = "uniform_bins"
-    domain_kind: ClassVar[str] = "bin"
+    unit_kind: ClassVar[str] = "bin"
 
     def resolution_lengths(self) -> None:
         return None
