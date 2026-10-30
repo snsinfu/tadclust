@@ -112,7 +112,7 @@ def cis_leaves_schema(include_trans: bool, include_ab: bool):
     return schema
 
 
-def cis_nodes_schema(include_ab: bool):
+def cis_nodes_schema(include_ab: bool, n_pcs: int = 3):
     schema = [
         ("chrom", pl.String),
         ("node_id", pl.Int64),
@@ -128,14 +128,23 @@ def cis_nodes_schema(include_ab: bool):
         ("children", pl.List(pl.Int64)),
         ("stop_reason", pl.String),
         ("n_bins", pl.Int64),
+        ("domain_id", pl.Int64),
+        ("start", pl.Int64),
+        ("end", pl.Int64),
+        ("kind", pl.String),
+        ("source_row", pl.Int64),
+        ("pcs", pl.Array(pl.Float64, n_pcs)),
+        ("self_oe", pl.Float64),
     ]
     if include_ab:
         schema.extend(
             [
                 ("ab_label", pl.String),
+                ("ab_rank", pl.Float64),
+                ("ab_score", pl.Float64),
+                ("ab_rank_mean", pl.Float64),
                 ("ab_frac_a", pl.Float64),
                 ("ab_purity", pl.Float64),
-                ("ab_rank_mean", pl.Float64),
             ]
         )
     return schema
@@ -201,6 +210,7 @@ CIS_LEAVES_AB_SCHEMA = [
 TRANS_NODES_SCHEMA = [
     ("node_id", pl.Int64),
     ("parent_id", pl.Int64),
+    ("domain_id", pl.Int64),
     ("depth", pl.Int64),
     ("root_label", pl.String),
     ("path", pl.List(pl.Int64)),
@@ -336,3 +346,84 @@ def test_manifest_contract(mcool, tmp_path) -> None:
     ]
     assert "checksums" not in manifest
     assert "contact_contrast" not in json.dumps(manifest)
+
+
+def test_cis_leaves_derived_from_cis_nodes(mcool, tmp_path) -> None:
+    config = make_config(mcool, base_tads(tmp_path), tmp_path)
+    result = cluster(config)
+
+    leaf_columns = [column for column in result.cis_leaves.columns]
+    assert set(leaf_columns) <= set(result.cis_nodes.columns)
+
+    derived = (
+        result.cis_nodes.filter(pl.col("is_leaf"))
+        .select(leaf_columns)
+        .sort("domain_id")
+    )
+    expected = result.cis_leaves.select(leaf_columns).sort("domain_id")
+    assert derived.equals(expected)
+
+
+def test_trans_leaves_derived_from_cis_and_trans_nodes(
+    three_chrom_mcool,
+    trans_tads,
+    tmp_path,
+) -> None:
+    config = make_config(
+        three_chrom_mcool,
+        trans_tads,
+        tmp_path,
+        trans_enabled=True,
+        trans_null="grand",
+    )
+    result = cluster(config)
+    assert result.trans_nodes is not None
+
+    trans_leaf = result.trans_nodes.filter(pl.col("is_leaf"))
+    assert trans_leaf["domain_id"].null_count() == 0
+    trans_columns = trans_leaf.select(
+        "domain_id",
+        pl.col("root_label").alias("trans_root_label"),
+        pl.col("path").alias("trans_path"),
+        pl.col("path_label").alias("trans_path_label"),
+        pl.col("depth").alias("trans_depth"),
+    )
+
+    base_columns = [
+        column
+        for column in result.cis_leaves.columns
+        if not column.startswith("trans_")
+    ]
+    derived = (
+        result.cis_nodes.filter(pl.col("is_leaf"))
+        .select(base_columns)
+        .join(trans_columns, on="domain_id", how="left")
+        .select(result.cis_leaves.columns)
+        .sort("domain_id")
+    )
+    assert derived.equals(result.cis_leaves.sort("domain_id"))
+
+
+def test_ab_leaves_derived_from_ab_nodes(mcool, tmp_path) -> None:
+    config = make_config(
+        mcool,
+        ab_tads(tmp_path),
+        tmp_path,
+        ab_signal_track=ab_track(tmp_path),
+        ab_split="kmeans2",
+    )
+    result = cluster(config)
+    assert result.cis_nodes_ab is not None
+    assert result.cis_leaves_ab is not None
+    assert set(result.cis_leaves.columns) <= set(result.cis_nodes.columns)
+
+    leaf_columns = list(result.cis_leaves_ab.columns)
+    assert set(leaf_columns) <= set(result.cis_nodes_ab.columns)
+
+    derived = (
+        result.cis_nodes_ab.filter(pl.col("is_leaf"))
+        .select(leaf_columns)
+        .sort("domain_id")
+    )
+    expected = result.cis_leaves_ab.select(leaf_columns).sort("domain_id")
+    assert derived.equals(expected)

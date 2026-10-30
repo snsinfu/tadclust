@@ -133,8 +133,20 @@ def test_annotate_cis_forest_composition() -> None:
     )
     labels = np.array(["A", "A", "B", "B"], dtype=object)
     rank = np.array([0.0, 0.0, 1.0, 1.0])
+    features = ab_feature_matrix(pcs, rank, 1)
+    annotation = AbAnnotation(
+        labels=labels,
+        rank=rank,
+        split="kmeans2",
+        fallback=False,
+        fallback_reason=None,
+        scores=np.zeros(4),
+        margins=np.zeros(4),
+        a_indices=np.array([0, 1]),
+        b_indices=np.array([2, 3]),
+    )
 
-    annotate_cis_forest(forest, labels, rank)
+    annotate_cis_forest(forest, annotation, features)
 
     root = forest.trees[0].nodes[forest.trees[0].root_id]
     assert root.ab_label == "mixed"
@@ -172,7 +184,7 @@ def test_build_ab_forest_two_roots() -> None:
     assert forest.groups[0].tolist() == annotation.a_indices.tolist()
     assert forest.groups[1].tolist() == annotation.b_indices.tolist()
 
-    annotate_cis_forest(forest, annotation.labels, annotation.rank)
+    annotate_cis_forest(forest, annotation, features)
     assert forest.trees[0].nodes[0].ab_label == "A"
     assert forest.trees[1].nodes[0].ab_label == "B"
 
@@ -203,3 +215,30 @@ def test_build_ab_forest_degenerate_fallback() -> None:
     assert forest.trees[0].root_label == "chrom"
     assert forest.trees[0].nodes[0].stop_reason == "ab_degenerate"
     assert forest.groups[0].tolist() == [0, 1]
+
+
+def test_annotate_cis_forest_node_scores_match_leaf_domains() -> None:
+    pcs = np.array([[-3.0], [-1.0], [1.0], [3.0]])
+    rank = np.array([0.0, 0.1, 0.9, 1.0])
+    features = ab_feature_matrix(pcs, rank, 1)
+    annotation = annotate_ab(features, rank, 4, "kmeans2", 0)
+    forest = build_cis_forest(
+        "chr1",
+        pcs,
+        np.ones(4, dtype=np.int64),
+        n_pcs=1,
+        branch_k=2,
+        seed=0,
+    )
+
+    annotate_cis_forest(forest, annotation, features)
+
+    for tree, group in zip(forest.trees, forest.groups):
+        for node in tree.nodes:
+            if not node.is_leaf:
+                continue
+            domain = int(group[node.domain_indices[0]])
+            assert node.ab_score == pytest.approx(annotation.scores[domain])
+
+    root = forest.trees[0].nodes[forest.trees[0].root_id]
+    assert root.ab_score == pytest.approx(0.0)

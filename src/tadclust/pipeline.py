@@ -23,6 +23,7 @@ from .mcool import (
     open_cooler,
 )
 from .parallel import ChromosomeSelection, run_cis_parallel, run_cis_serial
+from .schema import cis_leaves_ab_schema, cis_leaves_schema
 from .sources import AnnotationSource, CisSource, UniformBinSource
 from .tads import read_tads
 from .track import (
@@ -41,8 +42,8 @@ from .trans import (
 )
 from .trees import (
     AbAnnotation,
-    BranchingTree,
     CisForest,
+    TreeNode,
     annotate_ab,
     annotate_cis_forest,
     build_ab_forest,
@@ -132,24 +133,32 @@ def cluster(config: ClusterConfig) -> ClusterResult:
     )
     trans_run = _run_trans(config, choice, cooler_object, results)
 
-    cis_leaves = _cis_leaf_rows(results, trans_run, config)
+    is_ab = track is not None
     cis_nodes = _cis_node_rows(
         results,
-        include_composition=track is not None,
+        n_pcs=config.tree_n_pcs,
+        include_composition=is_ab,
     )
-    cis_leaves_ab = _cis_leaf_ab_rows(results) if track is not None else None
     cis_nodes_ab = (
         _cis_node_rows(
             results,
+            n_pcs=config.tree_n_pcs,
             include_composition=True,
             use_ab_forest=True,
         )
-        if track is not None
+        if is_ab
         else None
     )
     trans_nodes = _trans_node_rows(trans_run)
-
-    is_ab = track is not None
+    cis_leaves = _cis_leaf_rows(
+        cis_nodes,
+        trans_nodes,
+        n_pcs=config.tree_n_pcs,
+        include_ab=is_ab,
+    )
+    cis_leaves_ab = (
+        _cis_leaf_ab_rows(cis_nodes_ab) if cis_nodes_ab is not None else None
+    )
     output_files = [
         "cis_leaves.parquet",
         "cis_leaves.tsv",
@@ -274,8 +283,8 @@ def _build_cis_results(
         if annotation is not None:
             annotate_cis_forest(
                 forest,
-                annotation.labels,
-                annotation.rank,
+                annotation,
+                features,
             )
             ab_forest = build_ab_forest(
                 selection.chrom,
@@ -291,8 +300,8 @@ def _build_cis_results(
             ab_node_base += sum(len(tree_.nodes) for tree_ in ab_forest.trees)
             annotate_cis_forest(
                 ab_forest,
-                annotation.labels,
-                annotation.rank,
+                annotation,
+                features,
             )
 
         results.append(
@@ -350,174 +359,229 @@ def _run_trans(
     )
 
 
-def _ab_leaf_fields(
-    annotation: AbAnnotation,
+def _leaf_domain_fields(
+    result: _ChromosomeResult,
     local_index: int,
+    domain_id: int,
+    n_pcs: int,
 ) -> dict[str, Any]:
-    score = annotation.scores[local_index]
+    domain = result.selection.domains[local_index]
     return {
-        "ab_label": annotation.labels[local_index],
-        "ab_rank": float(annotation.rank[local_index]),
-        "ab_score": None if np.isnan(score) else float(score),
+        "domain_id": domain_id,
+        "start": domain.start,
+        "end": domain.end,
+        "kind": domain.kind,
+        "source_row": domain.source_row,
+        "n_bins": domain.n_bins,
+        "self_oe": float(result.selection.matrices.self_oe[local_index]),
+        "pcs": [float(value) for value in result.pcs[local_index, :n_pcs]],
     }
 
 
-def _cis_leaf_rows(
-    results: list[_ChromosomeResult],
-    trans_run: _TransRun | None,
-    config: ClusterConfig,
-) -> pl.DataFrame:
-    trans_leaf = (
-        _tree_leaf_info(
-            trans_run.tree_result.tree,
-            trans_run.matrix.log_oe.shape[0],
-            trans_run.tree_result.domain_indices,
-        )
-        if trans_run is not None
-        else None
-    )
-    rows: list[dict[str, Any]] = []
-    global_id = 0
+def _null_domain_fields() -> dict[str, Any]:
+    return {
+        "domain_id": None,
+        "start": None,
+        "end": None,
+        "kind": None,
+        "source_row": None,
+        "pcs": None,
+        "self_oe": None,
+    }
 
-    for result in results:
-        leaf_info = _forest_leaf_info(result.forest)
-        matrices = result.selection.matrices
-        for local_index, domain in enumerate(result.selection.domains):
-            leaf = leaf_info.get(local_index)
-            if leaf is None:
-                root_label = path = path_label = depth = None
-            else:
-                root_label, path, depth = leaf
-                path_label = format_path_label(root_label, path)
-            row: dict[str, Any] = {
-                "domain_id": global_id,
-                "chrom": result.chrom,
-                "start": domain.start,
-                "end": domain.end,
-                "kind": domain.kind,
-                "source_row": domain.source_row,
-                "n_bins": domain.n_bins,
-                "self_oe": float(matrices.self_oe[local_index]),
-                "pcs": [
-                    float(value)
-                    for value in result.pcs[local_index, : config.tree_n_pcs]
-                ],
-                "root_label": root_label,
-                "path": path,
-                "path_label": path_label,
-                "depth": depth,
-            }
-            if result.annotation is not None:
-                row.update(_ab_leaf_fields(result.annotation, local_index))
-            if trans_leaf is not None:
-                trans = trans_leaf.get(global_id)
-                if trans is None:
-                    row["trans_root_label"] = None
-                    row["trans_path"] = None
-                    row["trans_path_label"] = None
-                    row["trans_depth"] = None
-                else:
-                    trans_root, trans_path, trans_depth = trans
-                    row["trans_root_label"] = trans_root
-                    row["trans_path"] = trans_path
-                    row["trans_path_label"] = format_path_label(
-                        trans_root,
-                        trans_path,
-                    )
-                    row["trans_depth"] = trans_depth
-            rows.append(row)
-            global_id += 1
 
-    return pl.DataFrame(rows).with_columns(
-        pl.col("pcs").cast(pl.Array(pl.Float64, config.tree_n_pcs))
-    )
+def _domain_ab_fields(
+    annotation: AbAnnotation,
+    local_index: int,
+) -> dict[str, Any]:
+    label = annotation.labels[local_index]
+    score = annotation.scores[local_index]
+    rank = float(annotation.rank[local_index])
+    return {
+        "ab_label": label,
+        "ab_rank": rank,
+        "ab_score": None if np.isnan(score) else float(score),
+        "ab_rank_mean": rank,
+        "ab_frac_a": None if label is None else 1.0 if label == "A" else 0.0,
+        "ab_purity": None if label is None else 1.0,
+    }
+
+
+def _node_ab_fields(node: TreeNode) -> dict[str, Any]:
+    return {
+        "ab_label": node.ab_label,
+        "ab_rank": None,
+        "ab_score": node.ab_score,
+        "ab_rank_mean": node.ab_rank_mean,
+        "ab_frac_a": node.ab_frac_a,
+        "ab_purity": node.ab_purity,
+    }
+
+
+def _node_fields(
+    chrom: str,
+    root_label: str,
+    node: TreeNode,
+    offset: int,
+) -> dict[str, Any]:
+    return {
+        "chrom": chrom,
+        "node_id": node.node_id + offset,
+        "parent_id": (node.parent_id + offset if node.parent_id is not None else None),
+        "depth": node.depth,
+        "root_label": root_label,
+        "path": list(node.path),
+        "path_label": format_path_label(root_label, node.path),
+        "is_leaf": node.is_leaf,
+        "n_domains": len(node.domain_indices),
+        "n_bins": node.n_bins,
+        "sse": node.sse,
+        "split_gain": node.split_gain,
+        "children": [child + offset for child in node.children],
+        "stop_reason": node.stop_reason,
+    }
+
+
+def _result_annotation(
+    result: _ChromosomeResult,
+    include_composition: bool,
+) -> AbAnnotation | None:
+    if not include_composition:
+        return None
+    if result.annotation is None:
+        raise ClusteringError(f"{result.chrom}: missing A/B result")
+    return result.annotation
 
 
 def _cis_node_rows(
     results: list[_ChromosomeResult],
     *,
+    n_pcs: int,
     include_composition: bool,
     use_ab_forest: bool = False,
 ) -> pl.DataFrame:
     rows: list[dict[str, Any]] = []
+    domain_base = 0
 
     for result in results:
         forest = result.ab_forest if use_ab_forest else result.forest
-        if forest is None:
-            continue
-        for tree, offset in zip(forest.trees, forest.node_offsets):
-            for node in tree.nodes:
-                row: dict[str, Any] = {
-                    "chrom": result.chrom,
-                    "node_id": node.node_id + offset,
-                    "parent_id": (
-                        node.parent_id + offset if node.parent_id is not None else None
-                    ),
-                    "depth": node.depth,
-                    "root_label": tree.root_label,
-                    "path": list(node.path),
-                    "path_label": format_path_label(
+        annotation = _result_annotation(result, include_composition)
+        domains = result.selection.domains
+        covered: set[int] = set()
+
+        if forest is not None:
+            for tree, offset, group in zip(
+                forest.trees,
+                forest.node_offsets,
+                forest.groups,
+            ):
+                for node in tree.nodes:
+                    base = _node_fields(
+                        result.chrom,
                         tree.root_label,
-                        node.path,
-                    ),
-                    "is_leaf": node.is_leaf,
-                    "n_domains": len(node.domain_indices),
-                    "n_bins": node.n_bins,
-                    "sse": node.sse,
-                    "split_gain": node.split_gain,
-                    "children": [child + offset for child in node.children],
-                    "stop_reason": node.stop_reason,
-                }
-                if include_composition:
-                    row.update(
-                        {
-                            "ab_label": node.ab_label,
-                            "ab_frac_a": node.ab_frac_a,
-                            "ab_purity": node.ab_purity,
-                            "ab_rank_mean": node.ab_rank_mean,
-                        }
+                        node,
+                        offset,
                     )
-                rows.append(row)
+                    if not node.is_leaf:
+                        row = dict(base)
+                        row.update(_null_domain_fields())
+                        if annotation is not None:
+                            row.update(_node_ab_fields(node))
+                        rows.append(row)
+                        continue
 
-    return pl.DataFrame(rows)
+                    # Leaf nodes are flattened to one row per member domain.
+                    for member in node.domain_indices.tolist():
+                        local_index = int(group[member])
+                        row = dict(base)
+                        row.update(
+                            _leaf_domain_fields(
+                                result,
+                                local_index,
+                                domain_base + local_index,
+                                n_pcs,
+                            )
+                        )
+                        if annotation is not None:
+                            row.update(_domain_ab_fields(annotation, local_index))
+                        rows.append(row)
+                        covered.add(local_index)
 
-
-def _cis_leaf_ab_rows(
-    results: list[_ChromosomeResult],
-) -> pl.DataFrame:
-    rows: list[dict[str, Any]] = []
-    global_id = 0
-
-    for result in results:
-        if result.ab_forest is None or result.annotation is None:
-            raise ClusteringError(f"{result.chrom}: missing A/B result")
-        leaf_info = _forest_leaf_info(result.ab_forest)
-        annotation = result.annotation
-
-        for local_index, domain in enumerate(result.selection.domains):
-            leaf = leaf_info.get(local_index)
-            if leaf is None:
-                root_label = path = path_label = depth = None
-            else:
-                root_label, path, depth = leaf
-                path_label = format_path_label(root_label, path)
+        # Domains without a tree node still need a row so that cis_leaves is
+        # a simple projection of cis_nodes.
+        for local_index in range(len(domains)):
+            if local_index in covered:
+                continue
             row: dict[str, Any] = {
-                "domain_id": global_id,
                 "chrom": result.chrom,
-                "start": domain.start,
-                "end": domain.end,
-                "kind": domain.kind,
-                "source_row": domain.source_row,
-                "root_label": root_label,
-                "path": path,
-                "path_label": path_label,
-                "depth": depth,
+                "node_id": None,
+                "parent_id": None,
+                "depth": None,
+                "root_label": None,
+                "path": None,
+                "path_label": None,
+                "is_leaf": True,
+                "n_domains": 1,
+                "sse": None,
+                "split_gain": None,
+                "children": [],
+                "stop_reason": None,
             }
-            row.update(_ab_leaf_fields(annotation, local_index))
+            row.update(
+                _leaf_domain_fields(
+                    result,
+                    local_index,
+                    domain_base + local_index,
+                    n_pcs,
+                )
+            )
+            if annotation is not None:
+                row.update(_domain_ab_fields(annotation, local_index))
             rows.append(row)
-            global_id += 1
 
-    return pl.DataFrame(rows)
+        domain_base += len(domains)
+
+    return pl.DataFrame(rows).with_columns(
+        pl.col("pcs").cast(pl.Array(pl.Float64, n_pcs))
+    )
+
+
+def _cis_leaf_rows(
+    cis_nodes: pl.DataFrame,
+    trans_nodes: pl.DataFrame | None,
+    *,
+    n_pcs: int,
+    include_ab: bool,
+) -> pl.DataFrame:
+    include_trans = trans_nodes is not None
+    leaves = (
+        cis_nodes.filter(pl.col("is_leaf"))
+        .select(list(cis_leaves_schema(n_pcs, False, include_ab)))
+        .sort("domain_id")
+    )
+    if trans_nodes is None:
+        return leaves
+
+    trans = trans_nodes.filter(pl.col("is_leaf")).select(
+        "domain_id",
+        pl.col("root_label").alias("trans_root_label"),
+        pl.col("path").alias("trans_path"),
+        pl.col("path_label").alias("trans_path_label"),
+        pl.col("depth").alias("trans_depth"),
+    )
+    return (
+        leaves.join(trans, on="domain_id", how="left")
+        .select(list(cis_leaves_schema(n_pcs, include_trans, include_ab)))
+        .sort("domain_id")
+    )
+
+
+def _cis_leaf_ab_rows(cis_nodes_ab: pl.DataFrame) -> pl.DataFrame:
+    return (
+        cis_nodes_ab.filter(pl.col("is_leaf"))
+        .select(list(cis_leaves_ab_schema()))
+        .sort("domain_id")
+    )
 
 
 def _trans_node_rows(trans_run: _TransRun | None) -> pl.DataFrame | None:
@@ -526,38 +590,46 @@ def _trans_node_rows(trans_run: _TransRun | None) -> pl.DataFrame | None:
 
     tree = trans_run.tree_result.tree
     domain_chrom = trans_run.matrix.domain_chrom
-    domain_indices = trans_run.tree_result.domain_indices
+    global_indices = trans_run.tree_result.domain_indices
     chrom_names = trans_run.matrix.chrom_names
     rows: list[dict[str, Any]] = []
 
     for node in tree.nodes:
         counts = Counter(
-            chrom_names[int(domain_chrom[domain_indices[domain]])]
-            for domain in node.domain_indices.tolist()
+            chrom_names[int(domain_chrom[global_indices[member]])]
+            for member in node.domain_indices.tolist()
         )
         chroms = sorted(counts)
-        rows.append(
-            {
-                "node_id": node.node_id,
-                "parent_id": node.parent_id,
-                "depth": node.depth,
-                "root_label": tree.root_label,
-                "path": list(node.path),
-                "path_label": format_path_label(
-                    tree.root_label,
-                    node.path,
-                ),
-                "is_leaf": node.is_leaf,
-                "n_domains": len(node.domain_indices),
-                "n_bins": node.n_bins,
-                "sse": node.sse,
-                "split_gain": node.split_gain,
-                "children": list(node.children),
-                "stop_reason": node.stop_reason,
-                "chroms": chroms,
-                "chrom_domain_counts": [counts[chrom] for chrom in chroms],
-            }
-        )
+        base: dict[str, Any] = {
+            "node_id": node.node_id,
+            "parent_id": node.parent_id,
+            "depth": node.depth,
+            "root_label": tree.root_label,
+            "path": list(node.path),
+            "path_label": format_path_label(
+                tree.root_label,
+                node.path,
+            ),
+            "is_leaf": node.is_leaf,
+            "n_domains": len(node.domain_indices),
+            "n_bins": node.n_bins,
+            "sse": node.sse,
+            "split_gain": node.split_gain,
+            "children": list(node.children),
+            "stop_reason": node.stop_reason,
+            "chroms": chroms,
+            "chrom_domain_counts": [counts[chrom] for chrom in chroms],
+        }
+        if not node.is_leaf:
+            row = dict(base)
+            row["domain_id"] = None
+            rows.append(row)
+            continue
+
+        for member in node.domain_indices.tolist():
+            row = dict(base)
+            row["domain_id"] = int(global_indices[member])
+            rows.append(row)
 
     return pl.DataFrame(rows)
 
@@ -795,51 +867,3 @@ def _trans_qc(
         "n_leaves": sum(node.is_leaf for node in nodes),
         "max_depth": max((node.depth for node in nodes), default=0),
     }
-
-
-def _forest_leaf_info(
-    forest: CisForest,
-) -> dict[int, tuple[str, list[int], int]]:
-    info: dict[int, tuple[str, list[int], int]] = {}
-    for tree, group in zip(forest.trees, forest.groups):
-        for node in tree.nodes:
-            if node.is_leaf:
-                for local_index in node.domain_indices.tolist():
-                    domain = int(group[local_index])
-                    info[domain] = (
-                        tree.root_label,
-                        list(node.path),
-                        node.depth,
-                    )
-
-    expected = sum(len(group) for group in forest.groups)
-    if len(info) != expected:
-        raise ClusteringError(
-            f"{forest.chrom}: forest left some domains without a leaf"
-        )
-    return info
-
-
-def _tree_leaf_info(
-    tree: BranchingTree,
-    n_domains: int,
-    domain_indices: np.ndarray | None = None,
-) -> dict[int, tuple[str, list[int], int]]:
-    mapping = (
-        np.arange(n_domains, dtype=np.int64)
-        if domain_indices is None
-        else np.asarray(domain_indices, dtype=np.int64)
-    )
-    info: dict[int, tuple[str, list[int], int]] = {}
-    for node in tree.nodes:
-        if node.is_leaf:
-            for domain in node.domain_indices.tolist():
-                info[int(mapping[domain])] = (
-                    tree.root_label,
-                    list(node.path),
-                    node.depth,
-                )
-
-    if len(info) != mapping.size:
-        raise ClusteringError("trans tree left some domains without a leaf")
-    return info

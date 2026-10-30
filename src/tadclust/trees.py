@@ -38,6 +38,7 @@ class TreeNode:
     ab_frac_a: float | None = None
     ab_purity: float | None = None
     ab_rank_mean: float | None = None
+    ab_score: float | None = None
 
     @property
     def is_leaf(self) -> bool:
@@ -76,6 +77,8 @@ class AbAnnotation:
     margins: np.ndarray
     a_indices: np.ndarray
     b_indices: np.ndarray
+    a_centroids: np.ndarray = field(default_factory=lambda: np.zeros((0, 0)))
+    b_centroid: np.ndarray = field(default_factory=lambda: np.zeros(0))
 
 
 def format_path_label(root_label: str, path: list[int]) -> str:
@@ -447,9 +450,15 @@ def annotate_ab(
             b_indices=empty,
         )
 
-    partition_labels, partition_scores, partition_margins, a_indices, b_indices = (
-        partition
-    )
+    (
+        partition_labels,
+        partition_scores,
+        partition_margins,
+        a_indices,
+        b_indices,
+        a_centroids,
+        b_centroid,
+    ) = partition
     return AbAnnotation(
         labels=partition_labels,
         rank=ranks,
@@ -460,6 +469,8 @@ def annotate_ab(
         margins=partition_margins,
         a_indices=a_indices,
         b_indices=b_indices,
+        a_centroids=a_centroids,
+        b_centroid=b_centroid,
     )
 
 
@@ -469,7 +480,18 @@ def _ab_partition(
     ab_split: str,
     seed: int,
     clusterable: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None:
+) -> (
+    tuple[
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+    ]
+    | None
+):
     indices = np.flatnonzero(clusterable)
     if indices.size < 2:
         return None
@@ -522,25 +544,43 @@ def _ab_partition(
         scores[domain] = score
         margins[domain] = abs(score)
 
-    return labels, scores, margins, a_indices, b_indices
+    return labels, scores, margins, a_indices, b_indices, a_centroids, b_centroid
 
 
 def annotate_cis_forest(
     forest: CisForest,
-    labels: np.ndarray,
-    rank: np.ndarray,
+    annotation: AbAnnotation,
+    features: np.ndarray,
     purity: float = AB_NODE_PURITY,
 ) -> None:
-    """Attach per-node A/B composition fields to every node."""
+    """Attach per-node A/B composition, rank, and boundary scores."""
+    values = np.asarray(features, dtype=np.float64)
+    has_centroids = annotation.a_centroids.size > 0 and annotation.b_centroid.size > 0
+
     for tree, group in zip(forest.trees, forest.groups):
         for node in tree.nodes:
             domain_ids = group[node.domain_indices]
-            domain_ranks = rank[domain_ids]
+            domain_ranks = annotation.rank[domain_ids]
             node.ab_rank_mean = (
                 float(domain_ranks.mean()) if domain_ranks.size else None
             )
 
-            domain_labels = labels[domain_ids]
+            if has_centroids and domain_ids.size:
+                node_feature = values[domain_ids].mean(axis=0)
+                a_distance = float(
+                    np.min(
+                        np.linalg.norm(
+                            annotation.a_centroids - node_feature,
+                            axis=1,
+                        )
+                    )
+                )
+                b_distance = float(np.linalg.norm(annotation.b_centroid - node_feature))
+                node.ab_score = b_distance - a_distance
+            else:
+                node.ab_score = None
+
+            domain_labels = annotation.labels[domain_ids]
             known = np.asarray(
                 [label is not None for label in domain_labels],
                 dtype=bool,

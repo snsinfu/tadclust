@@ -216,6 +216,9 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     assert nodes.schema["children"] == pl.List(pl.Int64)
     assert nodes.schema["is_leaf"] == pl.Boolean
     assert nodes.schema["split_gain"] == pl.Float64
+    assert nodes.schema["domain_id"] == pl.Int64
+    assert nodes.schema["pcs"] == pl.Array(pl.Float64, 2)
+    assert nodes.schema["self_oe"] == pl.Float64
     assert "ab_label" not in nodes.columns
 
     assert leaves_tsv.columns == CIS_LEAVES_TSV_COLUMNS
@@ -320,12 +323,15 @@ def test_write_ab_and_trans_outputs(
     assert leaves.schema["trans_path"] == pl.List(pl.Int64)
     assert "ab_label" in leaves.columns
     assert "ab_margin" not in leaves.columns
-    assert "ab_label" in nodes.columns
+    assert {"ab_label", "ab_rank", "ab_score", "ab_rank_mean"} <= set(nodes.columns)
+    assert "ab_margin" not in nodes.columns
     assert "ab_score" in leaves_ab.columns
     assert "ab_margin" not in leaves_ab.columns
     assert "ab_label" in nodes_ab.columns
+    assert "ab_margin" not in nodes_ab.columns
     assert trans_nodes.schema["chroms"] == pl.List(pl.String)
     assert trans_nodes.schema["chrom_domain_counts"] == pl.List(pl.Int64)
+    assert trans_nodes.schema["domain_id"] == pl.Int64
 
     assert leaves_tsv.columns == (
         CIS_LEAVES_TSV_COLUMNS + CIS_LEAVES_AB_COLUMNS + TRANS_LEAVES_TSV_COLUMNS

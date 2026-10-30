@@ -14,13 +14,16 @@ from . import __version__
 from .config import ClusterConfig
 from .errors import OutputError
 from .pipeline import ClusterResult
+from .schema import (
+    Schema,
+    SchemaValue,
+    cis_leaves_ab_schema,
+    cis_leaves_schema,
+    cis_nodes_schema,
+    trans_nodes_schema,
+)
 
-# Writer schemas include constructed dtypes such as pl.List(pl.Int64), so a
-# column type can be either a dtype class or a dtype instance.
-SchemaValue = pl.DataType | type[pl.DataType]
-Schema = dict[str, SchemaValue]
-
-SCHEMA_VERSION = "2.1"
+SCHEMA_VERSION = "2.2"
 _TSV_NULL_INT = -1
 _TSV_NULL_FLOAT = float("nan")
 _TSV_NULL_STRING = "NA"
@@ -56,21 +59,21 @@ def write_outputs(
             _stage_parquet(
                 result.cis_leaves,
                 output_dir / "cis_leaves.parquet",
-                _cis_leaves_schema(config.tree_n_pcs, include_trans, include_ab),
+                cis_leaves_schema(config.tree_n_pcs, include_trans, include_ab),
             )
         )
         staged.append(
             _stage_tsv(
                 result.cis_leaves,
                 output_dir / "cis_leaves.tsv",
-                _cis_leaves_schema(config.tree_n_pcs, include_trans, include_ab),
+                cis_leaves_schema(config.tree_n_pcs, include_trans, include_ab),
             )
         )
         staged.append(
             _stage_parquet(
                 result.cis_nodes,
                 output_dir / "cis_nodes.parquet",
-                _cis_nodes_schema(include_ab),
+                cis_nodes_schema(config.tree_n_pcs, include_ab),
             )
         )
 
@@ -79,14 +82,14 @@ def write_outputs(
                 _stage_parquet(
                     result.cis_leaves_ab,
                     output_dir / "cis_leaves_ab.parquet",
-                    _cis_leaves_ab_schema(),
+                    cis_leaves_ab_schema(),
                 )
             )
             staged.append(
                 _stage_tsv(
                     result.cis_leaves_ab,
                     output_dir / "cis_leaves_ab.tsv",
-                    _cis_leaves_ab_schema(),
+                    cis_leaves_ab_schema(),
                 )
             )
         if result.cis_nodes_ab is not None:
@@ -94,7 +97,7 @@ def write_outputs(
                 _stage_parquet(
                     result.cis_nodes_ab,
                     output_dir / "cis_nodes_ab.parquet",
-                    _cis_nodes_schema(True),
+                    cis_nodes_schema(config.tree_n_pcs, True),
                 )
             )
         if result.trans_nodes is not None:
@@ -102,7 +105,7 @@ def write_outputs(
                 _stage_parquet(
                     result.trans_nodes,
                     output_dir / "trans_nodes.parquet",
-                    _trans_nodes_schema(),
+                    trans_nodes_schema(),
                 )
             )
 
@@ -241,46 +244,6 @@ def _utc_now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
-def _cis_leaves_schema(
-    n_pcs: int,
-    include_trans: bool,
-    include_ab: bool,
-) -> Schema:
-    schema: Schema = {
-        "domain_id": pl.Int64,
-        "chrom": pl.String,
-        "start": pl.Int64,
-        "end": pl.Int64,
-        "kind": pl.String,
-        "source_row": pl.Int64,
-        "root_label": pl.String,
-        "path": pl.List(pl.Int64),
-        "path_label": pl.String,
-        "depth": pl.Int64,
-        "pcs": pl.Array(pl.Float64, n_pcs),
-        "n_bins": pl.Int64,
-        "self_oe": pl.Float64,
-    }
-    if include_ab:
-        schema.update(
-            {
-                "ab_label": pl.String,
-                "ab_rank": pl.Float64,
-                "ab_score": pl.Float64,
-            }
-        )
-    if include_trans:
-        schema.update(
-            {
-                "trans_root_label": pl.String,
-                "trans_path": pl.List(pl.Int64),
-                "trans_path_label": pl.String,
-                "trans_depth": pl.Int64,
-            }
-        )
-    return schema
-
-
 def _scalar_tsv_schema(schema: Schema) -> Schema:
     return {
         name: dtype for name, dtype in schema.items() if not _is_nested_dtype(dtype)
@@ -308,70 +271,3 @@ def _is_nested_dtype(dtype: SchemaValue) -> bool:
     if isinstance(dtype, type):
         return issubclass(dtype, (pl.List, pl.Array))
     return isinstance(dtype, (pl.List, pl.Array))
-
-
-def _cis_nodes_schema(include_ab: bool) -> Schema:
-    schema: Schema = {
-        "chrom": pl.String,
-        "node_id": pl.Int64,
-        "parent_id": pl.Int64,
-        "depth": pl.Int64,
-        "root_label": pl.String,
-        "path": pl.List(pl.Int64),
-        "path_label": pl.String,
-        "is_leaf": pl.Boolean,
-        "n_domains": pl.Int64,
-        "sse": pl.Float64,
-        "split_gain": pl.Float64,
-        "children": pl.List(pl.Int64),
-        "stop_reason": pl.String,
-        "n_bins": pl.Int64,
-    }
-    if include_ab:
-        schema.update(
-            {
-                "ab_label": pl.String,
-                "ab_frac_a": pl.Float64,
-                "ab_purity": pl.Float64,
-                "ab_rank_mean": pl.Float64,
-            }
-        )
-    return schema
-
-
-def _cis_leaves_ab_schema() -> Schema:
-    return {
-        "domain_id": pl.Int64,
-        "chrom": pl.String,
-        "start": pl.Int64,
-        "end": pl.Int64,
-        "kind": pl.String,
-        "source_row": pl.Int64,
-        "root_label": pl.String,
-        "path": pl.List(pl.Int64),
-        "path_label": pl.String,
-        "depth": pl.Int64,
-        "ab_label": pl.String,
-        "ab_rank": pl.Float64,
-        "ab_score": pl.Float64,
-    }
-
-
-def _trans_nodes_schema() -> Schema:
-    return {
-        "node_id": pl.Int64,
-        "parent_id": pl.Int64,
-        "depth": pl.Int64,
-        "root_label": pl.String,
-        "path": pl.List(pl.Int64),
-        "path_label": pl.String,
-        "is_leaf": pl.Boolean,
-        "n_domains": pl.Int64,
-        "sse": pl.Float64,
-        "split_gain": pl.Float64,
-        "children": pl.List(pl.Int64),
-        "stop_reason": pl.String,
-        "n_bins": pl.Int64,
-        "chroms": pl.List(pl.String),
-        "chrom_domain_counts": pl.List(pl.Int64),
-    }

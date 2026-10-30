@@ -68,7 +68,7 @@ def make_uniform_config(mcool, tmp_path, **overrides):
 
 
 def assert_node_references(nodes) -> None:
-    ids = set(nodes["node_id"].to_list())
+    ids = {node_id for node_id in nodes["node_id"].to_list() if node_id is not None}
     for row in nodes.iter_rows(named=True):
         if row["parent_id"] is not None:
             assert row["parent_id"] in ids
@@ -492,6 +492,12 @@ def test_zero_contact_cis_domain_is_unclustered(tmp_path) -> None:
     assert unclustered["root_label"].to_list() == [None, None]
     assert unclustered["depth"].to_list() == [None, None]
     assert clustered["path"].null_count() == 0
+
+    node_unclustered = result.cis_nodes.filter(pl.col("node_id").is_null())
+    assert node_unclustered.height == 2
+    assert node_unclustered["domain_id"].to_list() == [0, 1]
+    assert node_unclustered["is_leaf"].to_list() == [True, True]
+    assert node_unclustered["path"].to_list() == [None, None]
     assert result.qc["cis"]["n_unclustered"] == 2
     assert result.qc["cis"]["per_chromosome"]["chr1"]["n_unclustered"] == 2
 
@@ -523,6 +529,12 @@ def test_zero_contact_ab_domain_is_unclustered(tmp_path) -> None:
     assert unclustered["ab_label"].to_list() == [None, None]
     assert unclustered["ab_score"].to_list() == [None, None]
     assert clustered["path"].null_count() == 0
+
+    assert result.cis_nodes_ab is not None
+    node_unclustered = result.cis_nodes_ab.filter(pl.col("node_id").is_null())
+    assert node_unclustered.height == 2
+    assert node_unclustered["ab_label"].to_list() == [None, None]
+    assert node_unclustered["ab_score"].to_list() == [None, None]
     assert result.qc["ab"]["n_unclustered"] == 2
 
 
@@ -558,6 +570,8 @@ def test_zero_contact_trans_domains_are_unclustered(tmp_path) -> None:
     other = result.cis_leaves.filter(pl.col("chrom") != "chr3")
     assert other["trans_path"].null_count() == 0
     assert result.trans_nodes is not None
+    trans_leaf = result.trans_nodes.filter(pl.col("is_leaf"))
+    assert trans_leaf["domain_id"].null_count() == 0
     trans_chroms = {
         chrom for chroms in result.trans_nodes["chroms"].to_list() for chrom in chroms
     }
