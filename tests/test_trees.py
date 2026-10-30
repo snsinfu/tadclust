@@ -10,11 +10,22 @@ from sklearn.exceptions import ConvergenceWarning
 
 from tadclust.clustering import derive_seed, kmeans_labels
 from tadclust.errors import ClusteringError
+from tadclust.matrix import compute_top_pcs, cosine_normalize
 from tadclust.trees import (
     build_branching_tree,
     build_cis_forest,
     format_path_label,
 )
+
+
+def _matrix_with_zero_rows() -> np.ndarray:
+    rng = np.random.default_rng(3)
+    matrix = rng.normal(size=(8, 8))
+    matrix = matrix + matrix.T
+    for index in (2, 4, 6):
+        matrix[index, :] = 0.0
+        matrix[:, index] = 0.0
+    return matrix
 
 
 def leaf_by_unit(tree):
@@ -117,6 +128,24 @@ def test_build_cis_forest_excludes_uninformative_units() -> None:
         for unit in node.unit_indices.tolist()
     }
     assert referenced == {0, 1, 2}
+
+
+def test_build_cis_forest_excludes_pca_zero_contact_units() -> None:
+    matrix = cosine_normalize(_matrix_with_zero_rows())
+    pcs, _, _ = compute_top_pcs(matrix, 5)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", ConvergenceWarning)
+        forest = build_cis_forest(
+            "chr1",
+            pcs,
+            np.ones(8, dtype=np.int64),
+            n_pcs=5,
+            branch_k=3,
+            seed=0,
+        )
+
+    assert forest.groups[0].tolist() == [0, 1, 3, 5, 7]
 
 
 def test_build_cis_forest_keeps_single_informative_unit() -> None:

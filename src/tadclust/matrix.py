@@ -228,6 +228,7 @@ def compute_top_pcs(
         return np.zeros((1, n_pcs)), zeros.copy(), zeros.copy()
 
     matrix_values = (matrix_values + matrix_values.T) / 2.0
+    zero_rows = ~np.any(matrix_values != 0.0, axis=1)
     n_components = max(1, min(n_pcs, n_rows - 1))
     try:
         if n_rows <= dense_max:
@@ -261,6 +262,10 @@ def compute_top_pcs(
 
     eigenvalues = np.maximum(eigenvalues, 0.0)
     embedding = eigenvectors * np.sqrt(eigenvalues)[None, :]
+    # Eigensolvers can return roundoff for rows that are exactly zero in the
+    # input. Restore the zero-row invariant before the embedding is returned.
+    if zero_rows.any():
+        embedding[zero_rows] = 0.0
 
     if embedding.shape[1] < n_pcs:
         padding = n_pcs - embedding.shape[1]

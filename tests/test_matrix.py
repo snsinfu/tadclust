@@ -24,6 +24,16 @@ from tadclust.matrix import (
 from tadclust.mcool import open_cooler
 
 
+def _matrix_with_zero_rows() -> np.ndarray:
+    rng = np.random.default_rng(3)
+    matrix = rng.normal(size=(8, 8))
+    matrix = matrix + matrix.T
+    for index in (2, 4, 6):
+        matrix[index, :] = 0.0
+        matrix[:, index] = 0.0
+    return matrix
+
+
 def test_distance_bin_edges_are_increasing() -> None:
     edges = distance_bin_edges(100, 5)
 
@@ -171,6 +181,22 @@ def test_top_pcs_sparse_path() -> None:
     assert embedding.shape == (4, 2)
     assert np.allclose(eigenvalues, [5.0, 3.0])
     assert np.isclose(fractions.sum(), 1.0)
+
+
+def test_top_pcs_keeps_zero_rows_exact() -> None:
+    matrix = cosine_normalize(_matrix_with_zero_rows())
+
+    embedding, _, _ = compute_top_pcs(matrix, 5)
+
+    assert np.all(embedding[[2, 4, 6]] == 0.0)
+
+
+def test_top_pcs_sparse_path_keeps_zero_rows_exact() -> None:
+    matrix = cosine_normalize(_matrix_with_zero_rows())
+
+    embedding, _, _ = compute_top_pcs(matrix, 2, dense_max=1)
+
+    assert np.all(embedding[[2, 4, 6]] == 0.0)
 
 
 def test_top_pcs_rejects_zero_matrix() -> None:
