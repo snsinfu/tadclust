@@ -9,7 +9,7 @@ from collections.abc import Sequence
 
 from . import __version__
 from .config import (
-    AB_SPLIT_CHOICES,
+    AB_SPLIT_POLICY_CHOICES,
     TRANS_NULL_CHOICES,
     ClusterConfig,
 )
@@ -49,15 +49,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="enable trans clustering",
     )
     parser.add_argument(
-        "--ab-signal-track",
+        "--ab-feature-track",
         default=None,
-        help="bedGraph or BED signal track; enables A/B",
+        help="bedGraph or BED feature track; enables A/B",
     )
     parser.add_argument(
-        "--ab-split",
-        choices=AB_SPLIT_CHOICES,
+        "--ab-split-policy",
+        choices=AB_SPLIT_POLICY_CHOICES,
         default=None,
-        help="A/B split policy; default kmeans2 with a signal track",
+        help="A/B split policy; default kmeans2 with a feature track",
     )
     parser.add_argument(
         "--workers",
@@ -155,8 +155,8 @@ def main(argv: Sequence[str] | None = None) -> None:
             tree_branch_k=args.tree_branch_k,
             trans_enabled=args.enable_trans,
             trans_null=args.trans_null,
-            ab_signal_track=args.ab_signal_track,
-            ab_split=args.ab_split,
+            ab_feature_track=args.ab_feature_track,
+            ab_split_policy=args.ab_split_policy,
             workers=args.workers,
             seed=args.seed,
         )

@@ -56,7 +56,7 @@ def test_ab_score_uses_pc_space_not_rank() -> None:
     annotation = AbAnnotation(
         labels=np.array(["B", "B", "A", "A"], dtype=object),
         rank=rank1,
-        split="kmeans2",
+        split_policy="kmeans2",
         fallback=False,
         fallback_reason=None,
         scores=np.zeros(4),
@@ -91,7 +91,7 @@ def test_ab_score_uses_pc_space_not_rank() -> None:
     assert scores1 == pytest.approx(scores2)
 
 
-def test_annotate_ab_kmeans3_merges_two_highest_signal_clusters() -> None:
+def test_annotate_ab_kmeans3_merges_two_highest_feature_clusters() -> None:
     pcs = np.array([[-3.0], [-1.0], [0.0], [2.0], [3.0]])
     rank = np.array([0.0, 0.1, 0.5, 0.9, 1.0])
     features = ab_feature_matrix(pcs, rank, 1)
@@ -229,7 +229,7 @@ def test_annotate_cis_forest_composition() -> None:
     annotation = AbAnnotation(
         labels=labels,
         rank=rank,
-        split="kmeans2",
+        split_policy="kmeans2",
         fallback=False,
         fallback_reason=None,
         scores=np.zeros(4),
@@ -285,7 +285,7 @@ def test_build_ab_forest_degenerate_fallback() -> None:
     annotation = AbAnnotation(
         labels=np.array([None, None], dtype=object),
         rank=np.array([0.5, 0.5]),
-        split="kmeans2",
+        split_policy="kmeans2",
         fallback=True,
         fallback_reason="ab_degenerate",
         scores=np.full(2, np.nan),
@@ -350,7 +350,7 @@ def test_node_label_follows_score_without_mixed_threshold() -> None:
     annotation = AbAnnotation(
         labels=labels,
         rank=rank,
-        split="kmeans2",
+        split_policy="kmeans2",
         fallback=False,
         fallback_reason=None,
         scores=np.zeros(4),

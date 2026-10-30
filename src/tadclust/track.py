@@ -1,4 +1,4 @@
-"""Signal-track parsing, overlap weighting, ranks, and A/B features."""
+"""Feature-track parsing, overlap weighting, ranks, and A/B features."""
 
 from __future__ import annotations
 
@@ -14,8 +14,8 @@ from .errors import ClusteringError, TrackError
 
 
 @dataclass(frozen=True)
-class SignalTrack:
-    """A chrom/start/end/value signal table."""
+class FeatureTrack:
+    """A chrom/start/end/value feature table."""
 
     table: pl.DataFrame
 
@@ -34,7 +34,7 @@ class SignalTrack:
         )
 
 
-def read_signal_track(path: str | Path) -> SignalTrack:
+def read_feature_track(path: str | Path) -> FeatureTrack:
     """Read a tab-separated bedGraph or BED score track.
 
     Four-column input uses column 4 as the value. Five-or-more-column input
@@ -44,7 +44,7 @@ def read_signal_track(path: str | Path) -> SignalTrack:
     source = Path(path)
     if not source.is_file():
         raise TrackError(
-            f"signal track not found: {source}",
+            f"feature track not found: {source}",
             path=str(source),
         )
 
@@ -57,13 +57,13 @@ def read_signal_track(path: str | Path) -> SignalTrack:
         )
     except Exception as exc:
         raise TrackError(
-            f"cannot read signal track: {source}",
+            f"cannot read feature track: {source}",
             path=str(source),
         ) from exc
 
     if bedlike.width < 4:
         raise TrackError(
-            f"signal track has {bedlike.width} column(s); at least 4 are required",
+            f"feature track has {bedlike.width} column(s); at least 4 are required",
             path=str(source),
         )
 
@@ -81,14 +81,14 @@ def read_signal_track(path: str | Path) -> SignalTrack:
     )
     if bad_chrom.height:
         raise TrackError(
-            "signal track has an empty chromosome name",
+            "feature track has an empty chromosome name",
             path=str(source),
         )
 
     missing = table.filter(pl.col("start").is_null() | pl.col("end").is_null())
     if missing.height:
         raise TrackError(
-            "signal track has a missing start or end",
+            "feature track has a missing start or end",
             path=str(source),
         )
 
@@ -97,18 +97,18 @@ def read_signal_track(path: str | Path) -> SignalTrack:
     )
     if bad_interval.height:
         raise TrackError(
-            "signal track has an interval with end <= start or start < 0",
+            "feature track has an interval with end <= start or start < 0",
             path=str(source),
         )
 
     bad_value = table.filter(pl.col("value").is_null() | ~pl.col("value").is_finite())
     if bad_value.height:
         raise TrackError(
-            "signal track has a non-finite value",
+            "feature track has a non-finite value",
             path=str(source),
         )
 
-    return SignalTrack(table=table.sort(["chrom", "start"]))
+    return FeatureTrack(table=table.sort(["chrom", "start"]))
 
 
 def _make_schema(has_header: bool, width: int) -> dict[str, type]:
@@ -124,7 +124,7 @@ def _make_schema(has_header: bool, width: int) -> dict[str, type]:
 
 
 def overlap_weighted_values(
-    track: SignalTrack,
+    track: FeatureTrack,
     domains,
     chrom: str,
 ) -> np.ndarray:
@@ -139,7 +139,7 @@ def overlap_weighted_values(
 
     if not np.isfinite(starts).all() or not np.isfinite(ends).all():
         raise TrackError(
-            f"{chrom}: signal track has a missing start or end",
+            f"{chrom}: feature track has a missing start or end",
             chrom=chrom,
         )
 
@@ -166,14 +166,14 @@ def fill_and_rank(
     n_uncovered = int((~covered).sum())
     if not covered.any():
         raise TrackError(
-            f"{chrom}: no signal track intervals overlap selected domains",
+            f"{chrom}: no feature track intervals overlap selected domains",
             chrom=chrom,
         )
 
     filled = np.where(covered, values, np.nanmedian(values))
     if np.allclose(filled, filled[0]):
         raise TrackError(
-            f"{chrom}: signal track is constant over selected domains",
+            f"{chrom}: feature track is constant over selected domains",
             chrom=chrom,
         )
 
@@ -186,7 +186,7 @@ def ab_feature_matrix(
     rank: np.ndarray,
     n_pcs: int,
 ) -> np.ndarray:
-    """Build standardized [PC1..PCn, signal rank] features."""
+    """Build standardized [PC1..PCn, feature rank] features."""
     values = np.asarray(pcs, dtype=np.float64)
     ranks = np.asarray(rank, dtype=np.float64)
     if values.ndim != 2:

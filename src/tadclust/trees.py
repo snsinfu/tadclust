@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from .clustering import derive_seed, informative_mask, kmeans_labels
-from .config import AB_SPLIT_CHOICES
+from .config import AB_SPLIT_POLICY_CHOICES
 from .errors import ClusteringError
 
 CHROM_ROOT_LABEL = "chrom"
@@ -73,7 +73,7 @@ class AbAnnotation:
 
     labels: np.ndarray
     rank: np.ndarray
-    split: str
+    split_policy: str
     fallback: bool
     fallback_reason: str | None
     scores: np.ndarray
@@ -411,7 +411,7 @@ def annotate_ab(
     features: np.ndarray,
     rank: np.ndarray,
     n_domains: int,
-    ab_split: str,
+    split_policy: str,
     seed: int,
     *,
     n_pcs: int,
@@ -431,8 +431,8 @@ def annotate_ab(
         raise ClusteringError("A/B feature length does not match the domain count")
     if values.ndim != 2 or values.shape[1] == 0:
         raise ClusteringError("A/B features must have at least one column")
-    if ab_split not in AB_SPLIT_CHOICES:
-        raise ClusteringError(f"unknown A/B split policy: {ab_split!r}")
+    if split_policy not in AB_SPLIT_POLICY_CHOICES:
+        raise ClusteringError(f"unknown A/B split policy: {split_policy!r}")
 
     labels = np.full(n_domains, None, dtype=object)
     scores = np.full(n_domains, np.nan, dtype=np.float64)
@@ -446,7 +446,7 @@ def annotate_ab(
     partition = _ab_partition(
         values,
         n_domains,
-        ab_split,
+        split_policy,
         seed,
         mask,
         n_pcs,
@@ -455,7 +455,7 @@ def annotate_ab(
         return AbAnnotation(
             labels=labels,
             rank=ranks,
-            split=ab_split,
+            split_policy=split_policy,
             fallback=True,
             fallback_reason="ab_degenerate",
             scores=scores,
@@ -476,7 +476,7 @@ def annotate_ab(
     return AbAnnotation(
         labels=partition_labels,
         rank=ranks,
-        split=ab_split,
+        split_policy=split_policy,
         fallback=False,
         fallback_reason=None,
         scores=partition_scores,
@@ -491,7 +491,7 @@ def annotate_ab(
 def _ab_partition(
     features: np.ndarray,
     n_domains: int,
-    ab_split: str,
+    split_policy: str,
     seed: int,
     clusterable: np.ndarray,
     n_pcs: int,
@@ -516,7 +516,7 @@ def _ab_partition(
         return None
 
     subset = features[indices]
-    n_clusters = 2 if ab_split == "kmeans2" else 3
+    n_clusters = 2 if split_policy == "kmeans2" else 3
     cluster_labels, _ = kmeans_labels(
         subset,
         min(n_clusters, indices.size),
@@ -535,7 +535,7 @@ def _ab_partition(
     )
     order = np.argsort(rank_means, kind="stable")
 
-    if ab_split == "kmeans2" or unique.size == 2:
+    if split_policy == "kmeans2" or unique.size == 2:
         a_clusters = [int(order[-1])]
         b_clusters = [int(order[0])]
     else:

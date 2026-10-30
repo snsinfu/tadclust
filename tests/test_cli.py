@@ -171,7 +171,7 @@ def test_cli_ab_run(mcool, tmp_path) -> None:
         mcool,
         tads,
         tmp_path,
-        "--ab-signal-track",
+        "--ab-feature-track",
         str(track),
     )
 
@@ -185,16 +185,16 @@ def test_cli_ab_run(mcool, tmp_path) -> None:
     leaves = pl.read_parquet(out / "cis_leaves.parquet")
     assert "ab_label" in leaves.columns
     manifest = json.loads((out / "manifest.json").read_text())
-    assert manifest["params"]["ab_split"] == "kmeans2"
+    assert manifest["params"]["ab_split_policy"] == "kmeans2"
 
 
-def test_cli_ab_split_requires_track(mcool, tmp_path) -> None:
+def test_cli_ab_split_policy_requires_track(mcool, tmp_path) -> None:
     tads = base_tads(tmp_path)
-    args = cli_args(mcool, tads, tmp_path, "--ab-split", "kmeans3")
+    args = cli_args(mcool, tads, tmp_path, "--ab-split-policy", "kmeans3")
 
     with pytest.raises(SystemExit) as info:
         main(args)
-    assert "ab_split requires ab_signal_track" in str(info.value)
+    assert "ab_split_policy requires ab_feature_track" in str(info.value)
 
 
 def test_cli_overwrite(mcool, tmp_path) -> None:

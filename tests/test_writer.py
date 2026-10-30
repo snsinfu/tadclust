@@ -250,7 +250,7 @@ def test_uniform_bin_tsv_nulls_use_sentinels(tmp_path) -> None:
         None,
         tmp_path,
         annotation_path=None,
-        ab_signal_track=track,
+        ab_feature_track=track,
     )
     result = cluster(config)
     write_outputs(result, config)
@@ -289,8 +289,8 @@ def test_write_ab_and_trans_outputs(
         three_chrom_mcool,
         trans_tads,
         tmp_path,
-        ab_signal_track=trans_track,
-        ab_split="kmeans2",
+        ab_feature_track=trans_track,
+        ab_split_policy="kmeans2",
         trans_enabled=True,
         trans_null="grand",
     )
@@ -405,8 +405,8 @@ def test_overwrite_removes_stale_optional_tables(
         three_chrom_mcool,
         trans_tads,
         tmp_path,
-        ab_signal_track=trans_track,
-        ab_split="kmeans2",
+        ab_feature_track=trans_track,
+        ab_split_policy="kmeans2",
         trans_enabled=True,
         trans_null="grand",
     )

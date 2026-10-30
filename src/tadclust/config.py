@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .errors import ConfigError
 
-AB_SPLIT_CHOICES = ("kmeans2", "kmeans3")
+AB_SPLIT_POLICY_CHOICES = ("kmeans2", "kmeans3")
 TRANS_NULL_CHOICES = ("pair", "grand")
 
 
@@ -37,8 +37,8 @@ class ClusterConfig:
     tree_branch_k: int = 3
     trans_enabled: bool = False
     trans_null: str = "pair"
-    ab_signal_track: str | Path | None = None
-    ab_split: str | None = None
+    ab_feature_track: str | Path | None = None
+    ab_split_policy: str | None = None
     workers: int = 1
     seed: int = 0
 
@@ -138,23 +138,27 @@ class ClusterConfig:
                 field="seed",
             )
 
-        if self.ab_split is not None and self.ab_split not in AB_SPLIT_CHOICES:
-            raise ConfigError(
-                f"ab_split must be one of {AB_SPLIT_CHOICES}, got {self.ab_split!r}",
-                field="ab_split",
-            )
-        if self.ab_signal_track is None and self.ab_split is not None:
-            raise ConfigError(
-                "ab_split requires ab_signal_track",
-                notes=("supply a signal track or omit ab_split",),
-                field="ab_split",
-            )
         if (
-            self.ab_signal_track is not None
-            and not Path(self.ab_signal_track).is_file()
+            self.ab_split_policy is not None
+            and self.ab_split_policy not in AB_SPLIT_POLICY_CHOICES
         ):
             raise ConfigError(
-                f"signal track not found: {self.ab_signal_track}",
-                notes=("check the ab_signal_track supplied to ClusterConfig",),
-                field="ab_signal_track",
+                f"ab_split_policy must be one of {AB_SPLIT_POLICY_CHOICES}, "
+                f"got {self.ab_split_policy!r}",
+                field="ab_split_policy",
+            )
+        if self.ab_feature_track is None and self.ab_split_policy is not None:
+            raise ConfigError(
+                "ab_split_policy requires ab_feature_track",
+                notes=("supply a feature track or omit ab_split_policy",),
+                field="ab_split_policy",
+            )
+        if (
+            self.ab_feature_track is not None
+            and not Path(self.ab_feature_track).is_file()
+        ):
+            raise ConfigError(
+                f"feature track not found: {self.ab_feature_track}",
+                notes=("check the ab_feature_track supplied to ClusterConfig",),
+                field="ab_feature_track",
             )

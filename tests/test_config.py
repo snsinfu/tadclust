@@ -46,7 +46,7 @@ def test_default_config_is_valid(tmp_path) -> None:
     assert config.trans_enabled is False
     assert config.dp_lambda_scale == 1.0
     assert config.seed == 0
-    assert config.ab_split is None
+    assert config.ab_split_policy is None
 
 
 @pytest.mark.parametrize(
@@ -61,8 +61,8 @@ def test_default_config_is_valid(tmp_path) -> None:
         {"workers": 0},
         {"seed": -1},
         {"trans_null": "uniform"},
-        {"ab_split": "kmeans2"},
-        {"ab_split": "kmeans3"},
+        {"ab_split_policy": "kmeans2"},
+        {"ab_split_policy": "kmeans3"},
     ],
 )
 def test_invalid_config_raises_config_error(tmp_path, overrides) -> None:
@@ -95,11 +95,11 @@ def test_error_can_be_matched_by_class_and_field(tmp_path) -> None:
             pytest.fail(f"unexpected error: {info.value!r}")
 
 
-def test_ab_split_requires_track(tmp_path) -> None:
+def test_ab_split_policy_requires_track(tmp_path) -> None:
     with pytest.raises(ConfigError) as info:
-        make_config(tmp_path, ab_split="kmeans3")
+        make_config(tmp_path, ab_split_policy="kmeans3")
 
-    assert info.value.field == "ab_split"
+    assert info.value.field == "ab_split_policy"
     assert info.value.__notes__
 
 
@@ -107,18 +107,18 @@ def test_track_defaults_to_none(tmp_path) -> None:
     track = tmp_path / "track.bedGraph"
     track.write_text("")
 
-    config = make_config(tmp_path, ab_signal_track=track)
+    config = make_config(tmp_path, ab_feature_track=track)
 
-    assert config.ab_split is None
+    assert config.ab_split_policy is None
 
 
 def test_track_accepts_explicit_split(tmp_path) -> None:
     track = tmp_path / "track.bedGraph"
     track.write_text("")
 
-    config = make_config(tmp_path, ab_signal_track=track, ab_split="kmeans3")
+    config = make_config(tmp_path, ab_feature_track=track, ab_split_policy="kmeans3")
 
-    assert config.ab_split == "kmeans3"
+    assert config.ab_split_policy == "kmeans3"
 
 
 def test_missing_inputs_are_rejected(tmp_path) -> None:

@@ -27,11 +27,11 @@ from .schema import cis_leaves_ab_schema, cis_leaves_schema
 from .sources import AnnotationSource, CisSource, UniformBinSource
 from .tads import read_tads
 from .track import (
-    SignalTrack,
+    FeatureTrack,
     ab_feature_matrix,
     fill_and_rank,
     overlap_weighted_values,
-    read_signal_track,
+    read_feature_track,
 )
 from .trans import (
     TransInput,
@@ -117,8 +117,8 @@ def cluster(config: ClusterConfig) -> ClusterResult:
     )
 
     track = (
-        read_signal_track(config.ab_signal_track)
-        if config.ab_signal_track is not None
+        read_feature_track(config.ab_feature_track)
+        if config.ab_feature_track is not None
         else None
     )
 
@@ -190,9 +190,9 @@ def cluster(config: ClusterConfig) -> ClusterResult:
                 if config.annotation_path is not None
                 else None
             ),
-            "signal_track": (
-                str(config.ab_signal_track)
-                if config.ab_signal_track is not None
+            "feature_track": (
+                str(config.ab_feature_track)
+                if config.ab_feature_track is not None
                 else None
             ),
         },
@@ -206,7 +206,7 @@ def _run_cis(
     sizes: dict[str, int],
     chromosomes: list[str],
     config: ClusterConfig,
-    track: SignalTrack | None,
+    track: FeatureTrack | None,
     resolution: int,
 ) -> list[_ChromosomeResult]:
     selections = (
@@ -232,9 +232,9 @@ def _run_cis(
 def _build_cis_results(
     selections: list[ChromosomeSelection],
     config: ClusterConfig,
-    track: SignalTrack | None,
+    track: FeatureTrack | None,
 ) -> list[_ChromosomeResult]:
-    ab_split = config.ab_split or "kmeans2"
+    split_policy = config.ab_split_policy or "kmeans2"
     results: list[_ChromosomeResult] = []
     cis_node_base = 0
     ab_node_base = 0
@@ -262,7 +262,7 @@ def _build_cis_results(
                 features,
                 rank,
                 len(selection.domain_selection.domains),
-                ab_split,
+                split_policy,
                 config.seed,
                 n_pcs=config.tree_n_pcs,
                 clusterable=clusterable,
@@ -649,7 +649,7 @@ def _build_params(
         "mcool_path",
         "annotation_path",
         "output_dir",
-        "ab_signal_track",
+        "ab_feature_track",
     ):
         value = params[key]
         params[key] = str(value) if value is not None else None
@@ -658,8 +658,10 @@ def _build_params(
     params["working_binsize_mode"] = choice.mode
     params["input_mode"] = source.mode
     params["chromosomes"] = chromosomes
-    params["ab_split"] = (
-        (config.ab_split or "kmeans2") if config.ab_signal_track is not None else None
+    params["ab_split_policy"] = (
+        (config.ab_split_policy or "kmeans2")
+        if config.ab_feature_track is not None
+        else None
     )
     params["dp_lambda_resolved"] = {
         result.chrom: result.selection.dp_lambda for result in results
@@ -803,7 +805,7 @@ def _ab_qc(
 
     return {
         "enabled": True,
-        "split": config.ab_split or "kmeans2",
+        "split_policy": config.ab_split_policy or "kmeans2",
         "per_chromosome": per_chromosome,
         "n_chroms_split": n_chroms_split,
         "n_chroms_fallback": n_chroms_fallback,

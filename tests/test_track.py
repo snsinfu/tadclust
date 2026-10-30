@@ -1,4 +1,4 @@
-"""Tests for signal-track parsing and A/B feature construction."""
+"""Tests for feature-track parsing and A/B feature construction."""
 
 from __future__ import annotations
 
@@ -10,11 +10,11 @@ import pytest
 
 from tadclust.errors import TrackError
 from tadclust.track import (
-    SignalTrack,
+    FeatureTrack,
     ab_feature_matrix,
     fill_and_rank,
     overlap_weighted_values,
-    read_signal_track,
+    read_feature_track,
 )
 
 
@@ -36,7 +36,7 @@ def test_read_bedgraph(tmp_path) -> None:
         "chr1\t0\t50\t1.0\nchr1\t50\t100\t3.0\nchr2\t0\t100\t2.0\n",
     )
 
-    track = read_signal_track(path)
+    track = read_feature_track(path)
 
     starts, ends, values = track_values(track, "chr1")
     assert starts.tolist() == [0, 50]
@@ -53,7 +53,7 @@ def test_read_five_column_bed_uses_column_five(tmp_path) -> None:
         name="track.bed",
     )
 
-    track = read_signal_track(path)
+    track = read_feature_track(path)
 
     assert track_values(track, "chr1")[2].tolist() == [2.5]
 
@@ -68,7 +68,7 @@ def test_comments_and_track_headers_are_ignored(tmp_path) -> None:
         "chr1\t0\t100\t1.0\n",
     )
 
-    track = read_signal_track(path)
+    track = read_feature_track(path)
 
     assert track_values(track, "chr1")[2].tolist() == [1.0]
 
@@ -79,28 +79,28 @@ def test_comments_between_rows_are_skipped(tmp_path) -> None:
         "chr1\t0\t100\t1.0\n# between rows\nchr1\t100\t200\t2.0\n",
     )
 
-    track = read_signal_track(path)
+    track = read_feature_track(path)
 
     assert track_values(track, "chr1")[2].tolist() == [1.0, 2.0]
 
 
 def test_missing_track_is_rejected(tmp_path) -> None:
     with pytest.raises(TrackError):
-        read_signal_track(tmp_path / "missing.bedGraph")
+        read_feature_track(tmp_path / "missing.bedGraph")
 
 
 def test_empty_track_is_rejected(tmp_path) -> None:
     path = write_track(tmp_path, "# only comments\n")
 
     with pytest.raises(TrackError):
-        read_signal_track(path)
+        read_feature_track(path)
 
 
 def test_too_few_columns_is_rejected(tmp_path) -> None:
     path = write_track(tmp_path, "chr1\t0\t100\n")
 
     with pytest.raises(TrackError):
-        read_signal_track(path)
+        read_feature_track(path)
 
 
 @pytest.mark.parametrize(
@@ -119,11 +119,11 @@ def test_invalid_track_rows_are_rejected(tmp_path, text) -> None:
     path = write_track(tmp_path, text)
 
     with pytest.raises(TrackError):
-        read_signal_track(path)
+        read_feature_track(path)
 
 
 def test_overlap_weighted_values() -> None:
-    track = SignalTrack(
+    track = FeatureTrack(
         table=pl.DataFrame(
             {
                 "chrom": ["chr1", "chr1"],
@@ -147,7 +147,7 @@ def test_overlap_weighted_values() -> None:
 
 
 def test_overlap_weighted_values_rejects_missing_coordinates() -> None:
-    track = SignalTrack(
+    track = FeatureTrack(
         table=pl.DataFrame(
             {
                 "chrom": ["chr1"],

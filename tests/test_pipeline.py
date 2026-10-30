@@ -108,7 +108,7 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert result.params["input_mode"] == "annotation"
     assert result.params["chromosomes"] == ["chr1", "chr2"]
     assert result.inputs["mcool"] == str(mcool)
-    assert result.inputs["signal_track"] is None
+    assert result.inputs["feature_track"] is None
     assert result.output_files == [
         "cis_leaves.parquet",
         "cis_leaves.tsv",
@@ -288,7 +288,7 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
             mcool,
             tads,
             tmp_path,
-            ab_signal_track=track,
+            ab_feature_track=track,
         )
     )
 
@@ -325,7 +325,7 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
 
     ab_qc = result.qc["ab"]
     assert ab_qc["enabled"] is True
-    assert ab_qc["split"] == "kmeans2"
+    assert ab_qc["split_policy"] == "kmeans2"
     assert ab_qc["n_domains_a"] + ab_qc["n_domains_b"] == 8
     assert set(ab_qc["per_chromosome"]) == {"chr1", "chr2"}
     assert "n_nodes_a" not in ab_qc
@@ -516,7 +516,7 @@ def test_zero_contact_ab_domain_is_unclustered(tmp_path) -> None:
         ],
     )
 
-    result = cluster(make_uniform_config(mcool, tmp_path, ab_signal_track=track))
+    result = cluster(make_uniform_config(mcool, tmp_path, ab_feature_track=track))
 
     assert result.cis_leaves_ab is not None
     leaves = result.cis_leaves_ab.sort("start")
