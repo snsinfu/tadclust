@@ -21,19 +21,22 @@ from tadclust.writer import (
     write_outputs,
 )
 
-CIS_LEAVES_TSV_COLUMNS = [
-    "unit_id",
+CIS_LEAVES_TSV_BASE_COLUMNS = [
     "chrom",
+    "unit_id",
+    "unit_kind",
     "unit_start",
     "unit_end",
-    "unit_kind",
     "tad_table_row",
     "root_label",
     "path_label",
     "depth",
+]
+CIS_LEAVES_TSV_STATS_COLUMNS = [
     "n_working_bins",
     "node_oe",
 ]
+CIS_LEAVES_TSV_COLUMNS = CIS_LEAVES_TSV_BASE_COLUMNS + CIS_LEAVES_TSV_STATS_COLUMNS
 TRANS_LEAVES_TSV_COLUMNS = [
     "trans_root_label",
     "trans_path_label",
@@ -43,19 +46,7 @@ CIS_LEAVES_AB_COLUMNS = [
     "ab_label",
     "ab_score",
 ]
-CIS_LEAVES_AB_TSV_COLUMNS = [
-    "unit_id",
-    "chrom",
-    "unit_start",
-    "unit_end",
-    "unit_kind",
-    "tad_table_row",
-    "root_label",
-    "path_label",
-    "depth",
-    "ab_label",
-    "ab_score",
-]
+CIS_LEAVES_AB_TSV_COLUMNS = CIS_LEAVES_TSV_BASE_COLUMNS + CIS_LEAVES_AB_COLUMNS
 
 
 def read_tsv(path: Path) -> pl.DataFrame:
@@ -192,11 +183,11 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     leaves_tsv = read_tsv(tmp_path / "out" / "cis_leaves.tsv")
     nodes = pl.read_parquet(tmp_path / "out" / "cis_nodes.parquet")
     assert leaves.columns == [
-        "unit_id",
         "chrom",
+        "unit_id",
+        "unit_kind",
         "unit_start",
         "unit_end",
-        "unit_kind",
         "tad_table_row",
         "root_label",
         "path",
@@ -334,7 +325,10 @@ def test_write_ab_and_trans_outputs(
     assert trans_nodes.schema["unit_id"] == pl.Int64
 
     assert leaves_tsv.columns == (
-        CIS_LEAVES_TSV_COLUMNS + CIS_LEAVES_AB_COLUMNS + TRANS_LEAVES_TSV_COLUMNS
+        CIS_LEAVES_TSV_BASE_COLUMNS
+        + CIS_LEAVES_AB_COLUMNS
+        + CIS_LEAVES_TSV_STATS_COLUMNS
+        + TRANS_LEAVES_TSV_COLUMNS
     )
     assert "trans_path" not in leaves_tsv.columns
     assert "trans_path_label" in leaves_tsv.columns

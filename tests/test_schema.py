@@ -78,19 +78,16 @@ def tsv_columns(path: Path):
 
 def cis_leaves_schema(include_trans: bool, include_ab: bool):
     schema = [
-        ("unit_id", pl.Int64),
         ("chrom", pl.String),
+        ("unit_id", pl.Int64),
+        ("unit_kind", pl.String),
         ("unit_start", pl.Int64),
         ("unit_end", pl.Int64),
-        ("unit_kind", pl.String),
         ("tad_table_row", pl.Int64),
         ("root_label", pl.String),
         ("path", pl.List(pl.Int64)),
         ("path_label", pl.String),
         ("depth", pl.Int64),
-        ("pc", pl.Array(pl.Float64, 3)),
-        ("n_working_bins", pl.Int64),
-        ("node_oe", pl.Float64),
     ]
     if include_ab:
         schema.extend(
@@ -99,6 +96,13 @@ def cis_leaves_schema(include_trans: bool, include_ab: bool):
                 ("ab_score", pl.Float64),
             ]
         )
+    schema.extend(
+        [
+            ("pc", pl.Array(pl.Float64, 3)),
+            ("n_working_bins", pl.Int64),
+            ("node_oe", pl.Float64),
+        ]
+    )
     if include_trans:
         schema.extend(
             [
@@ -116,24 +120,17 @@ def cis_nodes_schema(include_ab: bool, n_pcs: int = 3):
         ("chrom", pl.String),
         ("node_id", pl.Int64),
         ("parent_id", pl.Int64),
+        ("child_ids", pl.List(pl.Int64)),
         ("depth", pl.Int64),
+        ("is_leaf", pl.Boolean),
+        ("unit_id", pl.Int64),
+        ("unit_kind", pl.String),
+        ("unit_start", pl.Int64),
+        ("unit_end", pl.Int64),
+        ("tad_table_row", pl.Int64),
         ("root_label", pl.String),
         ("path", pl.List(pl.Int64)),
         ("path_label", pl.String),
-        ("is_leaf", pl.Boolean),
-        ("n_units", pl.Int64),
-        ("node_internal_sse", pl.Float64),
-        ("node_split_gain", pl.Float64),
-        ("child_ids", pl.List(pl.Int64)),
-        ("stop_reason", pl.String),
-        ("n_working_bins", pl.Int64),
-        ("unit_id", pl.Int64),
-        ("unit_start", pl.Int64),
-        ("unit_end", pl.Int64),
-        ("unit_kind", pl.String),
-        ("tad_table_row", pl.Int64),
-        ("pc", pl.Array(pl.Float64, n_pcs)),
-        ("node_oe", pl.Float64),
     ]
     if include_ab:
         schema.extend(
@@ -145,22 +142,36 @@ def cis_nodes_schema(include_ab: bool, n_pcs: int = 3):
                 ("ab_purity", pl.Float64),
             ]
         )
+    schema.extend(
+        [
+            ("pc", pl.Array(pl.Float64, n_pcs)),
+            ("n_units", pl.Int64),
+            ("n_working_bins", pl.Int64),
+            ("node_oe", pl.Float64),
+            ("node_internal_sse", pl.Float64),
+            ("node_split_gain", pl.Float64),
+            ("stop_reason", pl.String),
+        ]
+    )
     return schema
 
 
-CIS_LEAVES_TSV_COLUMNS = [
-    "unit_id",
+CIS_LEAVES_TSV_BASE_COLUMNS = [
     "chrom",
+    "unit_id",
+    "unit_kind",
     "unit_start",
     "unit_end",
-    "unit_kind",
     "tad_table_row",
     "root_label",
     "path_label",
     "depth",
+]
+CIS_LEAVES_TSV_STATS_COLUMNS = [
     "n_working_bins",
     "node_oe",
 ]
+CIS_LEAVES_TSV_COLUMNS = CIS_LEAVES_TSV_BASE_COLUMNS + CIS_LEAVES_TSV_STATS_COLUMNS
 
 TRANS_LEAVES_TSV_COLUMNS = [
     "trans_root_label",
@@ -173,26 +184,14 @@ CIS_LEAVES_AB_COLUMNS = [
     "ab_score",
 ]
 
-CIS_LEAVES_AB_TSV_COLUMNS = [
-    "unit_id",
-    "chrom",
-    "unit_start",
-    "unit_end",
-    "unit_kind",
-    "tad_table_row",
-    "root_label",
-    "path_label",
-    "depth",
-    "ab_label",
-    "ab_score",
-]
+CIS_LEAVES_AB_TSV_COLUMNS = CIS_LEAVES_TSV_BASE_COLUMNS + CIS_LEAVES_AB_COLUMNS
 
 CIS_LEAVES_AB_SCHEMA = [
-    ("unit_id", pl.Int64),
     ("chrom", pl.String),
+    ("unit_id", pl.Int64),
+    ("unit_kind", pl.String),
     ("unit_start", pl.Int64),
     ("unit_end", pl.Int64),
-    ("unit_kind", pl.String),
     ("tad_table_row", pl.Int64),
     ("root_label", pl.String),
     ("path", pl.List(pl.Int64)),
@@ -205,18 +204,18 @@ CIS_LEAVES_AB_SCHEMA = [
 TRANS_NODES_SCHEMA = [
     ("node_id", pl.Int64),
     ("parent_id", pl.Int64),
-    ("unit_id", pl.Int64),
+    ("child_ids", pl.List(pl.Int64)),
     ("depth", pl.Int64),
+    ("is_leaf", pl.Boolean),
+    ("unit_id", pl.Int64),
     ("root_label", pl.String),
     ("path", pl.List(pl.Int64)),
     ("path_label", pl.String),
-    ("is_leaf", pl.Boolean),
     ("n_units", pl.Int64),
+    ("n_working_bins", pl.Int64),
     ("node_internal_sse", pl.Float64),
     ("node_split_gain", pl.Float64),
-    ("child_ids", pl.List(pl.Int64)),
     ("stop_reason", pl.String),
-    ("n_working_bins", pl.Int64),
     ("chroms", pl.List(pl.String)),
     ("chrom_unit_counts", pl.List(pl.Int64)),
 ]
@@ -274,7 +273,9 @@ def test_ab_golden_schema(mcool, tmp_path) -> None:
     assert schema_items(out / "cis_leaves_ab.parquet") == CIS_LEAVES_AB_SCHEMA
     assert schema_items(out / "cis_nodes_ab.parquet") == cis_nodes_schema(True)
     assert tsv_columns(out / "cis_leaves.tsv") == (
-        CIS_LEAVES_TSV_COLUMNS + CIS_LEAVES_AB_COLUMNS
+        CIS_LEAVES_TSV_BASE_COLUMNS
+        + CIS_LEAVES_AB_COLUMNS
+        + CIS_LEAVES_TSV_STATS_COLUMNS
     )
     assert tsv_columns(out / "cis_leaves_ab.tsv") == CIS_LEAVES_AB_TSV_COLUMNS
     assert not (out / "trans_nodes.parquet").exists()
