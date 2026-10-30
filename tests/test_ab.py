@@ -243,12 +243,47 @@ def test_annotate_cis_forest_composition() -> None:
     root = forest.trees[0].nodes[forest.trees[0].root_id]
     assert root.ab_label is None
     assert root.ab_frac_a == 0.5
+    assert root.ab_frac_b == 0.5
     assert root.ab_purity == 0.5
 
     for node in forest.trees[0].nodes:
         assert node.ab_label is None
         if node.is_leaf:
             assert node.ab_frac_a in {0.0, 1.0}
+            assert node.ab_frac_b in {0.0, 1.0}
+
+
+def test_annotate_cis_forest_fractions_include_unlabeled_units() -> None:
+    pcs = np.array([[-3.0], [-1.0], [1.0], [3.0]])
+    forest = build_cis_forest(
+        "chr1",
+        pcs,
+        np.ones(4, dtype=np.int64),
+        n_pcs=1,
+        branch_k=2,
+        seed=0,
+    )
+    labels = np.array(["A", None, "B", "B"], dtype=object)
+    rank = np.array([0.0, 0.0, 1.0, 1.0])
+    features = ab_feature_matrix(pcs, rank, 1)
+    annotation = AbAnnotation(
+        labels=labels,
+        feature_rank=rank,
+        split_policy="kmeans2",
+        fallback=False,
+        fallback_reason=None,
+        scores=np.zeros(4),
+        margins=np.zeros(4),
+        a_indices=np.array([0]),
+        b_indices=np.array([2, 3]),
+    )
+
+    annotate_cis_forest(forest, annotation, features, n_pcs=1)
+
+    root = forest.trees[0].nodes[forest.trees[0].root_id]
+    assert root.ab_frac_a == pytest.approx(0.25)
+    assert root.ab_frac_b == pytest.approx(0.5)
+    assert root.ab_purity == pytest.approx(0.5)
 
 
 def test_build_ab_forest_two_roots() -> None:
@@ -372,6 +407,7 @@ def test_node_label_follows_score_without_mixed_threshold() -> None:
 
     root = forest.trees[0].nodes[forest.trees[0].root_id]
     assert root.ab_frac_a == pytest.approx(0.75)
+    assert root.ab_frac_b == pytest.approx(0.25)
     assert root.ab_purity == pytest.approx(0.75)
     assert root.ab_score is not None
     assert root.ab_score > 0

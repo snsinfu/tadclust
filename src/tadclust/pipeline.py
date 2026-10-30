@@ -399,6 +399,7 @@ def _unit_ab_fields(
         "ab_label": label,
         "ab_score": None if np.isnan(score) else float(score),
         "ab_frac_a": None if label is None else 1.0 if label == "A" else 0.0,
+        "ab_frac_b": None if label is None else 1.0 if label == "B" else 0.0,
         "ab_purity": None if label is None else 1.0,
     }
 
@@ -408,6 +409,7 @@ def _node_ab_fields(node: TreeNode) -> dict[str, Any]:
         "ab_label": node.ab_label,
         "ab_score": node.ab_score,
         "ab_frac_a": node.ab_frac_a,
+        "ab_frac_b": node.ab_frac_b,
         "ab_purity": node.ab_purity,
     }
 

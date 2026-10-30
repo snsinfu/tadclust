@@ -321,7 +321,9 @@ def test_write_ab_and_trans_outputs(
     assert leaves.schema["trans_path"] == pl.List(pl.Int64)
     assert "ab_label" in leaves.columns
     assert "ab_margin" not in leaves.columns
-    assert {"ab_label", "ab_score", "ab_frac_a", "ab_purity"} <= set(nodes.columns)
+    assert {"ab_label", "ab_score", "ab_frac_a", "ab_frac_b", "ab_purity"} <= set(
+        nodes.columns
+    )
     assert "ab_margin" not in nodes.columns
     assert "ab_score" in leaves_ab.columns
     assert "ab_margin" not in leaves_ab.columns

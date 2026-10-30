@@ -85,6 +85,7 @@ def cis_nodes_schema(n_pcs: int, include_ab: bool) -> Schema:
                 "ab_label": pl.String,
                 "ab_score": pl.Float64,
                 "ab_frac_a": pl.Float64,
+                "ab_frac_b": pl.Float64,
                 "ab_purity": pl.Float64,
             }
         )

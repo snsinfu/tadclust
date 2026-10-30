@@ -35,6 +35,7 @@ class TreeNode:
     stop_reason: str | None = None
     ab_label: str | None = None
     ab_frac_a: float | None = None
+    ab_frac_b: float | None = None
     ab_purity: float | None = None
     ab_score: float | None = None
 
@@ -615,17 +616,18 @@ def annotate_cis_forest(
                 node.ab_score = None
 
             unit_labels = annotation.labels[unit_ids]
-            known = np.asarray(
-                [label is not None for label in unit_labels],
-                dtype=bool,
-            )
-            if known.any():
-                n_a = int(np.sum(unit_labels[known] == "A"))
-                frac_a = n_a / int(known.sum())
+            n_total = int(unit_labels.size)
+            n_a = int(np.sum(unit_labels == "A"))
+            n_b = int(np.sum(unit_labels == "B"))
+            if n_total and n_a + n_b:
+                frac_a = n_a / n_total
+                frac_b = n_b / n_total
                 node.ab_frac_a = frac_a
-                node.ab_purity = max(frac_a, 1.0 - frac_a)
+                node.ab_frac_b = frac_b
+                node.ab_purity = max(frac_a, frac_b)
             else:
                 node.ab_frac_a = None
+                node.ab_frac_b = None
                 node.ab_purity = None
 
             # The node label follows the signed centroid score. Nodes exactly
