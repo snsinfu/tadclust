@@ -750,7 +750,6 @@ def _ab_qc(
     n_domains_b = 0
     n_nodes_a = 0
     n_nodes_b = 0
-    n_nodes_mixed = 0
     n_unclustered = 0
     n_chroms_split = 0
     n_chroms_fallback = 0
@@ -775,10 +774,8 @@ def _ab_qc(
         primary_nodes = [node for tree in result.forest.trees for node in tree.nodes]
         chrom_nodes_a = sum(node.ab_label == "A" for node in primary_nodes)
         chrom_nodes_b = sum(node.ab_label == "B" for node in primary_nodes)
-        chrom_nodes_mixed = sum(node.ab_label == "mixed" for node in primary_nodes)
         n_nodes_a += chrom_nodes_a
         n_nodes_b += chrom_nodes_b
-        n_nodes_mixed += chrom_nodes_mixed
 
         if annotation.fallback:
             n_chroms_fallback += 1
@@ -798,7 +795,6 @@ def _ab_qc(
             "unconstrained_forest": {
                 "n_nodes_a": chrom_nodes_a,
                 "n_nodes_b": chrom_nodes_b,
-                "n_nodes_mixed": chrom_nodes_mixed,
             },
         }
 
@@ -814,7 +810,6 @@ def _ab_qc(
         "unconstrained_forest": {
             "n_nodes_a": n_nodes_a,
             "n_nodes_b": n_nodes_b,
-            "n_nodes_mixed": n_nodes_mixed,
         },
     }
 

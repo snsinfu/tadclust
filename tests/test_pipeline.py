@@ -332,14 +332,12 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
     assert set(ab_qc["unconstrained_forest"]) == {
         "n_nodes_a",
         "n_nodes_b",
-        "n_nodes_mixed",
     }
     for chromosome_qc in ab_qc["per_chromosome"].values():
         assert "n_nodes_a" not in chromosome_qc
         assert set(chromosome_qc["unconstrained_forest"]) == {
             "n_nodes_a",
             "n_nodes_b",
-            "n_nodes_mixed",
         }
     assert result.output_files == [
         "cis_leaves.parquet",

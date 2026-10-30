@@ -149,14 +149,14 @@ def test_annotate_cis_forest_composition() -> None:
     annotate_cis_forest(forest, annotation, features)
 
     root = forest.trees[0].nodes[forest.trees[0].root_id]
-    assert root.ab_label == "mixed"
+    assert root.ab_label is None
     assert root.ab_frac_a == 0.5
     assert root.ab_purity == 0.5
     assert root.ab_rank_mean == 0.5
 
     for node in forest.trees[0].nodes:
+        assert node.ab_label is None
         if node.is_leaf:
-            assert node.ab_label in {"A", "B"}
             assert node.ab_frac_a in {0.0, 1.0}
 
 
@@ -239,6 +239,49 @@ def test_annotate_cis_forest_node_scores_match_leaf_domains() -> None:
                 continue
             domain = int(group[node.domain_indices[0]])
             assert node.ab_score == pytest.approx(annotation.scores[domain])
+            assert node.ab_label == annotation.labels[domain]
 
     root = forest.trees[0].nodes[forest.trees[0].root_id]
+    assert root.ab_score is not None
     assert root.ab_score == pytest.approx(0.0)
+    if root.ab_score == 0.0:
+        assert root.ab_label is None
+    else:
+        assert root.ab_label == ("A" if root.ab_score > 0 else "B")
+
+
+def test_node_label_follows_score_without_mixed_threshold() -> None:
+    pcs = np.array([[-3.0], [-2.0], [-1.0], [3.0]])
+    rank = np.array([0.0, 0.1, 0.2, 1.0])
+    features = ab_feature_matrix(pcs, rank, 1)
+    labels = np.array(["A", "A", "A", "B"], dtype=object)
+    annotation = AbAnnotation(
+        labels=labels,
+        rank=rank,
+        split="kmeans2",
+        fallback=False,
+        fallback_reason=None,
+        scores=np.zeros(4),
+        margins=np.zeros(4),
+        a_indices=np.array([0, 1, 2]),
+        b_indices=np.array([3]),
+        a_centroids=features[[0, 1, 2]].mean(axis=0, keepdims=True),
+        b_centroid=features[3],
+    )
+    forest = build_cis_forest(
+        "chr1",
+        pcs,
+        np.ones(4, dtype=np.int64),
+        n_pcs=1,
+        branch_k=2,
+        seed=0,
+    )
+
+    annotate_cis_forest(forest, annotation, features)
+
+    root = forest.trees[0].nodes[forest.trees[0].root_id]
+    assert root.ab_frac_a == pytest.approx(0.75)
+    assert root.ab_purity == pytest.approx(0.75)
+    assert root.ab_score is not None
+    assert root.ab_score > 0
+    assert root.ab_label == "A"

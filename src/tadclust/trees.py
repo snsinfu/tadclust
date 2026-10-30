@@ -10,7 +10,6 @@ from .clustering import derive_seed, informative_mask, kmeans_labels
 from .config import AB_SPLIT_CHOICES
 from .errors import ClusteringError
 
-AB_NODE_PURITY = 0.8
 CHROM_ROOT_LABEL = "chrom"
 GENOME_ROOT_LABEL = "genome"
 _TREE_SEED_NAMESPACE = 0
@@ -551,9 +550,8 @@ def annotate_cis_forest(
     forest: CisForest,
     annotation: AbAnnotation,
     features: np.ndarray,
-    purity: float = AB_NODE_PURITY,
 ) -> None:
-    """Attach per-node A/B composition, rank, and boundary scores."""
+    """Attach per-node A/B composition, rank, labels, and boundary scores."""
     values = np.asarray(features, dtype=np.float64)
     has_centroids = annotation.a_centroids.size > 0 and annotation.b_centroid.size > 0
 
@@ -585,22 +583,24 @@ def annotate_cis_forest(
                 [label is not None for label in domain_labels],
                 dtype=bool,
             )
-            if not known.any():
-                node.ab_label = None
+            if known.any():
+                n_a = int(np.sum(domain_labels[known] == "A"))
+                frac_a = n_a / int(known.sum())
+                node.ab_frac_a = frac_a
+                node.ab_purity = max(frac_a, 1.0 - frac_a)
+            else:
                 node.ab_frac_a = None
                 node.ab_purity = None
-                continue
 
-            n_a = int(np.sum(domain_labels[known] == "A"))
-            frac_a = n_a / int(known.sum())
-            node.ab_frac_a = frac_a
-            node.ab_purity = max(frac_a, 1.0 - frac_a)
-            if frac_a >= purity:
+            # The node label follows the signed centroid score. Nodes exactly
+            # on the boundary stay unlabeled; fractions tell consumers whether
+            # a node is mixed.
+            if node.ab_score is None or node.ab_score == 0.0:
+                node.ab_label = None
+            elif node.ab_score > 0.0:
                 node.ab_label = "A"
-            elif frac_a <= 1.0 - purity:
-                node.ab_label = "B"
             else:
-                node.ab_label = "mixed"
+                node.ab_label = "B"
 
 
 def build_ab_forest(
