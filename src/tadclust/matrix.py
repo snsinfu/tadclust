@@ -297,23 +297,37 @@ def canonicalize_pc1_sign(embedding: np.ndarray) -> np.ndarray:
     return values
 
 
-def orient_pc1_to_signal(
+def orient_pcs_to_feature(
     pcs: np.ndarray,
-    rank: np.ndarray,
+    feature_rank: np.ndarray,
 ) -> np.ndarray:
-    """Flip PC1 so positive PC1 is the high-signal (A) side."""
+    """Flip each PC column so it correlates positively with the feature rank.
+
+    Positive PC coordinates then correspond to the high-feature (A) side on
+    every cis PC axis. These flips are reflections, so distances, clustering,
+    and A/B scores are unchanged.
+    """
     values = np.array(pcs, dtype=np.float64, copy=True)
-    ranks = np.asarray(rank, dtype=np.float64)
+    ranks = np.asarray(feature_rank, dtype=np.float64)
     if values.ndim != 2:
         raise ClusteringError("domain PCs must be a two-dimensional array")
     if values.shape[0] != ranks.shape[0]:
-        raise ClusteringError("PC and signal-rank lengths differ")
+        raise ClusteringError("PC and feature-rank lengths differ")
     if values.shape[1] == 0 or values.shape[0] < 2:
         return values
-    if np.std(values[:, 0]) == 0 or np.std(ranks) == 0:
+
+    centered_ranks = ranks - ranks.mean()
+    rank_norm = np.linalg.norm(centered_ranks)
+    if rank_norm == 0.0:
         return values
-    if np.corrcoef(values[:, 0], ranks)[0, 1] < 0:
-        values[:, 0] *= -1.0
+
+    for column in range(values.shape[1]):
+        centered = values[:, column] - values[:, column].mean()
+        column_norm = np.linalg.norm(centered)
+        if column_norm == 0.0:
+            continue
+        if np.dot(centered, centered_ranks) / (column_norm * rank_norm) < 0.0:
+            values[:, column] *= -1.0
     return values
 
 

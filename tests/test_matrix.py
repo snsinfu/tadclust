@@ -15,7 +15,7 @@ from tadclust.matrix import (
     distance_bin_edges,
     expected_by_distance,
     log2_ratio,
-    orient_pc1_to_signal,
+    orient_pcs_to_feature,
     pcs_from_log_oe,
     scaled_pseudocount,
     symmetrize_matrix,
@@ -184,14 +184,24 @@ def test_pcs_from_oe_rejects_zero_matrix() -> None:
         pcs_from_log_oe(np.zeros((2, 2)), 2, label="cis")
 
 
-def test_orient_pc1_to_signal_makes_positive_a() -> None:
+def test_orient_pcs_to_feature_makes_positive_a() -> None:
     pcs = np.array([[2.0], [1.0], [-1.0], [-2.0]])
     rank = np.array([0.1, 0.2, 0.8, 0.9])
 
-    result = orient_pc1_to_signal(pcs, rank)
+    result = orient_pcs_to_feature(pcs, rank)
 
     assert np.corrcoef(result[:, 0], rank)[0, 1] > 0
     assert np.all(result[2:, 0] > 0)
+
+
+def test_orient_pcs_to_feature_flips_every_negative_column() -> None:
+    pcs = np.array([[2.0, 1.0], [1.0, 2.0], [-1.0, -1.0], [-2.0, -2.0]])
+    rank = np.array([0.1, 0.2, 0.8, 0.9])
+
+    result = orient_pcs_to_feature(pcs, rank)
+
+    assert np.corrcoef(result[:, 0], rank)[0, 1] > 0
+    assert np.corrcoef(result[:, 1], rank)[0, 1] > 0
 
 
 def test_canonicalize_pc1_sign_flips_largest_magnitude() -> None:

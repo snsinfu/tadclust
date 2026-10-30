@@ -14,7 +14,7 @@ from .clustering import informative_mask
 from .config import ClusterConfig
 from .domains import ChromosomeTree, DomainSelection
 from .errors import ClusteringError
-from .matrix import orient_pc1_to_signal
+from .matrix import orient_pcs_to_feature
 from .mcool import (
     ResolutionChoice,
     choose_resolution,
@@ -254,13 +254,13 @@ def _build_cis_results(
                 selection.domain_selection.domains,
                 selection.chrom,
             )
-            rank, n_uncovered = fill_and_rank(values, selection.chrom)
-            pcs = orient_pc1_to_signal(base_pcs, rank)
+            feature_rank, n_uncovered = fill_and_rank(values, selection.chrom)
+            pcs = orient_pcs_to_feature(base_pcs, feature_rank)
             clusterable = informative_mask(pcs, config.tree_n_pcs)
-            features = ab_feature_matrix(pcs, rank, config.tree_n_pcs)
+            features = ab_feature_matrix(pcs, feature_rank, config.tree_n_pcs)
             annotation = annotate_ab(
                 features,
-                rank,
+                feature_rank,
                 len(selection.domain_selection.domains),
                 split_policy,
                 config.seed,
