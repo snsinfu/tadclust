@@ -35,7 +35,7 @@ def cis_leaves_schema(
         schema.update(
             {
                 "ab_label": pl.String,
-                "ab_rank": pl.Float64,
+                "ab_feature_rank": pl.Float64,
                 "ab_score": pl.Float64,
             }
         )
@@ -67,8 +67,8 @@ def cis_nodes_schema(n_pcs: int, include_ab: bool) -> Schema:
         "path_label": pl.String,
         "is_leaf": pl.Boolean,
         "n_domains": pl.Int64,
-        "sse": pl.Float64,
-        "split_gain": pl.Float64,
+        "node_sse": pl.Float64,
+        "node_split_gain": pl.Float64,
         "children": pl.List(pl.Int64),
         "stop_reason": pl.String,
         "n_bins": pl.Int64,
@@ -84,9 +84,9 @@ def cis_nodes_schema(n_pcs: int, include_ab: bool) -> Schema:
         schema.update(
             {
                 "ab_label": pl.String,
-                "ab_rank": pl.Float64,
+                "ab_feature_rank": pl.Float64,
                 "ab_score": pl.Float64,
-                "ab_rank_mean": pl.Float64,
+                "ab_feature_rank_mean": pl.Float64,
                 "ab_frac_a": pl.Float64,
                 "ab_purity": pl.Float64,
             }
@@ -108,7 +108,7 @@ def cis_leaves_ab_schema() -> Schema:
         "path_label": pl.String,
         "depth": pl.Int64,
         "ab_label": pl.String,
-        "ab_rank": pl.Float64,
+        "ab_feature_rank": pl.Float64,
         "ab_score": pl.Float64,
     }
 
@@ -125,8 +125,8 @@ def trans_nodes_schema() -> Schema:
         "path_label": pl.String,
         "is_leaf": pl.Boolean,
         "n_domains": pl.Int64,
-        "sse": pl.Float64,
-        "split_gain": pl.Float64,
+        "node_sse": pl.Float64,
+        "node_split_gain": pl.Float64,
         "children": pl.List(pl.Int64),
         "stop_reason": pl.String,
         "n_bins": pl.Int64,

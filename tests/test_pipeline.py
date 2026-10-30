@@ -300,8 +300,8 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
         result.cis_leaves_ab["ab_label"].to_list()
     )
     np.testing.assert_allclose(
-        result.cis_leaves["ab_rank"].to_numpy(),
-        result.cis_leaves_ab["ab_rank"].to_numpy(),
+        result.cis_leaves["ab_feature_rank"].to_numpy(),
+        result.cis_leaves_ab["ab_feature_rank"].to_numpy(),
         equal_nan=True,
     )
     np.testing.assert_allclose(
@@ -315,12 +315,12 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
         "A",
         "B",
     }
-    ab_ranks = np.asarray(
-        result.cis_leaves_ab["ab_rank"].to_numpy(),
+    feature_ranks = np.asarray(
+        result.cis_leaves_ab["ab_feature_rank"].to_numpy(),
         dtype=np.float64,
     )
-    assert ab_ranks.min() >= 0.0
-    assert ab_ranks.max() <= 1.0
+    assert feature_ranks.min() >= 0.0
+    assert feature_ranks.max() <= 1.0
     assert set(result.cis_nodes_ab["root_label"].to_list()) >= {"A", "B"}
 
     ab_qc = result.qc["ab"]

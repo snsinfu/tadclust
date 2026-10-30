@@ -399,12 +399,12 @@ def _domain_ab_fields(
 ) -> dict[str, Any]:
     label = annotation.labels[local_index]
     score = annotation.scores[local_index]
-    rank = float(annotation.rank[local_index])
+    feature_rank = float(annotation.feature_rank[local_index])
     return {
         "ab_label": label,
-        "ab_rank": rank,
+        "ab_feature_rank": feature_rank,
         "ab_score": None if np.isnan(score) else float(score),
-        "ab_rank_mean": rank,
+        "ab_feature_rank_mean": feature_rank,
         "ab_frac_a": None if label is None else 1.0 if label == "A" else 0.0,
         "ab_purity": None if label is None else 1.0,
     }
@@ -413,9 +413,9 @@ def _domain_ab_fields(
 def _node_ab_fields(node: TreeNode) -> dict[str, Any]:
     return {
         "ab_label": node.ab_label,
-        "ab_rank": None,
+        "ab_feature_rank": None,
         "ab_score": node.ab_score,
-        "ab_rank_mean": node.ab_rank_mean,
+        "ab_feature_rank_mean": node.ab_feature_rank_mean,
         "ab_frac_a": node.ab_frac_a,
         "ab_purity": node.ab_purity,
     }
@@ -438,8 +438,8 @@ def _node_fields(
         "is_leaf": node.is_leaf,
         "n_domains": len(node.domain_indices),
         "n_bins": node.n_bins,
-        "sse": node.sse,
-        "split_gain": node.split_gain,
+        "node_sse": node.sse,
+        "node_split_gain": node.split_gain,
         "children": [child + offset for child in node.children],
         "stop_reason": node.stop_reason,
     }
@@ -525,8 +525,8 @@ def _cis_node_rows(
                 "path_label": None,
                 "is_leaf": True,
                 "n_domains": 1,
-                "sse": None,
-                "split_gain": None,
+                "node_sse": None,
+                "node_split_gain": None,
                 "children": [],
                 "stop_reason": None,
             }
@@ -616,8 +616,8 @@ def _trans_node_rows(trans_run: _TransRun | None) -> pl.DataFrame | None:
             "is_leaf": node.is_leaf,
             "n_domains": len(node.domain_indices),
             "n_bins": node.n_bins,
-            "sse": node.sse,
-            "split_gain": node.split_gain,
+            "node_sse": node.sse,
+            "node_split_gain": node.split_gain,
             "children": list(node.children),
             "stop_reason": node.stop_reason,
             "chroms": chroms,
@@ -766,7 +766,7 @@ def _ab_qc(
             raise ClusteringError(f"{result.chrom}: missing A/B result")
 
         labels = annotation.labels
-        rank = annotation.rank
+        feature_rank = annotation.feature_rank
         a_mask = np.asarray([label == "A" for label in labels], dtype=bool)
         b_mask = np.asarray([label == "B" for label in labels], dtype=bool)
         n_a = int(a_mask.sum())
@@ -794,8 +794,12 @@ def _ab_qc(
             "n_uncovered": result.n_uncovered,
             "fallback": annotation.fallback,
             "fallback_reason": annotation.fallback_reason,
-            "rank_mean_a": (float(rank[a_mask].mean()) if a_mask.any() else None),
-            "rank_mean_b": (float(rank[b_mask].mean()) if b_mask.any() else None),
+            "feature_rank_mean_a": (
+                float(feature_rank[a_mask].mean()) if a_mask.any() else None
+            ),
+            "feature_rank_mean_b": (
+                float(feature_rank[b_mask].mean()) if b_mask.any() else None
+            ),
             "n_roots": len(ab_forest.trees),
             "unconstrained_forest": {
                 "n_nodes_a": chrom_nodes_a,

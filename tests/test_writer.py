@@ -41,7 +41,7 @@ TRANS_LEAVES_TSV_COLUMNS = [
 ]
 CIS_LEAVES_AB_COLUMNS = [
     "ab_label",
-    "ab_rank",
+    "ab_feature_rank",
     "ab_score",
 ]
 CIS_LEAVES_AB_TSV_COLUMNS = [
@@ -55,7 +55,7 @@ CIS_LEAVES_AB_TSV_COLUMNS = [
     "path_label",
     "depth",
     "ab_label",
-    "ab_rank",
+    "ab_feature_rank",
     "ab_score",
 ]
 
@@ -215,7 +215,7 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     assert nodes.schema["parent_id"] == pl.Int64
     assert nodes.schema["children"] == pl.List(pl.Int64)
     assert nodes.schema["is_leaf"] == pl.Boolean
-    assert nodes.schema["split_gain"] == pl.Float64
+    assert nodes.schema["node_split_gain"] == pl.Float64
     assert nodes.schema["domain_id"] == pl.Int64
     assert nodes.schema["pcs"] == pl.Array(pl.Float64, 2)
     assert nodes.schema["self_oe"] == pl.Float64
@@ -323,7 +323,9 @@ def test_write_ab_and_trans_outputs(
     assert leaves.schema["trans_path"] == pl.List(pl.Int64)
     assert "ab_label" in leaves.columns
     assert "ab_margin" not in leaves.columns
-    assert {"ab_label", "ab_rank", "ab_score", "ab_rank_mean"} <= set(nodes.columns)
+    assert {"ab_label", "ab_feature_rank", "ab_score", "ab_feature_rank_mean"} <= set(
+        nodes.columns
+    )
     assert "ab_margin" not in nodes.columns
     assert "ab_score" in leaves_ab.columns
     assert "ab_margin" not in leaves_ab.columns

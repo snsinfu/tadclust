@@ -55,7 +55,7 @@ def test_ab_score_uses_pc_space_not_rank() -> None:
     features2 = ab_feature_matrix(pcs, rank2, 1)
     annotation = AbAnnotation(
         labels=np.array(["B", "B", "A", "A"], dtype=object),
-        rank=rank1,
+        feature_rank=rank1,
         split_policy="kmeans2",
         fallback=False,
         fallback_reason=None,
@@ -228,7 +228,7 @@ def test_annotate_cis_forest_composition() -> None:
     features = ab_feature_matrix(pcs, rank, 1)
     annotation = AbAnnotation(
         labels=labels,
-        rank=rank,
+        feature_rank=rank,
         split_policy="kmeans2",
         fallback=False,
         fallback_reason=None,
@@ -244,7 +244,7 @@ def test_annotate_cis_forest_composition() -> None:
     assert root.ab_label is None
     assert root.ab_frac_a == 0.5
     assert root.ab_purity == 0.5
-    assert root.ab_rank_mean == 0.5
+    assert root.ab_feature_rank_mean == 0.5
 
     for node in forest.trees[0].nodes:
         assert node.ab_label is None
@@ -284,7 +284,7 @@ def test_build_ab_forest_two_roots() -> None:
 def test_build_ab_forest_degenerate_fallback() -> None:
     annotation = AbAnnotation(
         labels=np.array([None, None], dtype=object),
-        rank=np.array([0.5, 0.5]),
+        feature_rank=np.array([0.5, 0.5]),
         split_policy="kmeans2",
         fallback=True,
         fallback_reason="ab_degenerate",
@@ -349,7 +349,7 @@ def test_node_label_follows_score_without_mixed_threshold() -> None:
     labels = np.array(["A", "A", "A", "B"], dtype=object)
     annotation = AbAnnotation(
         labels=labels,
-        rank=rank,
+        feature_rank=rank,
         split_policy="kmeans2",
         fallback=False,
         fallback_reason=None,

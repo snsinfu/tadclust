@@ -36,7 +36,7 @@ class TreeNode:
     ab_label: str | None = None
     ab_frac_a: float | None = None
     ab_purity: float | None = None
-    ab_rank_mean: float | None = None
+    ab_feature_rank_mean: float | None = None
     ab_score: float | None = None
 
     @property
@@ -65,14 +65,14 @@ class CisForest:
 
 @dataclass
 class AbAnnotation:
-    """Per-domain A/B labels, ranks, and continuous scores.
+    """Per-domain A/B labels, feature ranks, and continuous scores.
 
-    The A/B centroids are stored in the standardized PC subspace. The signal
+    The A/B centroids are stored in the standardized PC subspace. The feature
     rank is used only to fit and orient the centroids, not to score domains.
     """
 
     labels: np.ndarray
-    rank: np.ndarray
+    feature_rank: np.ndarray
     split_policy: str
     fallback: bool
     fallback_reason: str | None
@@ -411,7 +411,7 @@ def _make_cis_forest(
 
 def annotate_ab(
     features: np.ndarray,
-    rank: np.ndarray,
+    feature_rank: np.ndarray,
     n_domains: int,
     split_policy: str,
     seed: int,
@@ -421,14 +421,14 @@ def annotate_ab(
 ) -> AbAnnotation:
     """Assign per-domain A/B labels and boundary scores.
 
-    The feature matrix must end with the standardized signal rank. K-means runs
+    The feature matrix must end with the standardized feature rank. K-means runs
     in that augmented space, but scores and labels are derived in the projected
     standardized PC subspace.
     """
     values = np.asarray(features, dtype=np.float64)
-    ranks = np.asarray(rank, dtype=np.float64)
-    if ranks.shape[0] != n_domains:
-        raise ClusteringError("A/B rank length does not match the domain count")
+    feature_ranks = np.asarray(feature_rank, dtype=np.float64)
+    if feature_ranks.shape[0] != n_domains:
+        raise ClusteringError("A/B feature-rank length does not match the domain count")
     if values.shape[0] != n_domains:
         raise ClusteringError("A/B feature length does not match the domain count")
     if values.ndim != 2 or values.shape[1] == 0:
@@ -456,7 +456,7 @@ def annotate_ab(
     if partition is None:
         return AbAnnotation(
             labels=labels,
-            rank=ranks,
+            feature_rank=feature_ranks,
             split_policy=split_policy,
             fallback=True,
             fallback_reason="ab_degenerate",
@@ -477,7 +477,7 @@ def annotate_ab(
     ) = partition
     return AbAnnotation(
         labels=partition_labels,
-        rank=ranks,
+        feature_rank=feature_ranks,
         split_policy=split_policy,
         fallback=False,
         fallback_reason=None,
@@ -532,10 +532,10 @@ def _ab_partition(
     centroids = np.asarray(
         [subset[inverse == cluster].mean(axis=0) for cluster in range(unique.size)]
     )
-    rank_means = np.asarray(
+    feature_rank_means = np.asarray(
         [subset[inverse == cluster, -1].mean() for cluster in range(unique.size)]
     )
-    order = np.argsort(rank_means, kind="stable")
+    order = np.argsort(feature_rank_means, kind="stable")
 
     if split_policy == "kmeans2" or unique.size == 2:
         a_clusters = [int(order[-1])]
@@ -584,7 +584,7 @@ def annotate_cis_forest(
     *,
     n_pcs: int,
 ) -> None:
-    """Attach per-node A/B composition, rank, labels, and boundary scores.
+    """Attach per-node A/B composition, feature rank, labels, and boundary scores.
 
     Scores use the node's mean standardized PC vector and the projected A/B
     centroids.
@@ -599,9 +599,11 @@ def annotate_cis_forest(
     for tree, group in zip(forest.trees, forest.groups):
         for node in tree.nodes:
             domain_ids = group[node.domain_indices]
-            domain_ranks = annotation.rank[domain_ids]
-            node.ab_rank_mean = (
-                float(domain_ranks.mean()) if domain_ranks.size else None
+            domain_feature_ranks = annotation.feature_rank[domain_ids]
+            node.ab_feature_rank_mean = (
+                float(domain_feature_ranks.mean())
+                if domain_feature_ranks.size
+                else None
             )
 
             if has_centroids and domain_ids.size:
