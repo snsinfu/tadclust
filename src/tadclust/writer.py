@@ -240,18 +240,14 @@ def _cis_leaves_schema(
         "end": pl.Int64,
         "kind": pl.String,
         "source_row": pl.Int64,
+        "root_label": pl.String,
+        "path": pl.List(pl.Int64),
+        "path_label": pl.String,
+        "depth": pl.Int64,
+        "pcs": pl.Array(pl.Float64, n_pcs),
         "n_bins": pl.Int64,
         "self_oe": pl.Float64,
-        "pcs": pl.Array(pl.Float64, n_pcs),
     }
-    schema.update(
-        {
-            "root_label": pl.String,
-            "path": pl.List(pl.Int64),
-            "path_label": pl.String,
-            "depth": pl.Int64,
-        }
-    )
     if include_trans:
         schema.update(
             {
@@ -293,11 +289,11 @@ def _cis_nodes_schema(include_ab: bool) -> Schema:
         "path_label": pl.String,
         "is_leaf": pl.Boolean,
         "n_domains": pl.Int64,
-        "n_bins": pl.Int64,
         "sse": pl.Float64,
         "split_gain": pl.Float64,
         "children": pl.List(pl.Int64),
         "stop_reason": pl.String,
+        "n_bins": pl.Int64,
     }
     if include_ab:
         schema.update(
@@ -340,11 +336,11 @@ def _trans_nodes_schema() -> Schema:
         "path_label": pl.String,
         "is_leaf": pl.Boolean,
         "n_domains": pl.Int64,
-        "n_bins": pl.Int64,
         "sse": pl.Float64,
         "split_gain": pl.Float64,
         "children": pl.List(pl.Int64),
         "stop_reason": pl.String,
+        "n_bins": pl.Int64,
         "chroms": pl.List(pl.String),
         "chrom_domain_counts": pl.List(pl.Int64),
     }

@@ -84,13 +84,13 @@ def cis_leaves_schema(include_trans: bool):
         ("end", pl.Int64),
         ("kind", pl.String),
         ("source_row", pl.Int64),
-        ("n_bins", pl.Int64),
-        ("self_oe", pl.Float64),
-        ("pcs", pl.Array(pl.Float64, 3)),
         ("root_label", pl.String),
         ("path", pl.List(pl.Int64)),
         ("path_label", pl.String),
         ("depth", pl.Int64),
+        ("pcs", pl.Array(pl.Float64, 3)),
+        ("n_bins", pl.Int64),
+        ("self_oe", pl.Float64),
     ]
     if include_trans:
         schema.extend(
@@ -115,11 +115,11 @@ def cis_nodes_schema(include_ab: bool):
         ("path_label", pl.String),
         ("is_leaf", pl.Boolean),
         ("n_domains", pl.Int64),
-        ("n_bins", pl.Int64),
         ("sse", pl.Float64),
         ("split_gain", pl.Float64),
         ("children", pl.List(pl.Int64)),
         ("stop_reason", pl.String),
+        ("n_bins", pl.Int64),
     ]
     if include_ab:
         schema.extend(
@@ -140,11 +140,11 @@ CIS_LEAVES_TSV_COLUMNS = [
     "end",
     "kind",
     "source_row",
-    "n_bins",
-    "self_oe",
     "root_label",
     "path_label",
     "depth",
+    "n_bins",
+    "self_oe",
 ]
 
 TRANS_LEAVES_TSV_COLUMNS = [
@@ -195,11 +195,11 @@ TRANS_NODES_SCHEMA = [
     ("path_label", pl.String),
     ("is_leaf", pl.Boolean),
     ("n_domains", pl.Int64),
-    ("n_bins", pl.Int64),
     ("sse", pl.Float64),
     ("split_gain", pl.Float64),
     ("children", pl.List(pl.Int64)),
     ("stop_reason", pl.String),
+    ("n_bins", pl.Int64),
     ("chroms", pl.List(pl.String)),
     ("chrom_domain_counts", pl.List(pl.Int64)),
 ]

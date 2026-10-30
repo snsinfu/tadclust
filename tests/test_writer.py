@@ -23,11 +23,11 @@ CIS_LEAVES_TSV_COLUMNS = [
     "end",
     "kind",
     "source_row",
-    "n_bins",
-    "self_oe",
     "root_label",
     "path_label",
     "depth",
+    "n_bins",
+    "self_oe",
 ]
 TRANS_LEAVES_TSV_COLUMNS = [
     "trans_root_label",
@@ -166,13 +166,13 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
         "end",
         "kind",
         "source_row",
-        "n_bins",
-        "self_oe",
-        "pcs",
         "root_label",
         "path",
         "path_label",
         "depth",
+        "pcs",
+        "n_bins",
+        "self_oe",
     ]
     assert leaves.schema["path"] == pl.List(pl.Int64)
     assert leaves.schema["depth"] == pl.Int64
