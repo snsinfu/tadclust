@@ -386,7 +386,6 @@ def _null_unit_fields() -> dict[str, Any]:
         "end": None,
         "unit_kind": None,
         "tad_table_row": None,
-        "pc": None,
     }
 
 
@@ -445,6 +444,7 @@ def _node_fields(
         "child_ids": [child + offset for child in node.children],
         "stop_reason": node.stop_reason,
         "node_oe": node_oe,
+        "pc": [float(value) for value in node.centroid],
     }
 
 
