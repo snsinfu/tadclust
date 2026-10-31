@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
+
 import numpy as np
 import polars as pl
 import pytest
@@ -73,6 +75,15 @@ def assert_node_references(nodes) -> None:
         if row["parent_id"] is not None:
             assert row["parent_id"] in ids
         assert set(row["child_ids"]).issubset(ids)
+
+
+def primary_member_families(leaves):
+    members = defaultdict(set)
+    for row in leaves.filter(pl.col("path_label").is_not_null()).iter_rows(named=True):
+        parts = row["path_label"].split(".")
+        for index in range(1, len(parts) + 1):
+            members[(row["chrom"], ".".join(parts[:index]))].add(int(row["unit_id"]))
+    return {frozenset(values) for values in members.values()}
 
 
 def test_cluster_cis_only(mcool, tmp_path) -> None:
@@ -355,6 +366,42 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
         "cis_leaves_ab.tsv",
         "cis_nodes_ab.parquet",
     ]
+
+
+def test_feature_track_does_not_change_primary_tree(mcool, tmp_path) -> None:
+    tads = ab_tads(tmp_path)
+    track = ab_track(tmp_path)
+    without = cluster(
+        make_config(
+            mcool,
+            tads,
+            tmp_path,
+            output_dir=tmp_path / "notrack",
+        )
+    )
+    with_track = cluster(
+        make_config(
+            mcool,
+            tads,
+            tmp_path,
+            output_dir=tmp_path / "track",
+            ab_feature_track=track,
+        )
+    )
+
+    unit_columns = [
+        "unit_id",
+        "unit_kind",
+        "unit_start",
+        "unit_end",
+        "tad_table_row",
+    ]
+    assert without.cis_leaves.select(unit_columns).equals(
+        with_track.cis_leaves.select(unit_columns)
+    )
+    assert primary_member_families(without.cis_leaves) == primary_member_families(
+        with_track.cis_leaves
+    )
 
 
 def test_cluster_chromosome_selection(mcool, tmp_path) -> None:
