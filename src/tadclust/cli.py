@@ -167,7 +167,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     logger.info(
         "wrote %d units and %d file(s) to %s",
-        result.qc["n_units"],
+        result.qc["summary"]["n_units"],
         len(written),
         config.output_dir,
     )

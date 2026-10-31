@@ -116,8 +116,8 @@ def test_cli_cis_run(mcool, tmp_path) -> None:
     out = tmp_path / "out"
     manifest = json.loads((out / "manifest.json").read_text())
     assert manifest["cli"]["argv"] == args
-    assert manifest["params"]["working_binsize"] == 500
-    assert manifest["qc"]["n_units"] == 4
+    assert manifest["params"]["resolved"]["working_binsize"] == 500
+    assert manifest["qc"]["summary"]["n_units"] == 4
     assert (out / "cis_leaves.parquet").exists()
     assert (out / "cis_leaves.tsv").exists()
     assert not (out / "cis_leaves_ab.tsv").exists()
@@ -131,16 +131,16 @@ def test_cli_residuals_opt_in(gapped_mcool, gapped_tads, tmp_path) -> None:
 
     out = tmp_path / "out"
     manifest = json.loads((out / "manifest.json").read_text())
-    assert manifest["params"]["include_residuals"] is False
-    assert manifest["qc"]["n_residuals"] == 0
+    assert manifest["params"]["requested"]["include_residuals"] is False
+    assert manifest["qc"]["summary"]["n_residuals"] == 0
     leaves = pl.read_parquet(out / "cis_leaves.parquet")
     assert set(leaves["unit_kind"].to_list()) == {"tad"}
 
     main([*args, "--include-residuals", "--overwrite"])
 
     manifest = json.loads((out / "manifest.json").read_text())
-    assert manifest["params"]["include_residuals"] is True
-    assert manifest["qc"]["n_residuals"] > 0
+    assert manifest["params"]["requested"]["include_residuals"] is True
+    assert manifest["qc"]["summary"]["n_residuals"] > 0
     leaves = pl.read_parquet(out / "cis_leaves.parquet")
     assert "residual" in set(leaves["unit_kind"].to_list())
 
@@ -152,11 +152,10 @@ def test_cli_uniform_bins_run(mcool, tmp_path) -> None:
 
     out = tmp_path / "out"
     manifest = json.loads((out / "manifest.json").read_text())
-    assert manifest["params"]["input_mode"] == "uniform_bins"
-    assert manifest["params"]["annotation_path"] is None
+    assert manifest["params"]["resolved"]["input_mode"] == "uniform_bins"
     assert manifest["inputs"]["annotation"] is None
-    assert manifest["qc"]["n_bin_units"] == 8
-    assert manifest["qc"]["n_tads"] == 0
+    assert manifest["qc"]["summary"]["n_bin_units"] == 8
+    assert manifest["qc"]["summary"]["n_tads"] == 0
 
     leaves = pl.read_parquet(out / "cis_leaves.parquet")
     assert set(leaves["unit_kind"].to_list()) == {"bin"}
@@ -239,7 +238,7 @@ def test_cli_ab_run(mcool, tmp_path) -> None:
     leaves = pl.read_parquet(out / "cis_leaves.parquet")
     assert "ab_label" in leaves.columns
     manifest = json.loads((out / "manifest.json").read_text())
-    assert "ab_split_policy" not in manifest["params"]
+    assert "ab_split_policy" not in manifest["params"]["requested"]
 
 
 def test_cli_rejects_ab_split_policy(mcool, tmp_path) -> None:

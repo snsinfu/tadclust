@@ -13,6 +13,7 @@ from conftest import write_mcool, write_tads, write_track
 import tadclust
 from tadclust.config import ClusterConfig
 from tadclust.errors import OutputError
+from tadclust.metadata import MANIFEST_VERSION
 from tadclust.pipeline import cluster
 from tadclust.writer import (
     SCHEMA_VERSION,
@@ -155,6 +156,7 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
 
     manifest = json.loads((tmp_path / "out" / "manifest.json").read_text())
     assert list(manifest) == [
+        "manifest_version",
         "schema_version",
         "tadclust_version",
         "created_utc",
@@ -164,16 +166,17 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
         "qc",
         "output_files",
     ]
+    assert manifest["manifest_version"] == MANIFEST_VERSION
     assert manifest["schema_version"] == SCHEMA_VERSION
     assert manifest["tadclust_version"] == tadclust.__version__
     assert manifest["created_utc"].endswith("Z")
     assert manifest["inputs"] == result.inputs
     assert manifest["cli"] == {"argv": ["--mcool", str(mcool)]}
-    assert manifest["params"]["working_binsize"] == 500
-    assert manifest["params"]["include_residuals"] is False
-    assert manifest["qc"]["n_units"] == 4
-    for chromosome_qc in manifest["qc"]["cis"]["per_chromosome"].values():
-        assert chromosome_qc["coverage_fraction"] == 1.0
+    assert manifest["params"]["resolved"]["working_binsize"] == 500
+    assert manifest["params"]["requested"]["include_residuals"] is False
+    assert manifest["qc"]["summary"]["n_units"] == 4
+    for chromosome_qc in manifest["qc"]["per_chromosome"].values():
+        assert chromosome_qc["cis"]["coverage_fraction"] == 1.0
     assert manifest["output_files"] == [
         "cis_leaves.parquet",
         "cis_leaves.tsv",

@@ -113,23 +113,23 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert result.cis_nodes_ab is None
     assert result.trans_nodes is None
 
-    assert result.qc["n_units"] == 4
-    assert result.qc["n_tads"] == 4
-    assert result.qc["n_residuals"] == 0
-    assert result.qc["trans"] == {"enabled": False}
-    assert result.qc["ab"] == {"enabled": False}
-    assert set(result.qc["cis"]["per_chromosome"]) == {"chr1", "chr2"}
-    for chromosome_qc in result.qc["cis"]["per_chromosome"].values():
-        assert chromosome_qc["n_covered_bins"] == 4
-        assert chromosome_qc["coverage_fraction"] == 1.0
+    assert result.qc["summary"]["n_units"] == 4
+    assert result.qc["summary"]["n_tads"] == 4
+    assert result.qc["summary"]["n_residuals"] == 0
+    assert result.qc["trans"] is None
+    assert result.qc["ab"] is None
+    assert set(result.qc["per_chromosome"]) == {"chr1", "chr2"}
+    for chromosome_qc in result.qc["per_chromosome"].values():
+        assert chromosome_qc["cis"]["n_covered_bins"] == 4
+        assert chromosome_qc["cis"]["coverage_fraction"] == 1.0
 
-    assert result.params["include_residuals"] is False
-    assert result.params["working_binsize"] == 500
-    assert result.params["working_binsize_mode"] == "explicit"
-    assert result.params["input_mode"] == "annotation"
-    assert result.params["chromosomes"] == ["chr1", "chr2"]
+    assert result.params["requested"]["include_residuals"] is False
+    assert result.params["resolved"]["working_binsize"] == 500
+    assert result.params["resolved"]["working_binsize_mode"] == "explicit"
+    assert result.params["resolved"]["input_mode"] == "annotation"
+    assert result.params["resolved"]["chromosomes"] == ["chr1", "chr2"]
     assert result.inputs["mcool"] == str(mcool)
-    assert result.inputs["feature_track"] is None
+    assert result.inputs["ab_feature_track"] is None
     assert result.output_files == [
         "cis_leaves.parquet",
         "cis_leaves.tsv",
@@ -151,9 +151,9 @@ def test_cluster_residuals_are_opt_in(gapped_mcool, gapped_tads, tmp_path) -> No
     assert default.cis_leaves.height == 4
     assert set(default.cis_leaves["unit_kind"].to_list()) == {"tad"}
     assert default.cis_leaves["tad_table_row"].null_count() == 0
-    assert default.qc["n_residuals"] == 0
-    for chromosome_qc in default.qc["cis"]["per_chromosome"].values():
-        assert 0.0 < chromosome_qc["coverage_fraction"] < 1.0
+    assert default.qc["summary"]["n_residuals"] == 0
+    for chromosome_qc in default.qc["per_chromosome"].values():
+        assert 0.0 < chromosome_qc["cis"]["coverage_fraction"] < 1.0
 
     with_residuals = cluster(
         make_config(
@@ -170,9 +170,9 @@ def test_cluster_residuals_are_opt_in(gapped_mcool, gapped_tads, tmp_path) -> No
         "tad",
         "residual",
     }
-    assert with_residuals.qc["n_residuals"] == 2
-    for chromosome_qc in with_residuals.qc["cis"]["per_chromosome"].values():
-        assert chromosome_qc["coverage_fraction"] == 1.0
+    assert with_residuals.qc["summary"]["n_residuals"] == 2
+    for chromosome_qc in with_residuals.qc["per_chromosome"].values():
+        assert chromosome_qc["cis"]["coverage_fraction"] == 1.0
 
 
 def test_cluster_whole_chromosome_only_requires_residuals(mcool, tmp_path) -> None:
@@ -203,23 +203,22 @@ def test_cluster_uniform_bins(mcool, tmp_path) -> None:
     assert result.cis_leaves.height == 8
     assert result.cis_leaves["unit_kind"].unique().to_list() == ["bin"]
     assert result.cis_leaves["tad_table_row"].null_count() == 8
-    assert result.qc["n_units"] == 8
-    assert result.qc["n_tads"] == 0
-    assert result.qc["n_bin_units"] == 8
-    assert result.qc["n_residuals"] == 0
-    assert result.params["input_mode"] == "uniform_bins"
-    assert result.params["annotation_path"] is None
-    assert result.params["include_residuals"] is False
-    assert result.params["working_binsize"] == 500
-    assert result.params["working_binsize_mode"] == "explicit"
+    assert result.qc["summary"]["n_units"] == 8
+    assert result.qc["summary"]["n_tads"] == 0
+    assert result.qc["summary"]["n_bin_units"] == 8
+    assert result.qc["summary"]["n_residuals"] == 0
+    assert result.params["resolved"]["input_mode"] == "uniform_bins"
     assert result.inputs["annotation"] is None
-    for chromosome_qc in result.qc["cis"]["per_chromosome"].values():
-        assert chromosome_qc["n_bin_units"] == 4
-        assert chromosome_qc["n_covered_bins"] == 4
-        assert chromosome_qc["coverage_fraction"] == 1.0
-        assert chromosome_qc["dp_cut_size"] == 4
-        assert chromosome_qc["dp_objective"] == 0.0
-        assert chromosome_qc["dp_lambda"] == 0.0
+    assert result.params["requested"]["include_residuals"] is False
+    assert result.params["resolved"]["working_binsize"] == 500
+    assert result.params["resolved"]["working_binsize_mode"] == "explicit"
+    for chromosome_qc in result.qc["per_chromosome"].values():
+        assert chromosome_qc["cis"]["n_bin_units"] == 4
+        assert chromosome_qc["cis"]["n_covered_bins"] == 4
+        assert chromosome_qc["cis"]["coverage_fraction"] == 1.0
+        assert chromosome_qc["cis"]["dp_cut_size"] == 4
+        assert chromosome_qc["cis"]["dp_objective"] == 0.0
+        assert chromosome_qc["cis"]["dp_lambda"] == 0.0
 
 
 def test_uniform_bins_and_disjoint_tads_skip_dp(
@@ -324,7 +323,7 @@ def test_cluster_with_trans(three_chrom_mcool, trans_tads, tmp_path) -> None:
         result.cis_leaves["trans_root_label"].drop_nulls().unique().to_list()
     ) == {"genome"}
     assert {"chroms", "chrom_unit_counts"}.issubset(result.trans_nodes.columns)
-    assert result.qc["trans"]["enabled"] is True
+    assert result.qc["trans"] is not None
     assert result.qc["trans"]["skipped"] is None
     assert result.qc["trans"]["n_units"] == 6
     assert result.qc["trans"]["alpha"] is not None
@@ -434,18 +433,19 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
     assert set(result.cis_nodes_ab["root_label"].to_list()) >= {"A", "B"}
 
     ab_qc = result.qc["ab"]
-    assert ab_qc["enabled"] is True
+    assert ab_qc is not None
     assert "split_policy" not in ab_qc
     assert ab_qc["n_units_a"] + ab_qc["n_units_b"] == 8
-    assert set(ab_qc["per_chromosome"]) == {"chr1", "chr2"}
+    assert set(result.qc["per_chromosome"]) == {"chr1", "chr2"}
     assert "n_nodes_a" not in ab_qc
-    assert set(ab_qc["unconstrained_forest"]) == {
+    assert set(ab_qc["primary_forest"]) == {
         "n_nodes_a",
         "n_nodes_b",
     }
-    for chromosome_qc in ab_qc["per_chromosome"].values():
-        assert "n_nodes_a" not in chromosome_qc
-        assert set(chromosome_qc["unconstrained_forest"]) == {
+    for chromosome_qc in result.qc["per_chromosome"].values():
+        ab = chromosome_qc["ab"]
+        assert "n_nodes_a" not in ab
+        assert set(ab["primary_forest"]) == {
             "n_nodes_a",
             "n_nodes_b",
         }
@@ -478,7 +478,7 @@ def test_cluster_with_ab_omits_residuals(
     assert result.cis_leaves_ab is not None
     assert result.cis_leaves_ab.height == 8
     assert set(result.cis_leaves_ab["unit_kind"].to_list()) == {"tad"}
-    assert result.qc["n_residuals"] == 0
+    assert result.qc["summary"]["n_residuals"] == 0
 
 
 def test_feature_track_does_not_change_primary_tree(mcool, tmp_path) -> None:
@@ -529,8 +529,9 @@ def test_cluster_chromosome_selection(mcool, tmp_path) -> None:
     )
 
     assert result.cis_leaves["chrom"].unique().to_list() == ["chr2"]
-    assert result.params["chromosomes"] == ["chr2"]
-    assert set(result.qc["cis"]["per_chromosome"]) == {"chr2"}
+    assert result.params["requested"]["chromosomes"] == ["chr2"]
+    assert result.params["resolved"]["chromosomes"] == ["chr2"]
+    assert set(result.qc["per_chromosome"]) == {"chr2"}
 
 
 def test_cluster_trans_skipped_for_single_chromosome(mcool, tmp_path) -> None:
@@ -547,7 +548,7 @@ def test_cluster_trans_skipped_for_single_chromosome(mcool, tmp_path) -> None:
 
     assert result.trans_nodes is None
     assert "trans_path" not in result.cis_leaves.columns
-    assert result.qc["trans"]["enabled"] is True
+    assert result.qc["trans"] is not None
     assert result.qc["trans"]["skipped"] == "no_chromosome_pairs"
 
 
@@ -562,8 +563,9 @@ def test_cluster_adaptive_resolution(mcool, tmp_path) -> None:
         )
     )
 
-    assert result.params["working_binsize"] == 500
-    assert result.params["working_binsize_mode"] == "adaptive"
+    assert result.params["requested"]["working_binsize"] is None
+    assert result.params["resolved"]["working_binsize"] == 500
+    assert result.params["resolved"]["working_binsize_mode"] == "adaptive"
 
 
 def test_cluster_rejects_unknown_chromosome(mcool, tmp_path) -> None:
@@ -708,8 +710,8 @@ def test_zero_contact_cis_unit_is_unclustered(tmp_path) -> None:
     assert node_unclustered["unit_id"].to_list() == [0, 1]
     assert node_unclustered["is_leaf"].to_list() == [True, True]
     assert node_unclustered["path"].to_list() == [None, None]
-    assert result.qc["cis"]["n_unclustered"] == 2
-    assert result.qc["cis"]["per_chromosome"]["chr1"]["n_unclustered"] == 2
+    assert result.qc["summary"]["n_unclustered"] == 2
+    assert result.qc["per_chromosome"]["chr1"]["cis"]["n_unclustered"] == 2
 
 
 def test_zero_contact_ab_unit_is_unclustered(tmp_path) -> None:
@@ -745,7 +747,7 @@ def test_zero_contact_ab_unit_is_unclustered(tmp_path) -> None:
     assert node_unclustered.height == 2
     assert node_unclustered["ab_label"].to_list() == [None, None]
     assert node_unclustered["ab_signal"].to_list() == [None, None]
-    assert result.qc["ab"]["n_unclustered"] == 2
+    assert result.qc["summary"]["n_unclustered"] == 2
 
 
 def test_zero_contact_trans_units_are_unclustered(tmp_path) -> None:

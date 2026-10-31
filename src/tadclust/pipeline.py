@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 from typing import Any
 
 import cooler
@@ -181,8 +181,8 @@ def cluster(config: ClusterConfig) -> ClusterResult:
         cis_leaves_ab=cis_leaves_ab,
         cis_nodes_ab=cis_nodes_ab,
         trans_nodes=trans_nodes,
-        params=_build_params(config, choice, chromosomes, results, source),
-        qc=_build_qc(results, trans_run, config, choice, is_ab),
+        params=_build_params(config, choice, chromosomes, source),
+        qc=_build_qc(results, trans_run, config, is_ab),
         inputs={
             "mcool": str(config.mcool_path),
             "annotation": (
@@ -190,7 +190,7 @@ def cluster(config: ClusterConfig) -> ClusterResult:
                 if config.annotation_path is not None
                 else None
             ),
-            "feature_track": (
+            "ab_feature_track": (
                 str(config.ab_feature_track)
                 if config.ab_feature_track is not None
                 else None
@@ -648,60 +648,73 @@ def _build_params(
     config: ClusterConfig,
     choice: ResolutionChoice,
     chromosomes: list[str],
-    results: list[_ChromosomeResult],
     source: CisSource,
 ) -> dict[str, Any]:
-    params = {field.name: getattr(config, field.name) for field in fields(config)}
-    for key in (
-        "mcool_path",
-        "annotation_path",
-        "output_dir",
-        "ab_feature_track",
-    ):
-        value = params[key]
-        params[key] = str(value) if value is not None else None
-
-    params["working_binsize"] = choice.value
-    params["working_binsize_mode"] = choice.mode
-    params["input_mode"] = source.mode
-    params["chromosomes"] = chromosomes
-    params["dp_lambda_resolved"] = {
-        result.chrom: result.selection.dp_lambda for result in results
+    return {
+        "requested": {
+            "chromosomes": (
+                None if config.chromosomes is None else list(config.chromosomes)
+            ),
+            "working_binsize": config.working_binsize,
+            "tad_size_percentile": config.tad_size_percentile,
+            "min_bins_per_tad": config.min_bins_per_tad,
+            "oe_distance_bins": config.oe_distance_bins,
+            "oe_clip_min": config.oe_clip_min,
+            "oe_clip_max": config.oe_clip_max,
+            "oe_pseudocount": config.oe_pseudocount,
+            "dp_lambda_scale": config.dp_lambda_scale,
+            "include_residuals": config.include_residuals,
+            "tree_n_pcs": config.tree_n_pcs,
+            "tree_branch_k": config.tree_branch_k,
+            "trans_enabled": config.trans_enabled,
+            "trans_null": config.trans_null,
+            "workers": config.workers,
+            "seed": config.seed,
+        },
+        "resolved": {
+            "working_binsize": choice.value,
+            "working_binsize_mode": choice.mode,
+            "input_mode": source.mode,
+            "chromosomes": list(chromosomes),
+        },
     }
-    return params
 
 
 def _build_qc(
     results: list[_ChromosomeResult],
     trans_run: _TransRun | None,
     config: ClusterConfig,
-    choice: ResolutionChoice,
     is_ab: bool,
 ) -> dict[str, Any]:
-    units = [unit for result in results for unit in result.selection.units]
-    n_tads = sum(unit.unit_kind == "tad" for unit in units)
-    n_bin_units = sum(unit.unit_kind == "bin" for unit in units)
-    n_residuals = sum(unit.unit_kind == "residual" for unit in units)
+    summary, cis_per_chromosome = _cis_qc(results)
+    if is_ab:
+        ab_summary, ab_per_chromosome = _ab_qc(results)
+    else:
+        ab_summary, ab_per_chromosome = None, None
+
+    per_chromosome: dict[str, Any] = {}
+    for chrom, cis in cis_per_chromosome.items():
+        entry: dict[str, Any] = {"cis": cis}
+        if ab_per_chromosome is not None:
+            entry["ab"] = ab_per_chromosome[chrom]
+        per_chromosome[chrom] = entry
 
     return {
-        "working_binsize": choice.value,
-        "working_binsize_mode": choice.mode,
-        "n_chromosomes": len(results),
-        "n_units": len(units),
-        "n_tads": n_tads,
-        "n_bin_units": n_bin_units,
-        "n_residuals": n_residuals,
-        "cis": _cis_qc(results),
+        "summary": summary,
+        "per_chromosome": per_chromosome,
+        "ab": ab_summary,
         "trans": _trans_qc(trans_run, config),
-        "ab": _ab_qc(results) if is_ab else {"enabled": False},
     }
 
 
-def _cis_qc(results: list[_ChromosomeResult]) -> dict[str, Any]:
+def _cis_qc(
+    results: list[_ChromosomeResult],
+) -> tuple[dict[str, Any], dict[str, Any]]:
     per_chromosome: dict[str, Any] = {}
     total_nodes = 0
     total_leaves = 0
     total_unclustered = 0
+    units = [unit for result in results for unit in result.selection.units]
 
     for result in results:
         nodes = [node for tree in result.forest.trees for node in tree.nodes]
@@ -745,23 +758,27 @@ def _cis_qc(results: list[_ChromosomeResult]) -> dict[str, Any]:
         total_leaves += n_leaves
         total_unclustered += n_unclustered
 
-    return {
+    summary = {
+        "n_chromosomes": len(results),
+        "n_units": len(units),
+        "n_tads": sum(unit.unit_kind == "tad" for unit in units),
+        "n_bin_units": sum(unit.unit_kind == "bin" for unit in units),
+        "n_residuals": sum(unit.unit_kind == "residual" for unit in units),
         "n_nodes": total_nodes,
         "n_leaves": total_leaves,
         "n_unclustered": total_unclustered,
-        "per_chromosome": per_chromosome,
     }
+    return summary, per_chromosome
 
 
 def _ab_qc(
     results: list[_ChromosomeResult],
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], dict[str, Any]]:
     per_chromosome: dict[str, Any] = {}
     n_units_a = 0
     n_units_b = 0
     n_nodes_a = 0
     n_nodes_b = 0
-    n_unclustered = 0
     n_chroms_split = 0
     n_chroms_fallback = 0
 
@@ -779,8 +796,6 @@ def _ab_qc(
         n_b = int(b_mask.sum())
         n_units_a += n_a
         n_units_b += n_b
-        chrom_unclustered = int((~result.clusterable).sum())
-        n_unclustered += chrom_unclustered
 
         primary_nodes = [node for tree in result.forest.trees for node in tree.nodes]
         chrom_nodes_a = sum(node.ab_label == "A" for node in primary_nodes)
@@ -796,7 +811,6 @@ def _ab_qc(
         per_chromosome[result.chrom] = {
             "n_a": n_a,
             "n_b": n_b,
-            "n_unclustered": chrom_unclustered,
             "n_uncovered": result.n_uncovered,
             "fallback": annotation.fallback,
             "fallback_reason": annotation.fallback_reason,
@@ -807,36 +821,33 @@ def _ab_qc(
                 float(feature_rank[b_mask].mean()) if b_mask.any() else None
             ),
             "n_roots": len(ab_forest.trees),
-            "unconstrained_forest": {
+            "primary_forest": {
                 "n_nodes_a": chrom_nodes_a,
                 "n_nodes_b": chrom_nodes_b,
             },
         }
 
-    return {
-        "enabled": True,
-        "per_chromosome": per_chromosome,
+    summary = {
         "n_chroms_split": n_chroms_split,
         "n_chroms_fallback": n_chroms_fallback,
         "n_units_a": n_units_a,
         "n_units_b": n_units_b,
-        "n_unclustered": n_unclustered,
-        "unconstrained_forest": {
+        "primary_forest": {
             "n_nodes_a": n_nodes_a,
             "n_nodes_b": n_nodes_b,
         },
     }
+    return summary, per_chromosome
 
 
 def _trans_qc(
     trans_run: _TransRun | None,
     config: ClusterConfig,
-) -> dict[str, Any]:
+) -> dict[str, Any] | None:
     if not config.trans_enabled:
-        return {"enabled": False}
+        return None
     if trans_run is None:
         return {
-            "enabled": True,
             "skipped": "no_chromosome_pairs",
             "null": config.trans_null,
         }
@@ -852,7 +863,6 @@ def _trans_qc(
     ]
 
     return {
-        "enabled": True,
         "skipped": None,
         "null": info.null,
         "alpha_mode": info.alpha_mode,

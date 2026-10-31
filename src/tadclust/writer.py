@@ -13,6 +13,7 @@ import polars as pl
 from . import __version__
 from .config import ClusterConfig
 from .errors import OutputError
+from .metadata import MANIFEST_VERSION
 from .pipeline import ClusterResult
 from .schema import (
     Schema,
@@ -110,6 +111,7 @@ def write_outputs(
             )
 
         manifest = {
+            "manifest_version": MANIFEST_VERSION,
             "schema_version": SCHEMA_VERSION,
             "tadclust_version": __version__,
             "created_utc": _utc_now(),

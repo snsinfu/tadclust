@@ -10,6 +10,7 @@ from conftest import write_tads, write_track
 
 import tadclust
 from tadclust.config import ClusterConfig
+from tadclust.metadata import MANIFEST_VERSION
 from tadclust.pipeline import cluster
 from tadclust.writer import SCHEMA_VERSION, write_outputs
 
@@ -296,12 +297,11 @@ def test_uniform_bins_golden_schema(mcool, tmp_path) -> None:
 
     manifest = json.loads((out / "manifest.json").read_text())
     assert manifest["inputs"]["annotation"] is None
-    assert manifest["params"]["input_mode"] == "uniform_bins"
-    assert manifest["params"]["annotation_path"] is None
-    assert manifest["params"]["include_residuals"] is False
-    assert manifest["qc"]["n_bin_units"] == 8
-    assert manifest["qc"]["n_tads"] == 0
-    assert manifest["qc"]["n_residuals"] == 0
+    assert manifest["params"]["resolved"]["input_mode"] == "uniform_bins"
+    assert manifest["params"]["requested"]["include_residuals"] is False
+    assert manifest["qc"]["summary"]["n_bin_units"] == 8
+    assert manifest["qc"]["summary"]["n_tads"] == 0
+    assert manifest["qc"]["summary"]["n_residuals"] == 0
 
 
 def test_manifest_contract(mcool, tmp_path) -> None:
@@ -312,6 +312,7 @@ def test_manifest_contract(mcool, tmp_path) -> None:
 
     manifest = json.loads((tmp_path / "out" / "manifest.json").read_text())
     assert list(manifest) == [
+        "manifest_version",
         "schema_version",
         "tadclust_version",
         "created_utc",
@@ -321,23 +322,24 @@ def test_manifest_contract(mcool, tmp_path) -> None:
         "qc",
         "output_files",
     ]
+    assert manifest["manifest_version"] == MANIFEST_VERSION
     assert manifest["schema_version"] == SCHEMA_VERSION
     assert manifest["tadclust_version"] == tadclust.__version__
     assert manifest["created_utc"].endswith("Z")
     assert manifest["inputs"] == {
         "mcool": str(mcool),
         "annotation": str(tads),
-        "feature_track": None,
+        "ab_feature_track": None,
     }
     assert manifest["cli"] is None
-    assert manifest["params"]["working_binsize"] == 500
-    assert manifest["params"]["working_binsize_mode"] == "explicit"
-    assert manifest["params"]["include_residuals"] is False
-    assert "ab_split_policy" not in manifest["params"]
-    assert manifest["qc"]["n_units"] == 4
-    for chromosome_qc in manifest["qc"]["cis"]["per_chromosome"].values():
-        assert chromosome_qc["n_covered_bins"] == 4
-        assert chromosome_qc["coverage_fraction"] == 1.0
+    assert manifest["params"]["resolved"]["working_binsize"] == 500
+    assert manifest["params"]["resolved"]["working_binsize_mode"] == "explicit"
+    assert manifest["params"]["requested"]["include_residuals"] is False
+    assert "ab_split_policy" not in manifest["params"]["requested"]
+    assert manifest["qc"]["summary"]["n_units"] == 4
+    for chromosome_qc in manifest["qc"]["per_chromosome"].values():
+        assert chromosome_qc["cis"]["n_covered_bins"] == 4
+        assert chromosome_qc["cis"]["coverage_fraction"] == 1.0
     assert manifest["output_files"] == [
         "cis_leaves.parquet",
         "cis_leaves.tsv",
@@ -363,10 +365,10 @@ def test_manifest_records_include_residuals(
     write_outputs(result, config)
 
     manifest = json.loads((tmp_path / "out" / "manifest.json").read_text())
-    assert manifest["params"]["include_residuals"] is True
-    assert manifest["qc"]["n_residuals"] == 2
-    for chromosome_qc in manifest["qc"]["cis"]["per_chromosome"].values():
-        assert chromosome_qc["coverage_fraction"] == 1.0
+    assert manifest["params"]["requested"]["include_residuals"] is True
+    assert manifest["qc"]["summary"]["n_residuals"] == 2
+    for chromosome_qc in manifest["qc"]["per_chromosome"].values():
+        assert chromosome_qc["cis"]["coverage_fraction"] == 1.0
 
     leaves = pl.read_parquet(tmp_path / "out" / "cis_leaves.parquet")
     assert "residual" in set(leaves["unit_kind"].to_list())
