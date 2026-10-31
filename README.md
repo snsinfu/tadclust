@@ -11,8 +11,14 @@ TADCLUST is experimental and not released yet. Git clone, and use pixi to try it
 ```shell
 $ git clone https://github.com/snsinfu/tadclust.git
 $ cd tadclust
-$ pixi run tadclust
+$ pixi run tadclust -h
 ````
+
+Or, use docker (currently not regularly updated):
+
+```
+$ docker run --rm ghcr.io/snsinfu/tadclust tadclust -h
+```
 
 ## Usage
 
