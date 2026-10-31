@@ -44,6 +44,7 @@ def test_default_config_is_valid(tmp_path) -> None:
     config = make_config(tmp_path)
     assert config.tree_branch_k == 2
     assert config.trans_enabled is False
+    assert config.include_residuals is False
     assert config.dp_lambda_scale == 1.0
     assert config.seed == 0
 

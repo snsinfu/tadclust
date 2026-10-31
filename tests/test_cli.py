@@ -88,6 +88,23 @@ def test_cli_default_tree_branch_k() -> None:
     )
 
     assert args.tree_branch_k == 2
+    assert args.include_residuals is False
+
+
+def test_cli_include_residuals_flag() -> None:
+    args = parse_args(
+        [
+            "--mcool",
+            "test.mcool",
+            "--tad-table",
+            "domains.tsv",
+            "--out-dir",
+            "out",
+            "--include-residuals",
+        ]
+    )
+
+    assert args.include_residuals is True
 
 
 def test_cli_cis_run(mcool, tmp_path) -> None:
@@ -159,6 +176,7 @@ def test_help_lists_advanced(capsys) -> None:
     assert "advanced" in out
     assert "--oe-distance-bins" in out
     assert "--uniform-bins" in out
+    assert "--include-residuals" in out
 
 
 def test_cli_trans_run(three_chrom_mcool, trans_tads, tmp_path) -> None:

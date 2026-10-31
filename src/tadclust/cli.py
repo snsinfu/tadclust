@@ -45,6 +45,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="enable trans clustering",
     )
     parser.add_argument(
+        "--include-residuals",
+        action="store_true",
+        help="include uncovered-gap residual units in clustering and output",
+    )
+    parser.add_argument(
         "--ab-feature-track",
         default=None,
         help="bedGraph or BED feature track; enables A/B",
@@ -141,6 +146,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             oe_clip_max=args.oe_clip_max,
             oe_pseudocount=args.oe_pseudocount,
             dp_lambda_scale=args.dp_lambda_scale,
+            include_residuals=args.include_residuals,
             tree_n_pcs=args.tree_n_pcs,
             tree_branch_k=args.tree_branch_k,
             trans_enabled=args.enable_trans,

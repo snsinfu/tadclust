@@ -32,6 +32,7 @@ class ClusterConfig:
     oe_clip_max: float = 10.0
     oe_pseudocount: float = 1.0
     dp_lambda_scale: float = 1.0
+    include_residuals: bool = False
     tree_n_pcs: int = 5
     tree_branch_k: int = 2
     trans_enabled: bool = False
