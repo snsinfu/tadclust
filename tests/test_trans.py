@@ -72,7 +72,39 @@ def test_build_pixel_map(mcool) -> None:
         pixel_map = build_pixel_map(cooler_object, group, inputs)
 
     assert pixel_map.bin_to_unit.tolist() == [0, 0, 1, 1, 2, 2, 2, 2]
+    assert pixel_map.bin_chrom.tolist() == [0, 0, 0, 0, 1, 1, 1, 1]
     assert pixel_map.col_sums.tolist() == [2, 2, 4]
+    assert pixel_map.unit_chrom.tolist() == [0, 0, 1]
+    assert pixel_map.n_bins_chrom == {"chr1": 4, "chr2": 4}
+    assert pixel_map.pair_info == {(0, 1): PairInfo(0, 2, 2, 1)}
+    assert pixel_map.pair_counts == {(0, 1): 16}
+    assert pixel_map.pair_count == 16
+
+
+def test_build_pixel_map_with_uncovered_bins(mcool) -> None:
+    cooler_object = open_cooler(mcool, 500)
+    inputs = [
+        TransInput(
+            chrom="chr1",
+            units=[
+                make_unit("chr1", 0, 500, 0, 1),
+                make_unit("chr1", 1000, 2000, 1, 2),
+            ],
+        ),
+        TransInput(
+            chrom="chr2",
+            units=[make_unit("chr2", 0, 2000, 2, 4)],
+        ),
+    ]
+
+    with h5py.File(mcool, "r") as handle:
+        group = handle["resolutions/500"]
+        assert isinstance(group, h5py.Group)
+        pixel_map = build_pixel_map(cooler_object, group, inputs)
+
+    assert pixel_map.bin_to_unit.tolist() == [0, -1, 1, 1, 2, 2, 2, 2]
+    assert pixel_map.bin_chrom.tolist() == [0, 0, 0, 0, 1, 1, 1, 1]
+    assert pixel_map.col_sums.tolist() == [1, 2, 4]
     assert pixel_map.unit_chrom.tolist() == [0, 0, 1]
     assert pixel_map.n_bins_chrom == {"chr1": 4, "chr2": 4}
     assert pixel_map.pair_info == {(0, 1): PairInfo(0, 2, 2, 1)}

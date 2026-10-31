@@ -84,6 +84,7 @@ class PixelMap:
     """Global bin-to-unit mapping and chromosome-pair bookkeeping."""
 
     bin_to_unit: np.ndarray
+    bin_chrom: np.ndarray
     unit_chrom: np.ndarray
     col_sums: np.ndarray
     n_bins_chrom: dict[str, int]
@@ -319,6 +320,7 @@ def build_pixel_map(
     bin1_offset = _dataset(group, "indexes/bin1_offset")
     bins_chrom = _dataset(group, "bins/chrom")
     n_working_bins = int(bins_chrom.shape[0])
+    bin_chrom = np.asarray(bins_chrom[:], dtype=np.int64)
 
     chrom_index = {
         str(name): index for index, name in enumerate(cooler_object.chromnames)
@@ -359,11 +361,26 @@ def build_pixel_map(
             [unit.start for unit in item.units],
             dtype=np.float64,
         )
+        unit_ends = np.asarray(
+            [unit.end for unit in item.units],
+            dtype=np.float64,
+        )
         local = np.searchsorted(unit_starts, centers, side="right") - 1
-        local = np.clip(local, 0, len(item.units) - 1).astype(np.int64)
-        bin_to_unit[start_bin:end_bin] = local + unit_offset
+        candidate = np.clip(local, 0, len(item.units) - 1)
+        local = np.where(
+            (local >= 0) & (centers < unit_ends[candidate]),
+            local,
+            -1,
+        ).astype(np.int64)
+        mapped = local >= 0
+        bin_to_unit[start_bin:end_bin] = np.where(
+            mapped,
+            local + unit_offset,
+            -1,
+        )
         col_sums[unit_offset : unit_offset + len(item.units)] = np.bincount(
-            local, minlength=len(item.units)
+            local[mapped],
+            minlength=len(item.units),
         )
         unit_chrom[unit_offset : unit_offset + len(item.units)] = input_index
 
@@ -389,6 +406,7 @@ def build_pixel_map(
 
     return PixelMap(
         bin_to_unit=bin_to_unit,
+        bin_chrom=bin_chrom,
         unit_chrom=unit_chrom,
         col_sums=col_sums,
         n_bins_chrom=n_bins_chrom,
