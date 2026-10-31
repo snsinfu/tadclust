@@ -54,3 +54,8 @@ class TrackError(TadclustError):
 @dataclass(eq=False)
 class OutputError(TadclustError):
     path: str | None = None
+
+
+@dataclass(eq=False)
+class MetadataError(TadclustError):
+    path: str | None = None
