@@ -76,6 +76,33 @@ def test_recursive_splits_use_distinct_seeds(monkeypatch) -> None:
     assert seeds == first
 
 
+def test_base_seed_still_changes_node_seeds(monkeypatch) -> None:
+    seeds: list[int] = []
+
+    def capture(pcs, k, n_pcs, seed, n_init=10):
+        seeds.append(seed)
+        values = np.asarray(pcs)[:, 0]
+        labels = (values > np.median(values)).astype(np.int64)
+        centers = np.vstack(
+            [
+                values[labels == 0].mean(),
+                values[labels == 1].mean(),
+            ]
+        )[:, None]
+        return labels, centers
+
+    monkeypatch.setattr("tadclust.trees.kmeans_labels", capture)
+    pcs = np.arange(8, dtype=np.float64).reshape(-1, 1)
+    bins = np.ones(8, dtype=np.int64)
+
+    build_branching_tree(pcs, bins, n_pcs=1, seed=0, branch_k=2)
+    first = list(seeds)
+    seeds.clear()
+    build_branching_tree(pcs, bins, n_pcs=1, seed=1, branch_k=2)
+
+    assert first != seeds
+
+
 def test_feature_orientation_must_not_change_primary_tree() -> None:
     rng = np.random.default_rng(0)
     n = 128
