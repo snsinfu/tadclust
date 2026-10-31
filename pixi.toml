@@ -31,6 +31,7 @@ pandas = "*"
 
 [environments]
 default = { features = ["dev"], solve-group = "default" }
+prod = { solve-group = "default" }
 
 [activation.env]
 PYTHONPATH = "$PIXI_PROJECT_ROOT/src"
