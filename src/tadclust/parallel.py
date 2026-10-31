@@ -135,6 +135,7 @@ def _select_chromosome(
         tree_branch_k=config.tree_branch_k,
         seed=config.seed,
         unit_kind=source.unit_kind,
+        include_residuals=config.include_residuals,
     )
     pcs = canonicalize_pc1_sign(selection.matrices.pcs)
     unit_bins = np.asarray(

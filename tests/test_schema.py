@@ -298,6 +298,7 @@ def test_uniform_bins_golden_schema(mcool, tmp_path) -> None:
     assert manifest["inputs"]["annotation"] is None
     assert manifest["params"]["input_mode"] == "uniform_bins"
     assert manifest["params"]["annotation_path"] is None
+    assert manifest["params"]["include_residuals"] is False
     assert manifest["qc"]["n_bin_units"] == 8
     assert manifest["qc"]["n_tads"] == 0
     assert manifest["qc"]["n_residuals"] == 0
@@ -331,8 +332,12 @@ def test_manifest_contract(mcool, tmp_path) -> None:
     assert manifest["cli"] is None
     assert manifest["params"]["working_binsize"] == 500
     assert manifest["params"]["working_binsize_mode"] == "explicit"
+    assert manifest["params"]["include_residuals"] is False
     assert "ab_split_policy" not in manifest["params"]
     assert manifest["qc"]["n_units"] == 4
+    for chromosome_qc in manifest["qc"]["cis"]["per_chromosome"].values():
+        assert chromosome_qc["n_covered_bins"] == 4
+        assert chromosome_qc["coverage_fraction"] == 1.0
     assert manifest["output_files"] == [
         "cis_leaves.parquet",
         "cis_leaves.tsv",

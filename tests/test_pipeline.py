@@ -119,7 +119,11 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert result.qc["trans"] == {"enabled": False}
     assert result.qc["ab"] == {"enabled": False}
     assert set(result.qc["cis"]["per_chromosome"]) == {"chr1", "chr2"}
+    for chromosome_qc in result.qc["cis"]["per_chromosome"].values():
+        assert chromosome_qc["n_covered_bins"] == 4
+        assert chromosome_qc["coverage_fraction"] == 1.0
 
+    assert result.params["include_residuals"] is False
     assert result.params["working_binsize"] == 500
     assert result.params["working_binsize_mode"] == "explicit"
     assert result.params["input_mode"] == "annotation"
@@ -146,11 +150,14 @@ def test_cluster_uniform_bins(mcool, tmp_path) -> None:
     assert result.qc["n_residuals"] == 0
     assert result.params["input_mode"] == "uniform_bins"
     assert result.params["annotation_path"] is None
+    assert result.params["include_residuals"] is False
     assert result.params["working_binsize"] == 500
     assert result.params["working_binsize_mode"] == "explicit"
     assert result.inputs["annotation"] is None
     for chromosome_qc in result.qc["cis"]["per_chromosome"].values():
         assert chromosome_qc["n_bin_units"] == 4
+        assert chromosome_qc["n_covered_bins"] == 4
+        assert chromosome_qc["coverage_fraction"] == 1.0
         assert chromosome_qc["dp_cut_size"] == 4
         assert chromosome_qc["dp_objective"] == 0.0
         assert chromosome_qc["dp_lambda"] == 0.0

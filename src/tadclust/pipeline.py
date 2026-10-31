@@ -714,6 +714,11 @@ def _cis_qc(results: list[_ChromosomeResult]) -> dict[str, Any]:
         )
         n_clustered = int(result.clusterable.sum())
         n_unclustered = len(result.selection.units) - n_clustered
+        n_covered_bins = sum(
+            unit.n_working_bins for unit in result.selection.units
+        )
+        chrom_bins = result.tree.n_bins_chrom
+        coverage_fraction = n_covered_bins / chrom_bins if chrom_bins > 0 else 0.0
         matrices = result.selection.matrices
         per_chromosome[result.chrom] = {
             "n_fine": result.tree.n_fine,
@@ -721,6 +726,8 @@ def _cis_qc(results: list[_ChromosomeResult]) -> dict[str, Any]:
             "n_tads": n_tads,
             "n_bin_units": n_bin_units,
             "n_residuals": n_residuals,
+            "n_covered_bins": n_covered_bins,
+            "coverage_fraction": coverage_fraction,
             "n_clustered": n_clustered,
             "n_unclustered": n_unclustered,
             "n_nodes": n_nodes,
