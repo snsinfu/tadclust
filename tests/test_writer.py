@@ -13,7 +13,7 @@ from conftest import write_mcool, write_tads, write_track
 import tadclust
 from tadclust.config import ClusterConfig
 from tadclust.errors import OutputError
-from tadclust.metadata import MANIFEST_VERSION
+from tadclust.metadata import MANIFEST_VERSION, METADATA_KEY, METADATA_VERSION
 from tadclust.pipeline import cluster
 from tadclust.writer import (
     SCHEMA_VERSION,
@@ -185,6 +185,11 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     ]
     assert "checksums" not in manifest
 
+    leaves_metadata = json.loads(
+        pl.read_parquet_metadata(tmp_path / "out" / "cis_leaves.parquet")[METADATA_KEY]
+    )
+    assert leaves_metadata["sources"] == ["cis_nodes.parquet"]
+
     leaves = pl.read_parquet(tmp_path / "out" / "cis_leaves.parquet")
     leaves_tsv = read_tsv(tmp_path / "out" / "cis_leaves.tsv")
     nodes = pl.read_parquet(tmp_path / "out" / "cis_nodes.parquet")
@@ -343,6 +348,52 @@ def test_write_ab_and_trans_outputs(
     assert "trans_path_label" in leaves_tsv.columns
     assert leaves_ab_tsv.columns == CIS_LEAVES_AB_TSV_COLUMNS
     assert "path" not in leaves_ab_tsv.columns
+
+
+def test_parquet_metadata_embedded_in_every_table(
+    three_chrom_mcool,
+    trans_tads,
+    trans_track,
+    tmp_path,
+) -> None:
+    config = make_config(
+        three_chrom_mcool,
+        trans_tads,
+        tmp_path,
+        ab_feature_track=trans_track,
+        trans_enabled=True,
+        trans_null="grand",
+    )
+    result = cluster(config)
+    write_outputs(result, config)
+
+    out = tmp_path / "out"
+    manifest = json.loads((out / "manifest.json").read_text())
+    expected = {
+        "cis_nodes.parquet": ("cis_nodes", "canonical", []),
+        "cis_leaves.parquet": (
+            "cis_leaves",
+            "derived",
+            ["cis_nodes.parquet", "trans_nodes.parquet"],
+        ),
+        "cis_nodes_ab.parquet": ("cis_nodes_ab", "canonical", []),
+        "cis_leaves_ab.parquet": (
+            "cis_leaves_ab",
+            "derived",
+            ["cis_nodes_ab.parquet"],
+        ),
+        "trans_nodes.parquet": ("trans_nodes", "canonical", []),
+    }
+
+    for filename, (table, kind, sources) in expected.items():
+        envelope = json.loads(pl.read_parquet_metadata(out / filename)[METADATA_KEY])
+        assert envelope["metadata_version"] == METADATA_VERSION
+        assert envelope["table"] == table
+        assert envelope["kind"] == kind
+        assert envelope["sources"] == sources
+        assert list(envelope["manifest"]) == list(manifest)
+        assert envelope["manifest"] == manifest
+        assert tadclust.read_manifest(out / filename) == manifest
 
 
 def test_nonempty_output_dir_requires_overwrite(mcool, tmp_path) -> None:

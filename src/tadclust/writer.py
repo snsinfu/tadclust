@@ -13,7 +13,7 @@ import polars as pl
 from . import __version__
 from .config import ClusterConfig
 from .errors import OutputError
-from .metadata import MANIFEST_VERSION
+from .metadata import MANIFEST_VERSION, parquet_metadata
 from .pipeline import ClusterResult
 from .schema import (
     Schema,
@@ -55,12 +55,33 @@ def write_outputs(
     include_ab = result.cis_leaves_ab is not None
     staged: list[tuple[Path, Path]] = []
 
+    manifest = {
+        "manifest_version": MANIFEST_VERSION,
+        "schema_version": SCHEMA_VERSION,
+        "tadclust_version": __version__,
+        "created_utc": _utc_now(),
+        "inputs": result.inputs,
+        "cli": None if cli_args is None else {"argv": list(cli_args)},
+        "params": result.params,
+        "qc": result.qc,
+        "output_files": [*result.output_files, "manifest.json"],
+    }
+    cis_leaves_sources = ["cis_nodes.parquet"]
+    if include_trans:
+        cis_leaves_sources.append("trans_nodes.parquet")
+
     try:
         staged.append(
             _stage_parquet(
                 result.cis_leaves,
                 output_dir / "cis_leaves.parquet",
                 cis_leaves_schema(config.tree_n_pcs, include_trans, include_ab),
+                metadata=parquet_metadata(
+                    table="cis_leaves",
+                    kind="derived",
+                    sources=cis_leaves_sources,
+                    manifest=manifest,
+                ),
             )
         )
         staged.append(
@@ -75,6 +96,12 @@ def write_outputs(
                 result.cis_nodes,
                 output_dir / "cis_nodes.parquet",
                 cis_nodes_schema(config.tree_n_pcs, include_ab),
+                metadata=parquet_metadata(
+                    table="cis_nodes",
+                    kind="canonical",
+                    sources=[],
+                    manifest=manifest,
+                ),
             )
         )
 
@@ -84,6 +111,12 @@ def write_outputs(
                     result.cis_leaves_ab,
                     output_dir / "cis_leaves_ab.parquet",
                     cis_leaves_ab_schema(),
+                    metadata=parquet_metadata(
+                        table="cis_leaves_ab",
+                        kind="derived",
+                        sources=["cis_nodes_ab.parquet"],
+                        manifest=manifest,
+                    ),
                 )
             )
             staged.append(
@@ -99,6 +132,12 @@ def write_outputs(
                     result.cis_nodes_ab,
                     output_dir / "cis_nodes_ab.parquet",
                     cis_nodes_schema(config.tree_n_pcs, True),
+                    metadata=parquet_metadata(
+                        table="cis_nodes_ab",
+                        kind="canonical",
+                        sources=[],
+                        manifest=manifest,
+                    ),
                 )
             )
         if result.trans_nodes is not None:
@@ -107,20 +146,15 @@ def write_outputs(
                     result.trans_nodes,
                     output_dir / "trans_nodes.parquet",
                     trans_nodes_schema(),
+                    metadata=parquet_metadata(
+                        table="trans_nodes",
+                        kind="canonical",
+                        sources=[],
+                        manifest=manifest,
+                    ),
                 )
             )
 
-        manifest = {
-            "manifest_version": MANIFEST_VERSION,
-            "schema_version": SCHEMA_VERSION,
-            "tadclust_version": __version__,
-            "created_utc": _utc_now(),
-            "inputs": result.inputs,
-            "cli": None if cli_args is None else {"argv": list(cli_args)},
-            "params": result.params,
-            "qc": result.qc,
-            "output_files": [*result.output_files, "manifest.json"],
-        }
         staged.append(
             _stage_json(manifest, output_dir / "manifest.json"),
         )
@@ -154,11 +188,13 @@ def _stage_parquet(
     table: pl.DataFrame,
     path: Path,
     schema: Schema,
+    *,
+    metadata: dict[str, str] | None = None,
 ) -> tuple[Path, Path]:
     frame = table.select([pl.col(name).cast(dtype) for name, dtype in schema.items()])
     temporary = _temporary_path(path)
     try:
-        frame.write_parquet(temporary)
+        frame.write_parquet(temporary, metadata=metadata)
     except Exception:
         if temporary.exists():
             temporary.unlink()
