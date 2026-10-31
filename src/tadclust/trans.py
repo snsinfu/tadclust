@@ -619,9 +619,9 @@ def _scan_chunk(
         # outside selected units. Only mapped bins enter the observed blocks.
         observed = (block_units1 >= 0) & (block_units2 >= 0)
         if observed.any():
-            local = (
-                block_units1[observed] - info.unit_offset_a
-            ) * info.n_units_b + (block_units2[observed] - info.unit_offset_b)
+            local = (block_units1[observed] - info.unit_offset_a) * info.n_units_b + (
+                block_units2[observed] - info.unit_offset_b
+            )
             block = np.bincount(
                 local,
                 weights=block_values[observed],

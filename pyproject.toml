@@ -31,7 +31,7 @@ dependencies = [
   "cooler>=0.10.4,<0.11",
   "h5py>=3.10,<4",
   "numpy>=2,<3",
-  "polars>=1,<2",
+  "polars>=1.30,<2",
   "pyarrow",
   "scikit-learn>=1.5,<2",
   "scipy>=1.11,<2",
