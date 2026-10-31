@@ -6,12 +6,12 @@ Given any TAD annotation and a contact map, TADCLUST applies hierarchical cluste
 
 ## Install
 
-TADCLUST is experimental and not released yet. Git clone, and use pixi to try it out:
+TADCLUST is experimental and not released yet. Git clone, and use uv to try it out:
 
 ```shell
 $ git clone https://github.com/snsinfu/tadclust.git
 $ cd tadclust
-$ pixi run tadclust -h
+$ uv run tadclust -h
 ````
 
 Or, use docker (currently not regularly updated):
@@ -36,13 +36,14 @@ The TAD table can be any disjoint or hierarchical TAD annotation in the BED3+ fo
 
 ### Options
 
-| option             | default | description |
-|:-------------------|:--------|:------------|
-| --tree-branch-k  K | 2       | Split count of recursive k-means. |
-| --enable-trans     | no      | Enable trans-chromosomal clustering (experimental and expensive). |
-| --overwrite        | no      | Allow overwriting existing files in the output directory. |
-| --workers        N | 1       | Run analysis in parallel using N processes. |
-| --seed           N | 0       | Random seed for reproducibility. |
+| option              | default | description |
+|:--------------------|:--------|:------------|
+| --tree-branch-k  K  | 2       | Split count of recursive k-means. |
+| --enable-trans      | no      | Enable trans-chromosomal clustering (experimental and expensive). |
+| --include-residuals | no      | Fill gaps with `residual` pseudo-domains. |
+| --overwrite         | no      | Allow overwriting existing files in the output directory. |
+| --workers        N  | 1       | Run analysis in parallel using N processes. |
+| --seed           N  | 0       | Random seed for reproducibility. |
 
 ### Output
 
