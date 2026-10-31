@@ -568,23 +568,21 @@ def _scan_chunk(
         dtype=np.float64,
     )
 
-    unit1 = pixel_map.bin_to_unit[bin1]
-    unit2 = pixel_map.bin_to_unit[bin2]
-    keep = (unit1 >= 0) & (unit2 >= 0)
-
-    chrom1 = pixel_map.unit_chrom[np.where(keep, unit1, 0)]
-    chrom2 = pixel_map.unit_chrom[np.where(keep, unit2, 0)]
-    keep &= chrom1 != chrom2
-    if not keep.any():
+    chrom1 = pixel_map.bin_chrom[bin1]
+    chrom2 = pixel_map.bin_chrom[bin2]
+    cross = chrom1 != chrom2
+    if not cross.any():
         return ChunkResult([], 0.0, [])
 
-    bin1 = bin1[keep]
-    bin2 = bin2[keep]
-    unit1 = unit1[keep]
-    unit2 = unit2[keep]
-    chrom1 = chrom1[keep]
-    chrom2 = chrom2[keep]
-    values = counts[keep]
+    bin1 = bin1[cross]
+    bin2 = bin2[cross]
+    counts = counts[cross]
+    chrom1 = chrom1[cross]
+    chrom2 = chrom2[cross]
+    unit1 = pixel_map.bin_to_unit[bin1]
+    unit2 = pixel_map.bin_to_unit[bin2]
+
+    values = counts
     if weight is not None:
         values = values * weight[bin1] * weight[bin2]
 
@@ -613,16 +611,25 @@ def _scan_chunk(
         i = key // pixel_map.n_chrom
         j = key % pixel_map.n_chrom
         info = pixel_map.pair_info[(i, j)]
-        local = (
-            unit1_sorted[block_start:block_end] - info.unit_offset_a
-        ) * info.n_units_b + (unit2_sorted[block_start:block_end] - info.unit_offset_b)
-        block = np.bincount(
-            local,
-            weights=values[block_start:block_end],
-            minlength=info.n_units_a * info.n_units_b,
-        ).reshape(info.n_units_a, info.n_units_b)
-        pair_sum = float(values[block_start:block_end].sum())
-        blocks.append(BlockSum(i, j, block))
+        block_units1 = unit1_sorted[block_start:block_end]
+        block_units2 = unit2_sorted[block_start:block_end]
+        block_values = values[block_start:block_end]
+
+        # The null is fitted on every cross-chromosome pixel, including bins
+        # outside selected units. Only mapped bins enter the observed blocks.
+        observed = (block_units1 >= 0) & (block_units2 >= 0)
+        if observed.any():
+            local = (
+                block_units1[observed] - info.unit_offset_a
+            ) * info.n_units_b + (block_units2[observed] - info.unit_offset_b)
+            block = np.bincount(
+                local,
+                weights=block_values[observed],
+                minlength=info.n_units_a * info.n_units_b,
+            ).reshape(info.n_units_a, info.n_units_b)
+            blocks.append(BlockSum(i, j, block))
+
+        pair_sum = float(block_values.sum())
         pair_sums.append(PairSum(i, j, pair_sum))
         total += pair_sum
 

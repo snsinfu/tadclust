@@ -62,6 +62,22 @@ def one_unit_inputs(chroms):
     ]
 
 
+def partial_two_chrom_inputs():
+    return [
+        TransInput(
+            chrom="chr1",
+            units=[
+                make_unit("chr1", 0, 500, 0, 1),
+                make_unit("chr1", 1000, 2000, 1, 2),
+            ],
+        ),
+        TransInput(
+            chrom="chr2",
+            units=[make_unit("chr2", 0, 2000, 2, 4)],
+        ),
+    ]
+
+
 def test_build_pixel_map(mcool) -> None:
     cooler_object = open_cooler(mcool, 500)
     inputs = two_chrom_inputs()
@@ -169,6 +185,102 @@ def test_trans_grand_null(three_chrom_mcool) -> None:
     assert np.allclose(trans.log_oe, trans.log_oe.T)
     assert np.allclose(np.diag(trans.log_oe), 0.0)
     assert np.any(np.abs(trans.log_oe) > 0)
+
+
+@pytest.mark.parametrize("null", ["pair", "grand"])
+def test_trans_partial_coverage_null_uses_all_pixels(mcool, null) -> None:
+    cooler_object = open_cooler(mcool, 500)
+    full = trans_matrix(
+        mcool,
+        500,
+        cooler_object,
+        one_unit_inputs(("chr1", "chr2")),
+        pseudocount=1.0,
+        clip_min=-10.0,
+        clip_max=10.0,
+        null=null,
+    )
+    partial = trans_matrix(
+        mcool,
+        500,
+        cooler_object,
+        partial_two_chrom_inputs(),
+        pseudocount=1.0,
+        clip_min=-10.0,
+        clip_max=10.0,
+        null=null,
+    )
+
+    assert partial.log_oe.shape == (3, 3)
+    assert np.allclose(partial.log_oe, partial.log_oe.T)
+    assert np.allclose(np.diag(partial.log_oe), 0.0)
+    assert partial.col_sums.tolist() == [1, 2, 4]
+    assert partial.info.pair_count == full.info.pair_count
+    assert partial.info.pair_means == full.info.pair_means
+    assert partial.info.grand_mean == pytest.approx(full.info.grand_mean)
+
+
+def test_trans_partial_coverage_chunking_matches(
+    monkeypatch,
+    mcool,
+) -> None:
+    cooler_object = open_cooler(mcool, 500)
+
+    monkeypatch.setattr("tadclust.trans.CHUNK_ROWS", 1)
+    chunked = trans_matrix(
+        mcool,
+        500,
+        cooler_object,
+        partial_two_chrom_inputs(),
+        pseudocount=1.0,
+        clip_min=-10.0,
+        clip_max=10.0,
+        null="grand",
+    )
+
+    monkeypatch.setattr("tadclust.trans.CHUNK_ROWS", 10_000_000)
+    whole = trans_matrix(
+        mcool,
+        500,
+        cooler_object,
+        partial_two_chrom_inputs(),
+        pseudocount=1.0,
+        clip_min=-10.0,
+        clip_max=10.0,
+        null="grand",
+    )
+
+    assert np.allclose(chunked.log_oe, whole.log_oe)
+    assert chunked.info.pair_means == whole.info.pair_means
+
+
+def test_trans_partial_coverage_parallel_matches_serial(mcool) -> None:
+    cooler_object = open_cooler(mcool, 500)
+    serial = trans_matrix(
+        mcool,
+        500,
+        cooler_object,
+        partial_two_chrom_inputs(),
+        pseudocount=1.0,
+        clip_min=-10.0,
+        clip_max=10.0,
+        null="grand",
+        workers=1,
+    )
+    parallel = trans_matrix(
+        mcool,
+        500,
+        cooler_object,
+        partial_two_chrom_inputs(),
+        pseudocount=1.0,
+        clip_min=-10.0,
+        clip_max=10.0,
+        null="grand",
+        workers=2,
+    )
+
+    assert np.allclose(serial.log_oe, parallel.log_oe)
+    assert serial.info.pair_means == parallel.info.pair_means
 
 
 def test_trans_single_chromosome_has_no_pairs(mcool) -> None:
