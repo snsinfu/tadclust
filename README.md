@@ -24,12 +24,12 @@ $ tadclust \
   --ab-feature-track active_signal.bedGraph
 ```
 
-The TAD table can be any disjoint or hierarchical TAD annotation in the BED3+ format, or a TSV with `chrom, start, end` columns. TADCLUST selects an optimal set of sub-TADs for clustering if the annotation is hierarchical. --ab-feature-track is any 4-column, BedGraph-like table or BED5+ where the annotated score is larger in the A compartment (like ATAC, H4ac, and gene density). It is used to define the A/B compartment boundary, to enable A/B annotation of TADs and cluster nodes.
+The TAD table can be any disjoint or hierarchical TAD annotation in the BED3+ format, or a TSV with `chrom, start, end` columns. TADCLUST selects an optimal set of sub-TADs for clustering if the annotation is hierarchical. `--ab-feature-track` is any 4-column, BedGraph-like table or BED5+ where the annotated score is larger in the A compartment (like ATAC, H4ac, and gene density). It is used to define the A/B compartment boundary, to enable A/B annotation of TADs and cluster nodes.
 
 ### Options
 
 | option             | default | description |
-|--------------------|---------|-------------|
+|:-------------------|:--------|:------------|
 | --tree-branch-k  K | 2       | Split count of recursive k-means. |
 | --enable-trans     | no      | Enable trans-chromosomal clustering (experimental and expensive). |
 | --overwrite        | no      | Allow overwriting existing files in the output directory. |
@@ -41,21 +41,21 @@ The TAD table can be any disjoint or hierarchical TAD annotation in the BED3+ fo
 Results are stored as parquet/tsv tables and a json summary in the output directory:
 
 ```
-$ ls out
-cis_nodes.parquet
-cis_nodes_ab.parquet
-cis_leaves.parquet
-cis_leaves.tsv
-cis_leaves_ab.parquet
-cis_leaves_ab.tsv
-trans_nodes.parquet
-manifest.json
+out/
+├── cis_nodes.parquet
+├── cis_nodes_ab.parquet        # optional
+├── cis_leaves.parquet
+├── cis_leaves.tsv
+├── cis_leaves_ab.parquet       # optional
+├── cis_leaves_ab.tsv           # optional
+├── trans_nodes.parquet         # optional
+└── manifest.json
 ```
 
 Main output is `cis_nodes.parquet` which contains full tree nodes for all chromosomes. `cis_leaves.{parquet,tsv}` are leaf-only subsets created for convenience. `_ab` suffixed tables store the result for A/B-rooted clustering variant. Columns:
 
 | column            | type             | description |
-|-------------------|------------------|-------------|
+|:------------------|:-----------------|:------------|
 | chrom             | string           | The chromosome the node belongs to. |
 | node_id           | int              | Unique ID of the node within the table. |
 | parent_id         | int              | Parent's node_id or null. |
@@ -86,22 +86,22 @@ Main output is `cis_nodes.parquet` which contains full tree nodes for all chromo
 Notes:
 
 - Node's children (.0 .1) are ordered by centroid PC1.
-- When --ab-feature-track is given, the PC1 axis itself is oriented towards higher A signal. So nodes are B-to-A ordered.
+- When `--ab-feature-track` is given, the PC1 axis itself is oriented towards higher A signal. So nodes are B-to-A ordered.
 - In the tsv outputs, array/list columns are not emitted, and nulls are replaced by (int) -1, (float) NaN, and (string) "NA".
 
 ## Method notes
 
 **TAD-level L2-normalized log-O/E** is diagonalized (without centering; zero is the natural center for log-O/E) to produce principal components. This PC feature space is hierarchically clustered like CALDER. The first branch gives a similar result to the conventional compartment analysis, and deeper branches describe subcompartment organization.
 
-When **hierarchical TAD annotation** is given (i.e., there are nested intervals), the optimal levels of sub-TAD hierarchies are decided by dynamic programming so that within-TAD variance (among sub-TADs and gaps) is minimized in the feature space. The selected (sub-)TADs are output as leaf units with unit_type = "tad". Besides clustering, this selection of the most coherent sub-TADs can be useful on its own.
+When **hierarchical TAD annotation** is given (i.e., there are nested intervals), the optimal levels of sub-TAD hierarchies are decided by dynamic programming so that within-TAD variance (among sub-TADs and gaps) is minimized in the feature space. The selected (sub-)TADs are output as leaf units with `unit_kind` = "tad". Besides clustering, this selection of the "most coherent" sub-TADs can be useful on its own.
 
 **Recursive K-means** seems superior to other methods like Ward, HDBSCAN, spectral, etc. for clustering TADs. This is probably because the domains in the feature space are not cleanly separable (strong noise, broad lobes, and biological intermediates). Bisection (k=2) is good enough to maintain A/B coherence in subtree. k=3 performs similarly good.
 
-For **A/B compartment** annotation, an auxiliary binary split of an augmented feature space is made. Bisection of the raw PC space does not reliably give a useful "A/B"-like clusters except for mammalian datasets, so the PC space needs to be augmented by a reference signal track (--ab-feature-track; ATAC, H4ac, and gene density tracks work well) to determine the A/B decision boundary. Once the boundary is determined, it is projected onto the original PC space, and the TADs are A/B-annotated based on the boundary. This auxiliary split is done solely for annotation and it does not affect the cluster hierarchy.
+For **A/B compartment** annotation, an auxiliary binary split of an augmented feature space is made. Bisection of the raw PC space does not reliably give a useful "A/B"-like clusters except for mammalian datasets, so the PC space needs to be augmented by a reference signal track (`--ab-feature-track`; ATAC, H4ac, and gene density tracks work well) to determine the A/B decision boundary and the orientation. Once the boundary is determined, it is projected onto the original PC space, and the TADs are A/B-annotated. This auxiliary split is done solely for annotation and it does not affect the cluster hierarchy.
 
-The **A/B signal** is the 1D projection of the node's PC centroid onto the A-B axis in the PC space (the axis along the A and B centroids). This is a generalization of the conventional PC1 compartment signal to the bisected, higher-dimensional PC space. The magnitude of the signal is the distance from the decision boundary. The PC space is standardized in A/B analysis, so the typical values of the signal distribute in the ~3 sigma range, or within approximtely \[-3,3\]. Near-zero signal indicates poor compartmentalization.
+The **A/B signal** is the 1D projection of the node's PC centroid onto the A-B axis in the PC space (the axis along the A and B centroids). This is a generalization of the conventional PC1 compartment signal to the bisected, higher-dimensional PC space. The magnitude of the signal is informative: it is the distance from the decision boundary, so close-to-zero signal indicates poor compartmentalization. The PC space is standardized in A/B analysis, so the typical values of the signal distribute in the ~3 sigma range, or within approximtely \[-3,3\], so the "normal" magnitude would be around ~1.
 
-**Genome-wide clustering** (experimental) is also done when --enable-trans flag is passed. Genome-wide, trans-chrom O/E is built using the cis-defined TADs as units, diagonalized, and recursively clustered. The trans tree tends to capture chromosome territories or telomere clustering rather than genome-wide A/B compartments. Still, the unit_id is shared between the cis table, so one can JOIN cis and trans tables to examine cis-determined A/B on the trans tree.
+**Genome-wide clustering** (experimental) is also done when `--enable-trans` flag is passed. Genome-wide, trans-chrom O/E is built using the cis-defined TADs as units, diagonalized, and recursively clustered. The trans tree tends to capture chromosome territories or telomere clustering rather than genome-wide A/B compartments. Still, the `unit_id` is shared between the cis table, so one can JOIN cis and trans tables to examine cis-determined A/B on the trans tree.
 
 ## AI disclosure
 
