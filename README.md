@@ -2,6 +2,8 @@
 
 Given any TAD annotation and a contact map, TADCLUST applies hierarchical clustering of the TADs based on TAD-level O/E matrix, to build a tree on each chromosome. The clustering analysis identifies a higher-order organization of locally-defined TADs, which is correlated to chromosome compartmentalization.
 
+![Example TADCLUST tree for human HL-60 chr17](assets/example_tree.webp)
+
 ## Install
 
 TADCLUST is experimental and not released yet. Git clone, and use pixi to try it out:
