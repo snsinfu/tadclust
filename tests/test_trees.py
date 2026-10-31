@@ -37,6 +37,10 @@ def leaf_by_unit(tree):
     return leaves
 
 
+def member_sets(tree):
+    return {frozenset(int(x) for x in node.unit_indices) for node in tree.nodes}
+
+
 def test_derive_seed_is_stable_and_keyed() -> None:
     assert derive_seed(7, 0) == derive_seed(7, 0)
     assert derive_seed(7, 0) != derive_seed(7, 1)
@@ -70,6 +74,22 @@ def test_recursive_splits_use_distinct_seeds(monkeypatch) -> None:
     assert len(first) == 3
     assert len(first) == len(set(first))
     assert seeds == first
+
+
+def test_feature_orientation_must_not_change_primary_tree() -> None:
+    rng = np.random.default_rng(0)
+    n = 128
+    centers = rng.normal(size=(8, 5)) * 2.0
+    pcs = centers[rng.integers(0, 8, n)] + rng.normal(size=(n, 5)) * 0.7
+    bins = np.ones(n, dtype=np.int64)
+
+    # Feature orientation flips PC1; the reflected data has the same geometry.
+    reflected = pcs * np.array([-1.0, 1.0, 1.0, 1.0, 1.0])
+
+    a = build_branching_tree(pcs, bins, n_pcs=5, seed=0, branch_k=2)
+    b = build_branching_tree(reflected, bins, n_pcs=5, seed=0, branch_k=2)
+
+    assert member_sets(a) == member_sets(b)
 
 
 def test_kmeans_labels_clamps_and_handles_single_cluster() -> None:

@@ -100,10 +100,12 @@ def build_branching_tree(
 ) -> BranchingTree:
     """Build a full tree by recursively splitting nodes with k-means.
 
-    Children are ordered by ascending mean PC1: child 0 is the negative (B)
-    side and the last child is the positive (A) side. Callers should
-    canonicalize the PC1 sign before calling this function when deterministic
-    paths matter.
+    Node k-means seeds depend on each node's member set, so the resulting
+    partitions are invariant to PC-axis sign flips and child reordering.
+    Children are still ordered by ascending mean PC1: child 0 is the negative
+    (B) side and the last child is the positive (A) side. Callers that need
+    identical path labels across runs should canonicalize the PC1 sign before
+    calling this function.
     """
     values = np.asarray(pcs, dtype=np.float64)
     bins = np.asarray(unit_bins, dtype=np.int64)
@@ -152,6 +154,12 @@ def build_branching_tree(
     )
 
 
+def _node_seed(base_seed: int, unit_indices: np.ndarray) -> int:
+    """Return a k-means seed determined by the node's member set."""
+    members = np.sort(np.asarray(unit_indices, dtype=np.int64))
+    return derive_seed(base_seed, _TREE_SEED_NAMESPACE, *map(int, members))
+
+
 def _split_recursive(
     nodes: list[TreeNode],
     node_id: int,
@@ -162,7 +170,9 @@ def _split_recursive(
     seed: int,
 ) -> None:
     node = nodes[node_id]
-    node_seed = derive_seed(seed, _TREE_SEED_NAMESPACE, *node.path)
+    # Seed from the member set, not the path: feature-track orientation can
+    # reverse child order while leaving the k-means objective unchanged.
+    node_seed = _node_seed(seed, node.unit_indices)
     parts = _split_member_units(
         pcs,
         node.unit_indices,
