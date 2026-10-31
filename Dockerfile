@@ -1,12 +1,22 @@
-FROM ghcr.io/prefix-dev/pixi:0.81.0-bookworm-slim AS build
+FROM ghcr.io/astral-sh/uv:0.13.6 AS uv
+
+FROM python:3.12-slim-bookworm AS build
 
 WORKDIR /app
 
-COPY pixi.toml pixi.lock ./
-RUN pixi install --locked -e prod
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never
+
+COPY --from=uv /uv /uvx /bin/
+
+COPY pyproject.toml uv.lock README.md LICENSE ./
+COPY src ./src
+
+RUN uv sync --frozen --no-dev --no-editable
 
 
-FROM debian:bookworm-slim AS runtime
+FROM python:3.12-slim-bookworm AS runtime
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends bash ca-certificates procps \
@@ -14,15 +24,9 @@ RUN apt-get update \
 
 WORKDIR /app
 
-COPY --from=build /app/.pixi/envs/prod /app/.pixi/envs/prod
-COPY src /app/src
-COPY bin/tadclust /usr/local/bin/tadclust
-COPY LICENSE /app/LICENSE
+COPY --from=build /app/.venv /app/.venv
 
-RUN chmod 0755 /usr/local/bin/tadclust
-
-ENV PATH="/app/.pixi/envs/prod/bin:${PATH}" \
-    PYTHONPATH="/app/src" \
+ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     LANG=C.UTF-8
