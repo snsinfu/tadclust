@@ -134,10 +134,28 @@ def test_whole_chromosome_only_becomes_residual(tmp_path) -> None:
     fine = tree.fine_units[0]
     assert (fine.start, fine.end, fine.is_tad) == (0, 2000, False)
 
-    units, _, _ = selected_units(tree, [])
+    units, _, _ = selected_units(tree, [], include_residuals=True)
     assert [(unit.unit_kind, unit.start, unit.end) for unit in units] == [
         ("residual", 0, 2000)
     ]
+
+
+def test_whole_chromosome_only_without_residuals_has_no_units(tmp_path) -> None:
+    tree = make_tree(tmp_path, [("chr1", 0, 2000)])
+    fine = make_fine([[0.0, 0.0]], [20])
+
+    with pytest.raises(ClusteringError, match="no selectable TAD units"):
+        select_units(
+            tree,
+            fine,
+            n_pcs=2,
+            pseudocount=1.0,
+            clip_min=-10.0,
+            clip_max=10.0,
+            dp_lambda_scale=1.0,
+            tree_branch_k=2,
+            seed=0,
+        )
 
 
 def test_disjoint_tree(tmp_path) -> None:
@@ -332,7 +350,11 @@ def test_selected_units_include_residual_runs(tmp_path) -> None:
     assign_bin_counts(tree, centers)
     by_row = {node.tad_table_row: node.node_id for node in tree.nodes.values()}
 
-    units, _, _ = selected_units(tree, [by_row[1]])
+    units, _, _ = selected_units(
+        tree,
+        [by_row[1]],
+        include_residuals=True,
+    )
 
     assert [(unit.unit_kind, unit.start, unit.end) for unit in units] == [
         ("tad", 0, 400),
@@ -341,7 +363,23 @@ def test_selected_units_include_residual_runs(tmp_path) -> None:
     assert units[1].tad_table_row is None
 
 
-def test_select_units_disjoint_keeps_tad_rows(tmp_path) -> None:
+def test_selected_units_omit_residual_runs_by_default(tmp_path) -> None:
+    tree = make_tree(tmp_path, hierarchy_rows())
+    centers = (np.arange(20) + 0.5) * 100.0
+    assign_bin_counts(tree, centers)
+    by_row = {node.tad_table_row: node.node_id for node in tree.nodes.values()}
+
+    units, fine_to_unit, unit_map = selected_units(tree, [by_row[1]])
+
+    assert [(unit.unit_kind, unit.start, unit.end) for unit in units] == [
+        ("tad", 0, 400),
+    ]
+    assert fine_to_unit.tolist() == [0, -1, -1, -1]
+    assert unit_map.shape == (4, 1)
+    assert np.asarray(unit_map.sum(axis=1)).ravel().tolist() == [1, 0, 0, 0]
+
+
+def test_select_units_disjoint_residuals_are_opt_in(tmp_path) -> None:
     tree = make_tree(
         tmp_path,
         [
@@ -380,14 +418,34 @@ def test_select_units_disjoint_keeps_tad_rows(tmp_path) -> None:
     assert selection.objective == 0.0
     assert selection.dp_lambda == 0.0
     assert selection.cut == [1, 2, 3]
-    assert len(selection.units) == 5
-    assert sum(unit.unit_kind == "tad" for unit in selection.units) == 3
-    assert sum(unit.unit_kind == "residual" for unit in selection.units) == 2
+    assert len(selection.units) == 3
+    assert [unit.unit_kind for unit in selection.units] == ["tad"] * 3
+    assert sum(unit.unit_kind == "residual" for unit in selection.units) == 0
     assert not any(
         unit.unit_kind == "tad" and unit.start == 0 and unit.end == 500
         for unit in selection.units
     )
-    assert selection.matrices.pcs.shape[0] == 5
+    assert selection.fine_to_unit.tolist() == [0, 1, -1, 2, -1]
+    assert selection.matrices.pcs.shape[0] == 3
+
+    with_residuals = select_units(
+        tree,
+        fine,
+        n_pcs=2,
+        pseudocount=1.0,
+        clip_min=-10.0,
+        clip_max=10.0,
+        dp_lambda_scale=100.0,
+        tree_branch_k=3,
+        seed=0,
+        include_residuals=True,
+    )
+
+    assert len(with_residuals.units) == 5
+    assert sum(unit.unit_kind == "tad" for unit in with_residuals.units) == 3
+    assert sum(unit.unit_kind == "residual" for unit in with_residuals.units) == 2
+    assert with_residuals.fine_to_unit.tolist() == [0, 1, 2, 3, 4]
+    assert with_residuals.matrices.pcs.shape[0] == 5
 
 
 def test_select_units_flat_tree_uses_bin_kind_and_reuses_matrices() -> None:

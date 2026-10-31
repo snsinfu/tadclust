@@ -61,7 +61,7 @@ class ChromosomeTree:
 
 @dataclass
 class SelectedUnit:
-    """One row of the selected partition: a TAD, a residual gap, or a bin."""
+    """One selected unit: a TAD, an optional residual gap, or a bin."""
 
     unit_id: int
     chrom: str
@@ -75,7 +75,11 @@ class SelectedUnit:
 
 @dataclass(frozen=True)
 class UnitSelection:
-    """Selected units, their matrices, PCs, and DP diagnostics."""
+    """Selected units, their matrices, PCs, and DP diagnostics.
+
+    `fine_to_unit` holds the selected unit index for each fine unit. It is
+    `-1` for an uncovered fine unit when residual units are not included.
+    """
 
     tree: ChromosomeTree
     units: list[SelectedUnit]
@@ -454,8 +458,13 @@ def selected_units(
     cut: list[int],
     *,
     unit_kind: str = "tad",
+    include_residuals: bool = False,
 ) -> tuple[list[SelectedUnit], np.ndarray, sparse.csr_array | sparse.csr_matrix]:
-    """Turn a selected antichain plus uncovered fine units into a partition."""
+    """Turn a selected antichain into units.
+
+    Uncovered fine units become residual units only when `include_residuals`
+    is true. Otherwise they are left unassigned in `fine_to_unit`.
+    """
     n_fine = tree.n_fine
     covered = np.zeros(n_fine, dtype=bool)
     units: list[SelectedUnit] = []
@@ -489,27 +498,28 @@ def selected_units(
             )
         )
 
-    uncovered = np.flatnonzero(~covered)
-    if uncovered.size:
-        breaks = np.flatnonzero(np.diff(uncovered) > 1)
-        run_starts = np.r_[0, breaks + 1]
-        run_ends = np.r_[breaks + 1, len(uncovered)]
-        for start_index, end_index in zip(run_starts, run_ends):
-            run = uncovered[start_index:end_index]
-            units.append(
-                SelectedUnit(
-                    unit_id=-1,
-                    chrom=tree.chrom,
-                    start=tree.fine_units[run[0]].start,
-                    end=tree.fine_units[run[-1]].end,
-                    unit_kind="residual",
-                    tad_table_row=None,
-                    fine_indices=run,
-                    n_working_bins=int(
-                        sum(tree.fine_units[i].n_working_bins for i in run)
-                    ),
+    if include_residuals:
+        uncovered = np.flatnonzero(~covered)
+        if uncovered.size:
+            breaks = np.flatnonzero(np.diff(uncovered) > 1)
+            run_starts = np.r_[0, breaks + 1]
+            run_ends = np.r_[breaks + 1, len(uncovered)]
+            for start_index, end_index in zip(run_starts, run_ends):
+                run = uncovered[start_index:end_index]
+                units.append(
+                    SelectedUnit(
+                        unit_id=-1,
+                        chrom=tree.chrom,
+                        start=tree.fine_units[run[0]].start,
+                        end=tree.fine_units[run[-1]].end,
+                        unit_kind="residual",
+                        tad_table_row=None,
+                        fine_indices=run,
+                        n_working_bins=int(
+                            sum(tree.fine_units[i].n_working_bins for i in run)
+                        ),
+                    )
                 )
-            )
 
     units.sort(key=lambda unit: unit.start)
     for unit_id, unit in enumerate(units):
@@ -524,7 +534,7 @@ def selected_units(
         unit_map[unit.fine_indices, unit.unit_id] = 1.0
         fine_to_unit[unit.fine_indices] = unit.unit_id
 
-    if np.any(fine_to_unit < 0):
+    if include_residuals and np.any(fine_to_unit < 0):
         raise ClusteringError(
             f"{tree.chrom}: fine units were not assigned to a unit",
             chrom=tree.chrom,
@@ -545,8 +555,13 @@ def select_units(
     tree_branch_k: int,
     seed: int,
     unit_kind: str = "tad",
+    include_residuals: bool = False,
 ) -> UnitSelection:
-    """Select units, aggregate O/E, and compute unit PCs."""
+    """Select units, aggregate O/E, and compute unit PCs.
+
+    The DP always runs on the complete fine-unit set, including gaps. Residual
+    units are added after the cut only when `include_residuals` is true.
+    """
     bins_per_fine_unit = np.asarray(
         fine.bins_per_fine_unit,
         dtype=np.float64,
@@ -585,7 +600,14 @@ def select_units(
         tree,
         cut,
         unit_kind=unit_kind,
+        include_residuals=include_residuals,
     )
+    if not units:
+        raise ClusteringError(
+            f"{tree.chrom}: no selectable TAD units; "
+            "enable include_residuals or supply TAD intervals",
+            chrom=tree.chrom,
+        )
     if np.array_equal(fine_to_unit, np.arange(tree.n_fine, dtype=np.int64)):
         matrices = UnitMatrices.from_fine_unit_matrices(fine)
     else:
