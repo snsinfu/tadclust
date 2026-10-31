@@ -1,0 +1,9 @@
+.*
+_*
+
+assets
+tests
+out
+dist
+
+**/*.pyc
