@@ -113,7 +113,7 @@ The **A/B signal** is the 1D projection of the node's PC centroid onto the A-B a
 
 ## AI disclosure
 
-LLM coding agent is used for development. Algorithm is designed and instructed by human, and implemented and benchmarked by AI using real datasets. Every changeset is reviewed and adjusted until human thinks it's fine, then it is commited by human. This README is completely written by human.
+LLM coding agent is used for development. Algorithm is designed and instructed by me, then implemented by AI, benchmarking on real datasets. I review every changeset and adjust it until it looks fine. This README is 100% human-written.
 
 ## License
 
