@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import ClassVar, TypeAlias
+from typing import ClassVar
 
 import cooler
 import numpy as np
@@ -85,7 +85,7 @@ class UniformBinSource:
         return tree, np.arange(tree.n_fine, dtype=np.int64)
 
 
-CisSource: TypeAlias = AnnotationSource | UniformBinSource
+type CisSource = AnnotationSource | UniformBinSource
 
 
 def _select_chromosomes(

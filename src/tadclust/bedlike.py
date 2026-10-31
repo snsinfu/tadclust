@@ -5,11 +5,11 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TextIO, TypeAlias
+from typing import TextIO
 
 import polars as pl
 
-SchemaFactory: TypeAlias = Callable[[bool, int], dict[str, type]]
+type SchemaFactory = Callable[[bool, int], dict[str, type]]
 
 
 @dataclass(frozen=True)

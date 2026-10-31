@@ -1,0 +1,72 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tadclust"
+dynamic = ["version"]
+description = "Hierarchical clustering of TADs"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "snsinfu", email = "snsinfu@gmail.com" }]
+keywords = [
+  "Hi-C",
+  "TAD",
+  "topologically associating domains",
+  "hierarchical clustering",
+  "bioinformatics",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Bio-Informatics",
+  "Typing :: Typed",
+]
+dependencies = [
+  "cooler>=0.10.4,<0.11",
+  "h5py>=3.10,<4",
+  "numpy>=2,<3",
+  "polars>=1,<2",
+  "pyarrow",
+  "scikit-learn>=1.5,<2",
+  "scipy>=1.11,<2",
+  "threadpoolctl>=3",
+]
+
+[project.scripts]
+tadclust = "tadclust.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/snsinfu/tadclust"
+Repository = "https://github.com/snsinfu/tadclust"
+Issues = "https://github.com/snsinfu/tadclust/issues"
+
+[dependency-groups]
+dev = [
+  "pandas",
+  "pyright",
+  "pytest",
+  "ruff",
+]
+
+[tool.hatch.version]
+path = "src/tadclust/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tadclust"]
+exclude = ["**/__pycache__", "**/*.pyc"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "src/tadclust",
+  "tests",
+  "pyproject.toml",
+  "README.md",
+  "LICENSE",
+]
+exclude = ["**/__pycache__", "**/*.pyc"]
