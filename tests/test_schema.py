@@ -348,6 +348,30 @@ def test_manifest_contract(mcool, tmp_path) -> None:
     assert "contact_contrast" not in json.dumps(manifest)
 
 
+def test_manifest_records_include_residuals(
+    gapped_mcool,
+    gapped_tads,
+    tmp_path,
+) -> None:
+    config = make_config(
+        gapped_mcool,
+        gapped_tads,
+        tmp_path,
+        include_residuals=True,
+    )
+    result = cluster(config)
+    write_outputs(result, config)
+
+    manifest = json.loads((tmp_path / "out" / "manifest.json").read_text())
+    assert manifest["params"]["include_residuals"] is True
+    assert manifest["qc"]["n_residuals"] == 2
+    for chromosome_qc in manifest["qc"]["cis"]["per_chromosome"].values():
+        assert chromosome_qc["coverage_fraction"] == 1.0
+
+    leaves = pl.read_parquet(tmp_path / "out" / "cis_leaves.parquet")
+    assert "residual" in set(leaves["unit_kind"].to_list())
+
+
 def test_cis_leaves_derived_from_cis_nodes(mcool, tmp_path) -> None:
     config = make_config(mcool, base_tads(tmp_path), tmp_path)
     result = cluster(config)

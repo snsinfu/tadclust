@@ -124,6 +124,27 @@ def test_cli_cis_run(mcool, tmp_path) -> None:
     assert not (out / "trans_nodes.parquet").exists()
 
 
+def test_cli_residuals_opt_in(gapped_mcool, gapped_tads, tmp_path) -> None:
+    args = cli_args(gapped_mcool, gapped_tads, tmp_path)
+
+    main(args)
+
+    out = tmp_path / "out"
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert manifest["params"]["include_residuals"] is False
+    assert manifest["qc"]["n_residuals"] == 0
+    leaves = pl.read_parquet(out / "cis_leaves.parquet")
+    assert set(leaves["unit_kind"].to_list()) == {"tad"}
+
+    main([*args, "--include-residuals", "--overwrite"])
+
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert manifest["params"]["include_residuals"] is True
+    assert manifest["qc"]["n_residuals"] > 0
+    leaves = pl.read_parquet(out / "cis_leaves.parquet")
+    assert "residual" in set(leaves["unit_kind"].to_list())
+
+
 def test_cli_uniform_bins_run(mcool, tmp_path) -> None:
     args = uniform_cli_args(mcool, tmp_path)
 

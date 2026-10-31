@@ -138,6 +138,65 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert not (tmp_path / "out").exists()
 
 
+def test_cluster_residuals_are_opt_in(gapped_mcool, gapped_tads, tmp_path) -> None:
+    default = cluster(
+        make_config(
+            gapped_mcool,
+            gapped_tads,
+            tmp_path,
+            output_dir=tmp_path / "default",
+        )
+    )
+
+    assert default.cis_leaves.height == 4
+    assert set(default.cis_leaves["unit_kind"].to_list()) == {"tad"}
+    assert default.cis_leaves["tad_table_row"].null_count() == 0
+    assert default.qc["n_residuals"] == 0
+    for chromosome_qc in default.qc["cis"]["per_chromosome"].values():
+        assert 0.0 < chromosome_qc["coverage_fraction"] < 1.0
+
+    with_residuals = cluster(
+        make_config(
+            gapped_mcool,
+            gapped_tads,
+            tmp_path,
+            output_dir=tmp_path / "with-residuals",
+            include_residuals=True,
+        )
+    )
+
+    assert with_residuals.cis_leaves.height == 6
+    assert set(with_residuals.cis_leaves["unit_kind"].to_list()) == {
+        "tad",
+        "residual",
+    }
+    assert with_residuals.qc["n_residuals"] == 2
+    for chromosome_qc in with_residuals.qc["cis"]["per_chromosome"].values():
+        assert chromosome_qc["coverage_fraction"] == 1.0
+
+
+def test_cluster_whole_chromosome_only_requires_residuals(mcool, tmp_path) -> None:
+    tads = write_tads(
+        tmp_path,
+        [("chr1", 0, 2000), ("chr2", 0, 2000)],
+    )
+
+    with pytest.raises(ClusteringError, match="no selectable TAD units"):
+        cluster(make_config(mcool, tads, tmp_path))
+
+    result = cluster(
+        make_config(
+            mcool,
+            tads,
+            tmp_path,
+            include_residuals=True,
+        )
+    )
+
+    assert result.cis_leaves["unit_kind"].unique().to_list() == ["residual"]
+    assert result.cis_leaves.height == 2
+
+
 def test_cluster_uniform_bins(mcool, tmp_path) -> None:
     result = cluster(make_uniform_config(mcool, tmp_path))
 
@@ -290,6 +349,31 @@ def test_cluster_with_trans(three_chrom_mcool, trans_tads, tmp_path) -> None:
     assert result.output_files[-1] == "trans_nodes.parquet"
 
 
+def test_cluster_with_trans_gapped_units(
+    gapped_three_chrom_mcool,
+    gapped_trans_tads,
+    tmp_path,
+) -> None:
+    result = cluster(
+        make_config(
+            gapped_three_chrom_mcool,
+            gapped_trans_tads,
+            tmp_path,
+            trans_enabled=True,
+            trans_null="grand",
+        )
+    )
+
+    assert result.trans_nodes is not None
+    assert result.cis_leaves.height == 6
+    assert set(result.cis_leaves["unit_kind"].to_list()) == {"tad"}
+    assert set(
+        result.cis_leaves["trans_root_label"].drop_nulls().unique().to_list()
+    ) == {"genome"}
+    assert result.qc["trans"]["n_units"] == 6
+    assert result.qc["trans"]["pair_count"] == 108
+
+
 def test_cluster_trans_no_positive_mode_raises(mcool, tmp_path) -> None:
     tads = base_tads(tmp_path)
 
@@ -373,6 +457,28 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
         "cis_leaves_ab.tsv",
         "cis_nodes_ab.parquet",
     ]
+
+
+def test_cluster_with_ab_omits_residuals(
+    gapped_mcool,
+    gapped_ab_tads,
+    tmp_path,
+) -> None:
+    result = cluster(
+        make_config(
+            gapped_mcool,
+            gapped_ab_tads,
+            tmp_path,
+            ab_feature_track=ab_track(tmp_path),
+        )
+    )
+
+    assert result.cis_leaves.height == 8
+    assert set(result.cis_leaves["unit_kind"].to_list()) == {"tad"}
+    assert result.cis_leaves_ab is not None
+    assert result.cis_leaves_ab.height == 8
+    assert set(result.cis_leaves_ab["unit_kind"].to_list()) == {"tad"}
+    assert result.qc["n_residuals"] == 0
 
 
 def test_feature_track_does_not_change_primary_tree(mcool, tmp_path) -> None:
@@ -531,6 +637,50 @@ def test_cluster_parallel_matches_serial(mcool, tmp_path) -> None:
     ]
     assert serial.cis_nodes.select(node_columns).equals(
         parallel.cis_nodes.select(node_columns)
+    )
+
+
+@pytest.mark.parametrize("include_residuals", [False, True])
+def test_cluster_gapped_parallel_matches_serial(
+    gapped_mcool,
+    gapped_tads,
+    tmp_path,
+    include_residuals,
+) -> None:
+    serial = cluster(
+        make_config(
+            gapped_mcool,
+            gapped_tads,
+            tmp_path,
+            output_dir=tmp_path / "serial",
+            workers=1,
+            include_residuals=include_residuals,
+        )
+    )
+    parallel = cluster(
+        make_config(
+            gapped_mcool,
+            gapped_tads,
+            tmp_path,
+            output_dir=tmp_path / "parallel",
+            workers=2,
+            include_residuals=include_residuals,
+        )
+    )
+
+    columns = [
+        "unit_id",
+        "chrom",
+        "unit_start",
+        "unit_end",
+        "unit_kind",
+        "tad_table_row",
+        "n_working_bins",
+    ]
+    assert serial.cis_leaves.select(columns).equals(parallel.cis_leaves.select(columns))
+    assert np.allclose(
+        np.vstack(serial.cis_leaves["pc"].to_list()),
+        np.vstack(parallel.cis_leaves["pc"].to_list()),
     )
 
 

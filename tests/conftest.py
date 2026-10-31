@@ -136,6 +136,62 @@ def trans_track(tmp_path):
     return write_track(tmp_path, rows, name="trans_track.bedGraph")
 
 
+@pytest.fixture
+def gapped_mcool(tmp_path):
+    return write_mcool(
+        tmp_path,
+        resolutions=(500,),
+        chroms=("chr1", "chr2"),
+        chrom_size=3000,
+    )
+
+
+@pytest.fixture
+def gapped_three_chrom_mcool(tmp_path):
+    return write_mcool(
+        tmp_path,
+        resolutions=(500,),
+        chroms=("chr1", "chr2", "chr3"),
+        chrom_size=3000,
+        cross_counts={
+            ("chr1", "chr2"): 100,
+            ("chr1", "chr3"): 1,
+            ("chr2", "chr3"): 20,
+        },
+    )
+
+
+@pytest.fixture
+def gapped_tads(tmp_path):
+    rows = []
+    for chrom in ("chr1", "chr2"):
+        rows.extend([(chrom, 0, 1000), (chrom, 1000, 2000)])
+    return write_tads(tmp_path, rows, name="gapped_tads.tsv")
+
+
+@pytest.fixture
+def gapped_ab_tads(tmp_path):
+    rows = []
+    for chrom in ("chr1", "chr2"):
+        rows.extend(
+            [
+                (chrom, 0, 500),
+                (chrom, 500, 1000),
+                (chrom, 1000, 1500),
+                (chrom, 1500, 2000),
+            ]
+        )
+    return write_tads(tmp_path, rows, name="gapped_ab_tads.tsv")
+
+
+@pytest.fixture
+def gapped_trans_tads(tmp_path):
+    rows = []
+    for chrom in ("chr1", "chr2", "chr3"):
+        rows.extend([(chrom, 0, 1000), (chrom, 1000, 2000)])
+    return write_tads(tmp_path, rows, name="gapped_trans_tads.tsv")
+
+
 def write_tads(tmp_path, rows, name="tads.tsv"):
     path = tmp_path / name
     lines = ["chrom\tstart\tend"]

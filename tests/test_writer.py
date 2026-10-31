@@ -170,7 +170,10 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     assert manifest["inputs"] == result.inputs
     assert manifest["cli"] == {"argv": ["--mcool", str(mcool)]}
     assert manifest["params"]["working_binsize"] == 500
+    assert manifest["params"]["include_residuals"] is False
     assert manifest["qc"]["n_units"] == 4
+    for chromosome_qc in manifest["qc"]["cis"]["per_chromosome"].values():
+        assert chromosome_qc["coverage_fraction"] == 1.0
     assert manifest["output_files"] == [
         "cis_leaves.parquet",
         "cis_leaves.tsv",
