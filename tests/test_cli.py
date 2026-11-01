@@ -3,7 +3,15 @@
 from __future__ import annotations
 
 import json
+import os
+import queue
 import re
+import signal
+import subprocess
+import sys
+import threading
+import time
+from pathlib import Path
 
 import polars as pl
 import pytest
@@ -401,6 +409,70 @@ def test_cli_parallel_workers(three_chrom_mcool, trans_tads, tmp_path) -> None:
     main(args)
     assert (tmp_path / "out" / "cis_leaves.parquet").exists()
     assert (tmp_path / "out" / "trans_nodes.parquet").exists()
+
+
+def test_cli_interrupt_stops_parallel_workers(mcool, tmp_path) -> None:
+    tads = base_tads(tmp_path)
+    out = tmp_path / "out"
+    helper = Path(__file__).with_name("interrupt_cli_helper.py")
+    proc = subprocess.Popen(
+        [sys.executable, str(helper), str(mcool), str(tads), str(out)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        start_new_session=True,
+    )
+    stdout = proc.stdout
+    assert stdout is not None
+    lines: queue.Queue[str | None] = queue.Queue()
+
+    def read_output() -> None:
+        for line in stdout:
+            lines.put(line)
+        lines.put(None)
+
+    reader = threading.Thread(target=read_output, daemon=True)
+    reader.start()
+
+    combined: list[str] = []
+    try:
+        deadline = time.monotonic() + 20.0
+        saw_worker = False
+        while time.monotonic() < deadline:
+            try:
+                line = lines.get(timeout=0.2)
+            except queue.Empty:
+                if proc.poll() is not None:
+                    break
+                continue
+            if line is None:
+                break
+            combined.append(line)
+            if "[TEST] worker busy" in line:
+                saw_worker = True
+                break
+
+        assert saw_worker, "".join(combined)
+        os.killpg(proc.pid, signal.SIGINT)
+        proc.wait(timeout=20)
+        reader.join(timeout=5)
+        while True:
+            try:
+                line = lines.get_nowait()
+            except queue.Empty:
+                break
+            if line is not None:
+                combined.append(line)
+    finally:
+        if proc.poll() is None:
+            os.killpg(proc.pid, signal.SIGKILL)
+            proc.wait()
+
+    output = "".join(combined)
+    assert proc.returncode == -signal.SIGINT
+    assert "Traceback" not in output
+    assert "KeyboardInterrupt" not in output
+    assert not out.exists()
 
 
 @pytest.mark.parametrize("flag", ["--version", "-V"])
