@@ -37,7 +37,7 @@ def make_uniform_config(tmp_path, **overrides):
 
 
 def test_package_version() -> None:
-    assert tadclust.__version__ == "0.1.0"
+    assert tadclust.__version__ == "0.1.0a1"
 
 
 def test_default_config_is_valid(tmp_path) -> None:
