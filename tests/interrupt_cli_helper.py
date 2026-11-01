@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import sys
 import time
-from typing import ClassVar, cast
+from typing import ClassVar, NoReturn, cast
 
 import cooler
 import numpy as np
 
-import tadclust.cli as cli
+from tadclust import cli
 from tadclust.config import ClusterConfig
 from tadclust.domains import ChromosomeTree
 from tadclust.parallel import run_cis_parallel
@@ -32,7 +32,7 @@ class SlowSource:
         raise AssertionError("SIGINT did not arrive")
 
 
-def slow_cluster(config: ClusterConfig) -> None:
+def slow_cluster(config: ClusterConfig) -> NoReturn:
     run_cis_parallel(
         config,
         cast(CisSource, SlowSource()),
@@ -45,7 +45,7 @@ def slow_cluster(config: ClusterConfig) -> None:
 
 def main() -> None:
     mcool, tads, out = sys.argv[1:4]
-    setattr(cli, "cluster", slow_cluster)
+    cli.cluster = slow_cluster
     cli.main(
         [
             "--mcool",

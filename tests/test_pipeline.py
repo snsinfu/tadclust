@@ -13,7 +13,7 @@ from conftest import write_mcool, write_tads, write_track
 import tadclust.domains as domains_module
 from tadclust.config import ClusterConfig
 from tadclust.errors import ClusteringError, InputError
-from tadclust.pipeline import cluster
+from tadclust.pipeline import _make_source, cluster
 
 
 def base_tads(tmp_path):
@@ -301,6 +301,27 @@ def test_cluster_uniform_bins_parallel_matches_serial(mcool, tmp_path) -> None:
         np.vstack(serial.cis_leaves["pc"].to_list()),
         np.vstack(parallel.cis_leaves["pc"].to_list()),
     )
+
+
+def test_cis_worker_ignores_sigint(monkeypatch, mcool, tmp_path) -> None:
+    from tadclust import parallel
+
+    calls: list[bool] = []
+    monkeypatch.setattr(parallel, "ignore_sigint", lambda: calls.append(True))
+    monkeypatch.setattr(parallel, "threadpool_limits", lambda **kwargs: object())
+    monkeypatch.setattr(parallel, "open_cooler", lambda *args: object())
+
+    config = make_config(mcool, base_tads(tmp_path), tmp_path)
+    try:
+        parallel._init_worker(config, _make_source(config), {}, 500)
+    finally:
+        parallel._WORKER_COOLER = None
+        parallel._WORKER_CONFIG = None
+        parallel._WORKER_SOURCE = None
+        parallel._WORKER_SIZES = None
+        parallel._WORKER_LIMITER = None
+
+    assert calls == [True]
 
 
 def test_cluster_with_trans(three_chrom_mcool, trans_tads, tmp_path) -> None:

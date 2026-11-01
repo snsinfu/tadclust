@@ -19,6 +19,7 @@ from conftest import write_tads, write_track
 
 from tadclust import __version__
 from tadclust.cli import main, parse_args
+from tadclust.signals import ignore_sigint, install_interrupt_handler
 
 
 def base_tads(tmp_path):
@@ -411,6 +412,43 @@ def test_cli_parallel_workers(three_chrom_mcool, trans_tads, tmp_path) -> None:
     assert (tmp_path / "out" / "trans_nodes.parquet").exists()
 
 
+def test_ignore_sigint_sets_sig_ign() -> None:
+    original = signal.getsignal(signal.SIGINT)
+    try:
+        ignore_sigint()
+        assert signal.getsignal(signal.SIGINT) is signal.SIG_IGN
+    finally:
+        signal.signal(signal.SIGINT, original)
+
+
+def test_install_interrupt_handler_sets_default_handler() -> None:
+    original = signal.getsignal(signal.SIGINT)
+    try:
+        install_interrupt_handler()
+        assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+    finally:
+        signal.signal(signal.SIGINT, original)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signal semantics")
+def test_exit_by_sigint_terminates_by_signal() -> None:
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from tadclust.signals import exit_by_sigint; exit_by_sigint()",
+        ],
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=30,
+    )
+
+    assert proc.returncode == -signal.SIGINT
+    assert "Traceback" not in proc.stderr
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX process-group signals")
 def test_cli_interrupt_stops_parallel_workers(mcool, tmp_path) -> None:
     tads = base_tads(tmp_path)
     out = tmp_path / "out"

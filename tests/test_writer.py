@@ -15,8 +15,10 @@ from tadclust.config import ClusterConfig
 from tadclust.errors import OutputError
 from tadclust.metadata import MANIFEST_VERSION, METADATA_KEY, METADATA_VERSION
 from tadclust.pipeline import cluster
+from tadclust.schema import Schema
 from tadclust.writer import (
     SCHEMA_VERSION,
+    _stage_parquet,
     _stage_tsv,
     _temporary_path,
     write_outputs,
@@ -447,6 +449,58 @@ def test_write_outputs_restores_old_outputs_on_failure(
     assert (out / "cis_nodes.parquet").read_bytes() == old_nodes
     assert (out / "manifest.json").read_bytes() == old_manifest
     assert not list(out.glob("*.tmp"))
+
+
+def test_write_outputs_restores_old_outputs_on_interrupt(
+    mcool,
+    tmp_path,
+    monkeypatch,
+) -> None:
+    tads = base_tads(tmp_path)
+    config = make_config(mcool, tads, tmp_path)
+    result = cluster(config)
+    write_outputs(result, config)
+
+    out = tmp_path / "out"
+    leaves = out / "cis_leaves.parquet"
+    sentinel = b"old leaves"
+    leaves.write_bytes(sentinel)
+    old_nodes = (out / "cis_nodes.parquet").read_bytes()
+    old_manifest = (out / "manifest.json").read_bytes()
+
+    real_replace = os.replace
+    interrupted = False
+
+    def interrupt_once(source, destination):
+        nonlocal interrupted
+        if not interrupted and destination == out / "cis_nodes.parquet":
+            interrupted = True
+            raise KeyboardInterrupt
+        return real_replace(source, destination)
+
+    monkeypatch.setattr("tadclust.writer.os.replace", interrupt_once)
+
+    with pytest.raises(KeyboardInterrupt):
+        write_outputs(result, config, overwrite=True)
+
+    assert leaves.read_bytes() == sentinel
+    assert (out / "cis_nodes.parquet").read_bytes() == old_nodes
+    assert (out / "manifest.json").read_bytes() == old_manifest
+    assert not list(out.glob("*.tmp"))
+
+
+def test_stage_parquet_removes_temp_on_interrupt(tmp_path, monkeypatch) -> None:
+    def interrupt(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(pl.DataFrame, "write_parquet", interrupt)
+    table = pl.DataFrame({"x": [1]})
+    schema: Schema = {"x": pl.Int64}
+
+    with pytest.raises(KeyboardInterrupt):
+        _stage_parquet(table, tmp_path / "out.parquet", schema)
+
+    assert not list(tmp_path.glob("*.tmp"))
 
 
 def test_overwrite_removes_stale_optional_tables(

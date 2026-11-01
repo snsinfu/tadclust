@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import warnings
+from typing import cast
 
 import h5py
 import numpy as np
@@ -281,6 +282,26 @@ def test_trans_partial_coverage_parallel_matches_serial(mcool) -> None:
 
     assert np.allclose(serial.log_oe, parallel.log_oe)
     assert serial.info.pair_means == parallel.info.pair_means
+
+
+def test_scan_worker_ignores_sigint(monkeypatch, mcool) -> None:
+    from tadclust import trans
+
+    calls: list[bool] = []
+    monkeypatch.setattr(trans, "ignore_sigint", lambda: calls.append(True))
+
+    try:
+        trans._init_scan_worker(mcool, 500, cast(trans.PixelMap, object()), None)
+    finally:
+        if trans._SCAN_FILE is not None:
+            trans._SCAN_FILE.close()
+        trans._SCAN_FILE = None
+        trans._SCAN_GROUP = None
+        trans._SCAN_MAP = None
+        trans._SCAN_WEIGHT = None
+        trans._SCAN_LIMITER = None
+
+    assert calls == [True]
 
 
 def test_trans_single_chromosome_has_no_pairs(mcool) -> None:
