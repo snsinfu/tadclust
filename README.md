@@ -61,7 +61,9 @@ out/
 └── manifest.json
 ```
 
-Main output is `cis_nodes.parquet` which contains full tree nodes for all chromosomes. `cis_leaves.{parquet,tsv}` are leaf-only subsets created for convenience. `_ab` suffixed tables store the result for A/B-rooted clustering variant. Columns:
+Main output is `cis_nodes.parquet` which contains full tree nodes for all chromosomes. `cis_leaves.{parquet,tsv}` are leaf-only subsets created for convenience. `_ab` suffixed tables store the result for A/B-rooted clustering variant. A copy of `manifest.json` is stored in every parquet file as a parquet metadata keyed by "tadclust"; the manifest contains version info, algorithm params, and QC stats.
+
+Columns in the main table:
 
 | column            | type             | description |
 |:------------------|:-----------------|:------------|
