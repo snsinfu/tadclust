@@ -8,7 +8,7 @@ Given any TAD annotation and a contact map, TADCLUST applies hierarchical cluste
 
 TADCLUST is experimental and not released yet. Git clone, and use uv to try it out:
 
-```shell
+```console
 $ git clone https://github.com/snsinfu/tadclust.git
 $ cd tadclust
 $ uv run tadclust -h
@@ -16,15 +16,22 @@ $ uv run tadclust -h
 
 Or, use docker (currently not regularly updated):
 
-```
+```console
 $ docker run --rm ghcr.io/snsinfu/tadclust tadclust -h
+```
+
+Installing to a uv/pixi project from the GitHub repository:
+
+```console
+$ uv add git+https://github.com/snsinfu/tadclust.git
+$ pixi add --pypi --git https://github.com/snsinfu/tadclust.git tadclust
 ```
 
 ## Usage
 
 Give an mcool contact matrix, a TAD annotation table, optionally an A/B feature track, and the output directory.
 
-```shell
+```console
 $ tadclust \
   --output-dir       out \
   --mcool            contact_map.mcool \
