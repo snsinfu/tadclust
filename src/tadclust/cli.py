@@ -13,6 +13,11 @@ from .errors import TadclustError
 from .pipeline import cluster
 from .writer import write_outputs
 
+LOG_FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
+LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+LOG = logging.getLogger(__name__)
+
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """Parse command-line arguments."""
@@ -146,10 +151,10 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(raw_args)
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(message)s",
+        format=LOG_FORMAT,
+        datefmt=LOG_DATE_FORMAT,
         force=True,
     )
-    logger = logging.getLogger("tadclust")
 
     try:
         config = ClusterConfig(
@@ -181,7 +186,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     except TadclustError as exc:
         raise SystemExit(f"tadclust: error: {exc}") from exc
 
-    logger.info(
+    LOG.info(
         "[WRITE] wrote %d units and %d file(s) to %s",
         result.qc["summary"]["n_units"],
         len(written),

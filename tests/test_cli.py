@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 import polars as pl
 import pytest
@@ -173,6 +174,17 @@ def test_cli_cis_run(mcool, tmp_path) -> None:
     assert (out / "cis_leaves.tsv").exists()
     assert not (out / "cis_leaves_ab.tsv").exists()
     assert not (out / "trans_nodes.parquet").exists()
+
+
+def test_cli_log_format(capsys, mcool, tmp_path) -> None:
+    args = cli_args(mcool, base_tads(tmp_path), tmp_path)
+
+    main(args)
+
+    stderr = capsys.readouterr().err
+    pattern = r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} - INFO - "
+    assert re.search(pattern + r"\[CIS\] running", stderr, re.MULTILINE)
+    assert re.search(pattern + r"\[WRITE\] wrote", stderr, re.MULTILINE)
 
 
 def test_cli_residuals_opt_in(gapped_mcool, gapped_tads, tmp_path) -> None:
