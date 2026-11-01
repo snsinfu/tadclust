@@ -195,7 +195,7 @@ def _stage_parquet(
     temporary = _temporary_path(path)
     try:
         frame.write_parquet(temporary, metadata=metadata)
-    except Exception:
+    except BaseException:
         if temporary.exists():
             temporary.unlink()
         raise
@@ -220,7 +220,7 @@ def _stage_tsv(
     temporary = _temporary_path(path)
     try:
         frame.write_csv(temporary, separator="\t", null_value=_TSV_NULL_STRING)
-    except Exception:
+    except BaseException:
         if temporary.exists():
             temporary.unlink()
         raise
@@ -234,7 +234,7 @@ def _stage_json(payload: dict, path: Path) -> tuple[Path, Path]:
             json.dumps(payload, indent=2) + "\n",
             encoding="utf-8",
         )
-    except Exception:
+    except BaseException:
         if temporary.exists():
             temporary.unlink()
         raise
@@ -264,7 +264,8 @@ def _commit_outputs(output_dir: Path, staged: list[tuple[Path, Path]]) -> None:
         for temporary, final in staged:
             os.replace(temporary, final)
             committed.append(final)
-    except Exception:
+    except BaseException:
+        # KeyboardInterrupt must also restore the previous outputs.
         for final in committed:
             if final.exists():
                 final.unlink()
