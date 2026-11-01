@@ -49,7 +49,7 @@ def make_config(mcool, tads, tmp_path, **overrides):
         "annotation_path": tads,
         "output_dir": tmp_path / "out",
         "working_binsize": 500,
-        "tree_n_pcs": 3,
+        "tree_pca_dim": 3,
         "tree_branch_k": 2,
     }
     values.update(overrides)
@@ -62,7 +62,7 @@ def make_uniform_config(mcool, tmp_path, **overrides):
         "annotation_path": None,
         "output_dir": tmp_path / "out",
         "working_binsize": 500,
-        "tree_n_pcs": 3,
+        "tree_pca_dim": 3,
         "tree_branch_k": 2,
     }
     values.update(overrides)
@@ -242,7 +242,7 @@ def test_trans_golden_schema(three_chrom_mcool, trans_tads, tmp_path) -> None:
         three_chrom_mcool,
         trans_tads,
         tmp_path,
-        trans_enabled=True,
+        with_trans=True,
         trans_null="grand",
     )
     result = cluster(config)
@@ -298,7 +298,7 @@ def test_uniform_bins_golden_schema(mcool, tmp_path) -> None:
     manifest = json.loads((out / "manifest.json").read_text())
     assert manifest["inputs"]["annotation"] is None
     assert manifest["params"]["resolved"]["input_mode"] == "uniform_bins"
-    assert manifest["params"]["requested"]["include_residuals"] is False
+    assert manifest["params"]["requested"]["with_residuals"] is False
     assert manifest["qc"]["summary"]["n_bin_units"] == 8
     assert manifest["qc"]["summary"]["n_tads"] == 0
     assert manifest["qc"]["summary"]["n_residuals"] == 0
@@ -334,7 +334,7 @@ def test_manifest_contract(mcool, tmp_path) -> None:
     assert manifest["cli"] is None
     assert manifest["params"]["resolved"]["working_binsize"] == 500
     assert manifest["params"]["resolved"]["working_binsize_mode"] == "explicit"
-    assert manifest["params"]["requested"]["include_residuals"] is False
+    assert manifest["params"]["requested"]["with_residuals"] is False
     assert "ab_split_policy" not in manifest["params"]["requested"]
     assert manifest["qc"]["summary"]["n_units"] == 4
     for chromosome_qc in manifest["qc"]["per_chromosome"].values():
@@ -350,7 +350,7 @@ def test_manifest_contract(mcool, tmp_path) -> None:
     assert "contact_contrast" not in json.dumps(manifest)
 
 
-def test_manifest_records_include_residuals(
+def test_manifest_records_with_residuals(
     gapped_mcool,
     gapped_tads,
     tmp_path,
@@ -359,13 +359,13 @@ def test_manifest_records_include_residuals(
         gapped_mcool,
         gapped_tads,
         tmp_path,
-        include_residuals=True,
+        with_residuals=True,
     )
     result = cluster(config)
     write_outputs(result, config)
 
     manifest = json.loads((tmp_path / "out" / "manifest.json").read_text())
-    assert manifest["params"]["requested"]["include_residuals"] is True
+    assert manifest["params"]["requested"]["with_residuals"] is True
     assert manifest["qc"]["summary"]["n_residuals"] == 2
     for chromosome_qc in manifest["qc"]["per_chromosome"].values():
         assert chromosome_qc["cis"]["coverage_fraction"] == 1.0
@@ -397,7 +397,7 @@ def test_trans_leaves_derived_from_cis_and_trans_nodes(
         three_chrom_mcool,
         trans_tads,
         tmp_path,
-        trans_enabled=True,
+        with_trans=True,
         trans_null="grand",
     )
     result = cluster(config)

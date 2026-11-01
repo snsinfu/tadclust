@@ -119,23 +119,23 @@ def _select_chromosome(
         bin_map,
         tree.n_fine,
         n_distance_bins=config.oe_distance_bins,
-        pseudocount=config.oe_pseudocount,
+        pseudocount=config.oe_pseudocount_scale,
         clip_min=config.oe_clip_min,
         clip_max=config.oe_clip_max,
-        n_pcs=config.tree_n_pcs,
+        n_pcs=config.tree_pca_dim,
     )
     selection = select_units(
         tree,
         fine,
-        n_pcs=config.tree_n_pcs,
-        pseudocount=config.oe_pseudocount,
+        n_pcs=config.tree_pca_dim,
+        pseudocount=config.oe_pseudocount_scale,
         clip_min=config.oe_clip_min,
         clip_max=config.oe_clip_max,
         dp_lambda_scale=config.dp_lambda_scale,
         tree_branch_k=config.tree_branch_k,
         seed=config.seed,
         unit_kind=source.unit_kind,
-        include_residuals=config.include_residuals,
+        with_residuals=config.with_residuals,
     )
     pcs = canonicalize_pc1_sign(selection.matrices.pcs)
     unit_bins = np.asarray(

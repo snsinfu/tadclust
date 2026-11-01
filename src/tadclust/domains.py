@@ -458,11 +458,11 @@ def selected_units(
     cut: list[int],
     *,
     unit_kind: str = "tad",
-    include_residuals: bool = False,
+    with_residuals: bool = False,
 ) -> tuple[list[SelectedUnit], np.ndarray, sparse.csr_array | sparse.csr_matrix]:
     """Turn a selected antichain into units.
 
-    Uncovered fine units become residual units only when `include_residuals`
+    Uncovered fine units become residual units only when `with_residuals`
     is true. Otherwise they are left unassigned in `fine_to_unit`.
     """
     n_fine = tree.n_fine
@@ -498,7 +498,7 @@ def selected_units(
             )
         )
 
-    if include_residuals:
+    if with_residuals:
         uncovered = np.flatnonzero(~covered)
         if uncovered.size:
             breaks = np.flatnonzero(np.diff(uncovered) > 1)
@@ -534,7 +534,7 @@ def selected_units(
         unit_map[unit.fine_indices, unit.unit_id] = 1.0
         fine_to_unit[unit.fine_indices] = unit.unit_id
 
-    if include_residuals and np.any(fine_to_unit < 0):
+    if with_residuals and np.any(fine_to_unit < 0):
         raise ClusteringError(
             f"{tree.chrom}: fine units were not assigned to a unit",
             chrom=tree.chrom,
@@ -555,12 +555,12 @@ def select_units(
     tree_branch_k: int,
     seed: int,
     unit_kind: str = "tad",
-    include_residuals: bool = False,
+    with_residuals: bool = False,
 ) -> UnitSelection:
     """Select units, aggregate O/E, and compute unit PCs.
 
     The DP always runs on the complete fine-unit set, including gaps. Residual
-    units are added after the cut only when `include_residuals` is true.
+    units are added after the cut only when `with_residuals` is true.
     """
     bins_per_fine_unit = np.asarray(
         fine.bins_per_fine_unit,
@@ -600,12 +600,12 @@ def select_units(
         tree,
         cut,
         unit_kind=unit_kind,
-        include_residuals=include_residuals,
+        with_residuals=with_residuals,
     )
     if not units:
         raise ClusteringError(
             f"{tree.chrom}: no selectable TAD units; "
-            "enable include_residuals or supply TAD intervals",
+            "enable with_residuals or supply TAD intervals",
             chrom=tree.chrom,
         )
     if np.array_equal(fine_to_unit, np.arange(tree.n_fine, dtype=np.int64)):

@@ -113,7 +113,7 @@ def make_config(mcool, tads, tmp_path, **overrides):
         "annotation_path": tads,
         "output_dir": tmp_path / "out",
         "working_binsize": 500,
-        "tree_n_pcs": 2,
+        "tree_pca_dim": 2,
         "tree_branch_k": 2,
     }
     values.update(overrides)
@@ -173,7 +173,7 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     assert manifest["inputs"] == result.inputs
     assert manifest["cli"] == {"argv": ["--mcool", str(mcool)]}
     assert manifest["params"]["resolved"]["working_binsize"] == 500
-    assert manifest["params"]["requested"]["include_residuals"] is False
+    assert manifest["params"]["requested"]["with_residuals"] is False
     assert manifest["qc"]["summary"]["n_units"] == 4
     for chromosome_qc in manifest["qc"]["per_chromosome"].values():
         assert chromosome_qc["cis"]["coverage_fraction"] == 1.0
@@ -290,7 +290,7 @@ def test_write_ab_and_trans_outputs(
         trans_tads,
         tmp_path,
         ab_feature_track=trans_track,
-        trans_enabled=True,
+        with_trans=True,
         trans_null="grand",
     )
     result = cluster(config)
@@ -361,7 +361,7 @@ def test_parquet_metadata_embedded_in_every_table(
         trans_tads,
         tmp_path,
         ab_feature_track=trans_track,
-        trans_enabled=True,
+        with_trans=True,
         trans_null="grand",
     )
     result = cluster(config)
@@ -460,7 +460,7 @@ def test_overwrite_removes_stale_optional_tables(
         trans_tads,
         tmp_path,
         ab_feature_track=trans_track,
-        trans_enabled=True,
+        with_trans=True,
         trans_null="grand",
     )
     write_outputs(cluster(ab_config), ab_config)

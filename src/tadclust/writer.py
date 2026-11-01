@@ -75,7 +75,7 @@ def write_outputs(
             _stage_parquet(
                 result.cis_leaves,
                 output_dir / "cis_leaves.parquet",
-                cis_leaves_schema(config.tree_n_pcs, include_trans, include_ab),
+                cis_leaves_schema(config.tree_pca_dim, include_trans, include_ab),
                 metadata=parquet_metadata(
                     table="cis_leaves",
                     kind="derived",
@@ -88,14 +88,14 @@ def write_outputs(
             _stage_tsv(
                 result.cis_leaves,
                 output_dir / "cis_leaves.tsv",
-                cis_leaves_schema(config.tree_n_pcs, include_trans, include_ab),
+                cis_leaves_schema(config.tree_pca_dim, include_trans, include_ab),
             )
         )
         staged.append(
             _stage_parquet(
                 result.cis_nodes,
                 output_dir / "cis_nodes.parquet",
-                cis_nodes_schema(config.tree_n_pcs, include_ab),
+                cis_nodes_schema(config.tree_pca_dim, include_ab),
                 metadata=parquet_metadata(
                     table="cis_nodes",
                     kind="canonical",
@@ -131,7 +131,7 @@ def write_outputs(
                 _stage_parquet(
                     result.cis_nodes_ab,
                     output_dir / "cis_nodes_ab.parquet",
-                    cis_nodes_schema(config.tree_n_pcs, True),
+                    cis_nodes_schema(config.tree_pca_dim, True),
                     metadata=parquet_metadata(
                         table="cis_nodes_ab",
                         kind="canonical",

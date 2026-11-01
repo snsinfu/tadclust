@@ -134,7 +134,7 @@ def test_whole_chromosome_only_becomes_residual(tmp_path) -> None:
     fine = tree.fine_units[0]
     assert (fine.start, fine.end, fine.is_tad) == (0, 2000, False)
 
-    units, _, _ = selected_units(tree, [], include_residuals=True)
+    units, _, _ = selected_units(tree, [], with_residuals=True)
     assert [(unit.unit_kind, unit.start, unit.end) for unit in units] == [
         ("residual", 0, 2000)
     ]
@@ -353,7 +353,7 @@ def test_selected_units_include_residual_runs(tmp_path) -> None:
     units, _, _ = selected_units(
         tree,
         [by_row[1]],
-        include_residuals=True,
+        with_residuals=True,
     )
 
     assert [(unit.unit_kind, unit.start, unit.end) for unit in units] == [
@@ -438,7 +438,7 @@ def test_select_units_disjoint_residuals_are_opt_in(tmp_path) -> None:
         dp_lambda_scale=100.0,
         tree_branch_k=3,
         seed=0,
-        include_residuals=True,
+        with_residuals=True,
     )
 
     assert len(with_residuals.units) == 5

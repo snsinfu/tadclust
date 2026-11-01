@@ -49,7 +49,7 @@ def make_config(mcool, tads, tmp_path, **overrides):
         "annotation_path": tads,
         "output_dir": tmp_path / "out",
         "working_binsize": 500,
-        "tree_n_pcs": 2,
+        "tree_pca_dim": 2,
         "tree_branch_k": 2,
     }
     values.update(overrides)
@@ -62,7 +62,7 @@ def make_uniform_config(mcool, tmp_path, **overrides):
         "annotation_path": None,
         "output_dir": tmp_path / "out",
         "working_binsize": 500,
-        "tree_n_pcs": 2,
+        "tree_pca_dim": 2,
         "tree_branch_k": 2,
     }
     values.update(overrides)
@@ -123,7 +123,7 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
         assert chromosome_qc["cis"]["n_covered_bins"] == 4
         assert chromosome_qc["cis"]["coverage_fraction"] == 1.0
 
-    assert result.params["requested"]["include_residuals"] is False
+    assert result.params["requested"]["with_residuals"] is False
     assert result.params["resolved"]["working_binsize"] == 500
     assert result.params["resolved"]["working_binsize_mode"] == "explicit"
     assert result.params["resolved"]["input_mode"] == "annotation"
@@ -161,7 +161,7 @@ def test_cluster_residuals_are_opt_in(gapped_mcool, gapped_tads, tmp_path) -> No
             gapped_tads,
             tmp_path,
             output_dir=tmp_path / "with-residuals",
-            include_residuals=True,
+            with_residuals=True,
         )
     )
 
@@ -189,7 +189,7 @@ def test_cluster_whole_chromosome_only_requires_residuals(mcool, tmp_path) -> No
             mcool,
             tads,
             tmp_path,
-            include_residuals=True,
+            with_residuals=True,
         )
     )
 
@@ -209,7 +209,7 @@ def test_cluster_uniform_bins(mcool, tmp_path) -> None:
     assert result.qc["summary"]["n_residuals"] == 0
     assert result.params["resolved"]["input_mode"] == "uniform_bins"
     assert result.inputs["annotation"] is None
-    assert result.params["requested"]["include_residuals"] is False
+    assert result.params["requested"]["with_residuals"] is False
     assert result.params["resolved"]["working_binsize"] == 500
     assert result.params["resolved"]["working_binsize_mode"] == "explicit"
     for chromosome_qc in result.qc["per_chromosome"].values():
@@ -308,7 +308,7 @@ def test_cluster_with_trans(three_chrom_mcool, trans_tads, tmp_path) -> None:
             three_chrom_mcool,
             trans_tads,
             tmp_path,
-            trans_enabled=True,
+            with_trans=True,
             trans_null="grand",
         )
     )
@@ -358,7 +358,7 @@ def test_cluster_with_trans_gapped_units(
             gapped_three_chrom_mcool,
             gapped_trans_tads,
             tmp_path,
-            trans_enabled=True,
+            with_trans=True,
             trans_null="grand",
         )
     )
@@ -382,7 +382,7 @@ def test_cluster_trans_no_positive_mode_raises(mcool, tmp_path) -> None:
                 mcool,
                 tads,
                 tmp_path,
-                trans_enabled=True,
+                with_trans=True,
             )
         )
 
@@ -542,7 +542,7 @@ def test_cluster_trans_skipped_for_single_chromosome(mcool, tmp_path) -> None:
             tads,
             tmp_path,
             chromosomes=["chr1"],
-            trans_enabled=True,
+            with_trans=True,
         )
     )
 
@@ -642,12 +642,12 @@ def test_cluster_parallel_matches_serial(mcool, tmp_path) -> None:
     )
 
 
-@pytest.mark.parametrize("include_residuals", [False, True])
+@pytest.mark.parametrize("with_residuals", [False, True])
 def test_cluster_gapped_parallel_matches_serial(
     gapped_mcool,
     gapped_tads,
     tmp_path,
-    include_residuals,
+    with_residuals,
 ) -> None:
     serial = cluster(
         make_config(
@@ -656,7 +656,7 @@ def test_cluster_gapped_parallel_matches_serial(
             tmp_path,
             output_dir=tmp_path / "serial",
             workers=1,
-            include_residuals=include_residuals,
+            with_residuals=with_residuals,
         )
     )
     parallel = cluster(
@@ -666,7 +666,7 @@ def test_cluster_gapped_parallel_matches_serial(
             tmp_path,
             output_dir=tmp_path / "parallel",
             workers=2,
-            include_residuals=include_residuals,
+            with_residuals=with_residuals,
         )
     )
 
@@ -772,7 +772,7 @@ def test_zero_contact_trans_units_are_unclustered(tmp_path) -> None:
             mcool,
             tads,
             tmp_path,
-            trans_enabled=True,
+            with_trans=True,
         )
     )
 

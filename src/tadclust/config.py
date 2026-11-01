@@ -30,12 +30,12 @@ class ClusterConfig:
     oe_distance_bins: int = 60
     oe_clip_min: float = -10.0
     oe_clip_max: float = 10.0
-    oe_pseudocount: float = 1.0
+    oe_pseudocount_scale: float = 1.0
     dp_lambda_scale: float = 1.0
-    include_residuals: bool = False
-    tree_n_pcs: int = 5
+    with_residuals: bool = False
+    tree_pca_dim: int = 5
     tree_branch_k: int = 2
-    trans_enabled: bool = False
+    with_trans: bool = False
     trans_null: str = "pair"
     ab_feature_track: str | Path | None = None
     workers: int = 1
@@ -101,20 +101,20 @@ class ClusterConfig:
                 "oe_clip_min must be less than oe_clip_max",
                 field="oe_clip_min",
             )
-        if self.oe_pseudocount <= 0:
+        if self.oe_pseudocount_scale <= 0:
             raise ConfigError(
-                "oe_pseudocount must be positive",
-                field="oe_pseudocount",
+                "oe_pseudocount_scale must be positive",
+                field="oe_pseudocount_scale",
             )
         if self.dp_lambda_scale < 0:
             raise ConfigError(
                 "dp_lambda_scale must be non-negative",
                 field="dp_lambda_scale",
             )
-        if self.tree_n_pcs < 1:
+        if self.tree_pca_dim < 1:
             raise ConfigError(
-                "tree_n_pcs must be at least 1",
-                field="tree_n_pcs",
+                "tree_pca_dim must be at least 1",
+                field="tree_pca_dim",
             )
         if self.tree_branch_k < 2:
             raise ConfigError(

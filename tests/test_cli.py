@@ -131,7 +131,7 @@ def test_cli_residuals_opt_in(gapped_mcool, gapped_tads, tmp_path) -> None:
 
     out = tmp_path / "out"
     manifest = json.loads((out / "manifest.json").read_text())
-    assert manifest["params"]["requested"]["include_residuals"] is False
+    assert manifest["params"]["requested"]["with_residuals"] is False
     assert manifest["qc"]["summary"]["n_residuals"] == 0
     leaves = pl.read_parquet(out / "cis_leaves.parquet")
     assert set(leaves["unit_kind"].to_list()) == {"tad"}
@@ -139,7 +139,7 @@ def test_cli_residuals_opt_in(gapped_mcool, gapped_tads, tmp_path) -> None:
     main([*args, "--include-residuals", "--overwrite"])
 
     manifest = json.loads((out / "manifest.json").read_text())
-    assert manifest["params"]["requested"]["include_residuals"] is True
+    assert manifest["params"]["requested"]["with_residuals"] is True
     assert manifest["qc"]["summary"]["n_residuals"] > 0
     leaves = pl.read_parquet(out / "cis_leaves.parquet")
     assert "residual" in set(leaves["unit_kind"].to_list())

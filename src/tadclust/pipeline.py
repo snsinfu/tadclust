@@ -136,13 +136,13 @@ def cluster(config: ClusterConfig) -> ClusterResult:
     is_ab = track is not None
     cis_nodes = _cis_node_rows(
         results,
-        n_pcs=config.tree_n_pcs,
+        n_pcs=config.tree_pca_dim,
         include_composition=is_ab,
     )
     cis_nodes_ab = (
         _cis_node_rows(
             results,
-            n_pcs=config.tree_n_pcs,
+            n_pcs=config.tree_pca_dim,
             include_composition=True,
             use_ab_forest=True,
         )
@@ -153,7 +153,7 @@ def cluster(config: ClusterConfig) -> ClusterResult:
     cis_leaves = _cis_leaf_rows(
         cis_nodes,
         trans_nodes,
-        n_pcs=config.tree_n_pcs,
+        n_pcs=config.tree_pca_dim,
         include_ab=is_ab,
     )
     cis_leaves_ab = (
@@ -246,7 +246,7 @@ def _build_cis_results(
 
         if track is None:
             pcs = base_pcs
-            clusterable = informative_mask(pcs, config.tree_n_pcs)
+            clusterable = informative_mask(pcs, config.tree_pca_dim)
         else:
             values = overlap_weighted_values(
                 track,
@@ -255,14 +255,14 @@ def _build_cis_results(
             )
             feature_rank, n_uncovered = fill_and_rank(values, selection.chrom)
             pcs = orient_pcs_to_feature(base_pcs, feature_rank)
-            clusterable = informative_mask(pcs, config.tree_n_pcs)
-            features = ab_feature_matrix(pcs, feature_rank, config.tree_n_pcs)
+            clusterable = informative_mask(pcs, config.tree_pca_dim)
+            features = ab_feature_matrix(pcs, feature_rank, config.tree_pca_dim)
             annotation = annotate_ab(
                 features,
                 feature_rank,
                 len(selection.unit_selection.units),
                 config.seed,
-                n_pcs=config.tree_n_pcs,
+                n_pcs=config.tree_pca_dim,
                 clusterable=clusterable,
             )
 
@@ -270,7 +270,7 @@ def _build_cis_results(
             selection.chrom,
             pcs,
             unit_bins,
-            n_pcs=config.tree_n_pcs,
+            n_pcs=config.tree_pca_dim,
             branch_k=config.tree_branch_k,
             seed=config.seed,
             node_base=cis_node_base,
@@ -284,14 +284,14 @@ def _build_cis_results(
                 forest,
                 annotation,
                 features,
-                n_pcs=config.tree_n_pcs,
+                n_pcs=config.tree_pca_dim,
             )
             ab_forest = build_ab_forest(
                 selection.chrom,
                 pcs,
                 unit_bins,
                 annotation=annotation,
-                n_pcs=config.tree_n_pcs,
+                n_pcs=config.tree_pca_dim,
                 branch_k=config.tree_branch_k,
                 seed=config.seed,
                 node_base=ab_node_base,
@@ -302,7 +302,7 @@ def _build_cis_results(
                 ab_forest,
                 annotation,
                 features,
-                n_pcs=config.tree_n_pcs,
+                n_pcs=config.tree_pca_dim,
             )
 
         results.append(
@@ -329,7 +329,7 @@ def _run_trans(
     cooler_object: cooler.Cooler,
     results: list[_ChromosomeResult],
 ) -> _TransRun | None:
-    if not config.trans_enabled or len(results) < 2:
+    if not config.with_trans or len(results) < 2:
         return None
 
     inputs = [TransInput(result.chrom, result.selection.units) for result in results]
@@ -338,7 +338,7 @@ def _run_trans(
         choice.value,
         cooler_object,
         inputs,
-        pseudocount=config.oe_pseudocount,
+        pseudocount=config.oe_pseudocount_scale,
         clip_min=config.oe_clip_min,
         clip_max=config.oe_clip_max,
         balance=True,
@@ -349,7 +349,7 @@ def _run_trans(
     tree_result = build_trans_tree(
         matrix,
         unit_bins,
-        n_pcs=config.tree_n_pcs,
+        n_pcs=config.tree_pca_dim,
         branch_k=config.tree_branch_k,
         seed=config.seed,
     )
@@ -661,12 +661,12 @@ def _build_params(
             "oe_distance_bins": config.oe_distance_bins,
             "oe_clip_min": config.oe_clip_min,
             "oe_clip_max": config.oe_clip_max,
-            "oe_pseudocount": config.oe_pseudocount,
+            "oe_pseudocount_scale": config.oe_pseudocount_scale,
             "dp_lambda_scale": config.dp_lambda_scale,
-            "include_residuals": config.include_residuals,
-            "tree_n_pcs": config.tree_n_pcs,
+            "with_residuals": config.with_residuals,
+            "tree_pca_dim": config.tree_pca_dim,
             "tree_branch_k": config.tree_branch_k,
-            "trans_enabled": config.trans_enabled,
+            "with_trans": config.with_trans,
             "trans_null": config.trans_null,
             "workers": config.workers,
             "seed": config.seed,
@@ -844,7 +844,7 @@ def _trans_qc(
     trans_run: _TransRun | None,
     config: ClusterConfig,
 ) -> dict[str, Any] | None:
-    if not config.trans_enabled:
+    if not config.with_trans:
         return None
     if trans_run is None:
         return {

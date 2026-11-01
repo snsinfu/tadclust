@@ -43,8 +43,8 @@ def test_package_version() -> None:
 def test_default_config_is_valid(tmp_path) -> None:
     config = make_config(tmp_path)
     assert config.tree_branch_k == 2
-    assert config.trans_enabled is False
-    assert config.include_residuals is False
+    assert config.with_trans is False
+    assert config.with_residuals is False
     assert config.dp_lambda_scale == 1.0
     assert config.seed == 0
 
@@ -52,12 +52,12 @@ def test_default_config_is_valid(tmp_path) -> None:
 @pytest.mark.parametrize(
     "overrides",
     [
-        {"oe_pseudocount": 0},
+        {"oe_pseudocount_scale": 0},
         {"dp_lambda_scale": -1.0},
         {"oe_clip_min": 1.0, "oe_clip_max": 1.0},
         {"oe_distance_bins": 1},
         {"tree_branch_k": 1},
-        {"tree_n_pcs": 0},
+        {"tree_pca_dim": 0},
         {"workers": 0},
         {"seed": -1},
         {"trans_null": "uniform"},
@@ -84,10 +84,10 @@ def test_uniform_mode_requires_working_binsize(tmp_path) -> None:
 
 def test_error_can_be_matched_by_class_and_field(tmp_path) -> None:
     with pytest.raises(TadclustError) as info:
-        make_config(tmp_path, oe_pseudocount=0)
+        make_config(tmp_path, oe_pseudocount_scale=0)
 
     match info.value:
-        case ConfigError(message=message, field="oe_pseudocount"):
+        case ConfigError(message=message, field="oe_pseudocount_scale"):
             assert "pseudocount" in message
         case _:
             pytest.fail(f"unexpected error: {info.value!r}")
