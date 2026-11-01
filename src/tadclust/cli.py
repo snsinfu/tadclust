@@ -11,6 +11,7 @@ from . import __version__
 from .config import TRANS_NULL_CHOICES, ClusterConfig
 from .errors import TadclustError
 from .pipeline import cluster
+from .signals import exit_by_sigint, install_interrupt_handler
 from .writer import write_outputs
 
 LOG_FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
@@ -152,8 +153,18 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: Sequence[str] | None = None) -> None:
-    """Run the CLI; raise SystemExit on failure."""
+    """Run the CLI; raise SystemExit on error, or die by SIGINT on interrupt."""
     raw_args = list(sys.argv[1:] if argv is None else argv)
+    install_interrupt_handler()
+    try:
+        _run(raw_args)
+    except KeyboardInterrupt:
+        exit_by_sigint()
+    except TadclustError as exc:
+        raise SystemExit(f"tadclust: error: {exc}") from exc
+
+
+def _run(raw_args: list[str]) -> None:
     args = parse_args(raw_args)
     logging.basicConfig(
         level=logging.WARNING if args.quiet else logging.INFO,
@@ -162,36 +173,32 @@ def main(argv: Sequence[str] | None = None) -> None:
         force=True,
     )
 
-    try:
-        config = ClusterConfig(
-            mcool_path=args.mcool,
-            annotation_path=args.tad_table,
-            output_dir=args.output_dir,
-            working_binsize=args.working_binsize,
-            oe_distance_bins=args.oe_distance_bins,
-            oe_clip_min=args.oe_clip_min,
-            oe_clip_max=args.oe_clip_max,
-            oe_pseudocount_scale=args.oe_pseudocount_scale,
-            dp_lambda_scale=args.dp_lambda_scale,
-            with_residuals=args.with_residuals,
-            tree_pca_dim=args.tree_pca_dim,
-            tree_branch_k=args.tree_branch_k,
-            with_trans=args.with_trans,
-            trans_null=args.trans_null,
-            ab_feature_track=args.ab_feature_track,
-            workers=args.workers,
-            seed=args.seed,
-        )
-        result = cluster(config)
-        written = write_outputs(
-            result,
-            config,
-            cli_args=raw_args,
-            overwrite=args.overwrite,
-        )
-    except TadclustError as exc:
-        raise SystemExit(f"tadclust: error: {exc}") from exc
-
+    config = ClusterConfig(
+        mcool_path=args.mcool,
+        annotation_path=args.tad_table,
+        output_dir=args.output_dir,
+        working_binsize=args.working_binsize,
+        oe_distance_bins=args.oe_distance_bins,
+        oe_clip_min=args.oe_clip_min,
+        oe_clip_max=args.oe_clip_max,
+        oe_pseudocount_scale=args.oe_pseudocount_scale,
+        dp_lambda_scale=args.dp_lambda_scale,
+        with_residuals=args.with_residuals,
+        tree_pca_dim=args.tree_pca_dim,
+        tree_branch_k=args.tree_branch_k,
+        with_trans=args.with_trans,
+        trans_null=args.trans_null,
+        ab_feature_track=args.ab_feature_track,
+        workers=args.workers,
+        seed=args.seed,
+    )
+    result = cluster(config)
+    written = write_outputs(
+        result,
+        config,
+        cli_args=raw_args,
+        overwrite=args.overwrite,
+    )
     LOG.info(
         "[WRITE] wrote %d units and %d file(s) to %s",
         result.qc["summary"]["n_units"],
