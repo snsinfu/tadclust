@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import ClassVar
 
 import cooler
@@ -17,7 +18,7 @@ from .domains import (
 )
 from .errors import InputError
 from .mcool import bin_centers, bin_intervals
-from .tads import TadTable, check_against_chromsizes
+from .tads import TadTable, check_against_chromsizes, read_tads
 
 
 @dataclass(frozen=True)
@@ -86,6 +87,16 @@ class UniformBinSource:
 
 
 type CisSource = AnnotationSource | UniformBinSource
+
+
+def make_source(annotation_path: str | Path | None) -> CisSource:
+    """Build the phase-1 source for an annotation path or uniform bins."""
+    if annotation_path is None:
+        return UniformBinSource()
+    return AnnotationSource(
+        table=read_tads(annotation_path),
+        path=str(annotation_path),
+    )
 
 
 def _select_chromosomes(

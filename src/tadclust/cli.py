@@ -11,6 +11,7 @@ from . import __version__
 from .config import TRANS_NULL_CHOICES, ClusterConfig
 from .errors import TadclustError
 from .pipeline import cluster
+from .processes import prepare_process_context
 from .signals import exit_by_sigint, install_interrupt_handler
 from .writer import write_outputs
 
@@ -192,6 +193,8 @@ def _run(raw_args: list[str]) -> None:
         workers=args.workers,
         seed=args.seed,
     )
+    if config.workers > 1:
+        prepare_process_context()
     result = cluster(config)
     written = write_outputs(
         result,

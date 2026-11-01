@@ -58,7 +58,7 @@ def cis_nodes_schema(n_pcs: int, include_ab: bool) -> Schema:
     """Return the canonical cis node table schema.
 
     Leaf nodes are flattened to one row per member unit, so every column of
-    ``cis_leaves`` (except trans columns) is also a ``cis_nodes`` column.
+    `cis_leaves` (except trans columns) is also a `cis_nodes` column.
     """
     schema: Schema = {
         "chrom": pl.String,

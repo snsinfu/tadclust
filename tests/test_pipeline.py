@@ -13,7 +13,8 @@ from conftest import write_mcool, write_tads, write_track
 import tadclust.domains as domains_module
 from tadclust.config import ClusterConfig
 from tadclust.errors import ClusteringError, InputError
-from tadclust.pipeline import _make_source, cluster
+from tadclust.pipeline import cluster
+from tadclust.sources import AnnotationSource
 
 
 def base_tads(tmp_path):
@@ -312,8 +313,10 @@ def test_cis_worker_ignores_sigint(monkeypatch, mcool, tmp_path) -> None:
     monkeypatch.setattr(parallel, "open_cooler", lambda *args: object())
 
     config = make_config(mcool, base_tads(tmp_path), tmp_path)
+    worker_source = None
     try:
-        parallel._init_worker(config, _make_source(config), {}, 500)
+        parallel._init_worker(config, {}, 500)
+        worker_source = parallel._WORKER_SOURCE
     finally:
         parallel._WORKER_COOLER = None
         parallel._WORKER_CONFIG = None
@@ -322,6 +325,7 @@ def test_cis_worker_ignores_sigint(monkeypatch, mcool, tmp_path) -> None:
         parallel._WORKER_LIMITER = None
 
     assert calls == [True]
+    assert isinstance(worker_source, AnnotationSource)
 
 
 def test_cluster_with_trans(three_chrom_mcool, trans_tads, tmp_path) -> None:

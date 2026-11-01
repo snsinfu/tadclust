@@ -26,8 +26,7 @@ from .mcool import (
 )
 from .parallel import ChromosomeSelection, run_cis_parallel, run_cis_serial
 from .schema import cis_leaves_ab_schema, cis_leaves_schema
-from .sources import AnnotationSource, CisSource, UniformBinSource
-from .tads import read_tads
+from .sources import CisSource, make_source
 from .track import (
     FeatureTrack,
     ab_feature_matrix,
@@ -93,12 +92,7 @@ class _TransRun:
 
 
 def _make_source(config: ClusterConfig) -> CisSource:
-    if config.annotation_path is None:
-        return UniformBinSource()
-    return AnnotationSource(
-        table=read_tads(config.annotation_path),
-        path=str(config.annotation_path),
-    )
+    return make_source(config.annotation_path)
 
 
 def cluster(config: ClusterConfig) -> ClusterResult:
@@ -221,7 +215,6 @@ def _run_cis(
     selections = (
         run_cis_parallel(
             config,
-            source,
             sizes,
             chromosomes,
             resolution,

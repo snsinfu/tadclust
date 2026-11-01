@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import multiprocessing as mp
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -24,7 +23,8 @@ from .matrix import (
     log2_ratio,
     pcs_from_log_oe,
 )
-from .signals import ignore_sigint, ignore_sigint_during_spawn
+from .processes import process_context
+from .signals import ignore_sigint
 from .trees import (
     GENOME_ROOT_LABEL,
     BranchingTree,
@@ -496,16 +496,14 @@ def _scan_parallel(
     tasks: list[ScanTask],
     workers: int,
 ) -> list[ChunkResult]:
-    context = mp.get_context("spawn")
+    context = process_context()
     pool = None
     try:
-        with ignore_sigint_during_spawn():
-            pool = context.Pool(
-                processes=workers,
-                initializer=_init_scan_worker,
-                initargs=(mcool_path, resolution, pixel_map, weight),
-            )
-        assert pool is not None
+        pool = context.Pool(
+            processes=workers,
+            initializer=_init_scan_worker,
+            initargs=(mcool_path, resolution, pixel_map, weight),
+        )
         with pool:
             return list(
                 pool.imap(

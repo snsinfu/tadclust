@@ -4,30 +4,10 @@ from __future__ import annotations
 
 import os
 import signal
-from collections.abc import Iterator
-from contextlib import contextmanager, suppress
+from contextlib import suppress
 from typing import NoReturn
 
 INTERRUPT_EXIT_CODE = 128 + signal.SIGINT
-
-
-@contextmanager
-def ignore_sigint_during_spawn() -> Iterator[None]:
-    """Ignore SIGINT while spawn children start.
-
-    Spawn children import the main module and dependencies before their
-    initializer runs. If SIGINT arrived during those imports, the child would
-    print a traceback. POSIX preserves an ignored disposition across exec, so
-    setting SIG_IGN in the parent before creating the pool protects the
-    import phase without relying on signal-mask inheritance. A Ctrl-C in this
-    short window is ignored; the parent restores its handler immediately after.
-    """
-    previous_handler = signal.getsignal(signal.SIGINT)
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
-    try:
-        yield
-    finally:
-        signal.signal(signal.SIGINT, previous_handler)
 
 
 def install_interrupt_handler() -> None:

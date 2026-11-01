@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import multiprocessing as mp
 from dataclasses import dataclass
 
 import cooler
@@ -14,8 +13,9 @@ from .config import ClusterConfig
 from .domains import ChromosomeTree, UnitSelection, select_units
 from .matrix import canonicalize_pc1_sign, compute_fine_unit_matrices
 from .mcool import open_cooler
-from .signals import ignore_sigint, ignore_sigint_during_spawn
-from .sources import CisSource
+from .processes import process_context
+from .signals import ignore_sigint
+from .sources import CisSource, make_source
 
 LOG = logging.getLogger(__name__)
 
@@ -55,23 +55,24 @@ def run_cis_serial(
 
 def run_cis_parallel(
     config: ClusterConfig,
-    source: CisSource,
     sizes: dict[str, int],
     chromosomes: list[str],
     resolution: int,
 ) -> list[ChromosomeSelection]:
-    """Select units in a spawn pool; results stay in chromosome order."""
-    context = mp.get_context("spawn")
+    """Select units in a process pool; results stay in chromosome order.
+
+    Workers rebuild the source from `config`. Do not pass large data through
+    `initargs`: Pool pickles them once per worker even with forkserver.
+    """
+    context = process_context()
     collected: dict[str, ChromosomeSelection] = {}
     pool = None
     try:
-        with ignore_sigint_during_spawn():
-            pool = context.Pool(
-                processes=config.workers,
-                initializer=_init_worker,
-                initargs=(config, source, sizes, resolution),
-            )
-        assert pool is not None
+        pool = context.Pool(
+            processes=config.workers,
+            initializer=_init_worker,
+            initargs=(config, sizes, resolution),
+        )
         with pool:
             for selection in pool.imap_unordered(
                 _process_chromosome,
@@ -112,7 +113,6 @@ _WORKER_LIMITER = None
 
 def _init_worker(
     config: ClusterConfig,
-    source: CisSource,
     sizes: dict[str, int],
     resolution: int,
 ) -> None:
@@ -122,7 +122,7 @@ def _init_worker(
     ignore_sigint()
     _WORKER_LIMITER = threadpool_limits(limits=1)
     _WORKER_CONFIG = config
-    _WORKER_SOURCE = source
+    _WORKER_SOURCE = make_source(config.annotation_path)
     _WORKER_SIZES = sizes
     _WORKER_COOLER = open_cooler(config.mcool_path, resolution)
 

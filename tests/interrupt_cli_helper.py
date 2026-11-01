@@ -4,38 +4,26 @@ from __future__ import annotations
 
 import sys
 import time
-from typing import ClassVar, NoReturn, cast
+from typing import Any, NoReturn
 
-import cooler
-import numpy as np
-
-from tadclust import cli
+from tadclust import cli, parallel
 from tadclust.config import ClusterConfig
-from tadclust.domains import ChromosomeTree
-from tadclust.parallel import run_cis_parallel
-from tadclust.sources import CisSource
+
+_original_select = parallel._select_chromosome
 
 
-class SlowSource:
-    """Cis source that blocks long enough for the test to send SIGINT."""
+def _slow_select(*args: Any, **kwargs: Any) -> parallel.ChromosomeSelection:
+    print("[TEST] worker busy", flush=True)
+    time.sleep(60)
+    return _original_select(*args, **kwargs)
 
-    unit_kind: ClassVar[str] = "tad"
 
-    def build_units(
-        self,
-        cooler_object: cooler.Cooler,
-        chrom: str,
-        chromsize: int,
-    ) -> tuple[ChromosomeTree, np.ndarray]:
-        print(f"[TEST] worker busy {chrom}", flush=True)
-        time.sleep(60)
-        raise AssertionError("SIGINT did not arrive")
+parallel._select_chromosome = _slow_select
 
 
 def slow_cluster(config: ClusterConfig) -> NoReturn:
-    run_cis_parallel(
+    parallel.run_cis_parallel(
         config,
-        cast(CisSource, SlowSource()),
         {"chr1": 2000, "chr2": 2000},
         ["chr1", "chr2"],
         500,
