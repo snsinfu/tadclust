@@ -12,29 +12,22 @@ INTERRUPT_EXIT_CODE = 128 + signal.SIGINT
 
 
 @contextmanager
-def block_sigint_during_spawn() -> Iterator[None]:
-    """Block SIGINT while spawn children start.
+def ignore_sigint_during_spawn() -> Iterator[None]:
+    """Ignore SIGINT while spawn children start.
 
-    POSIX inherits the calling thread's signal mask across exec. Spawn children
-    import the main module and dependencies before their initializer runs. If
-    SIGINT arrived during those imports, the child would print a traceback.
-    Blocking it here keeps the signal pending in the parent and inherited as
-    blocked by the children. The parent's mask is restored afterwards, so a
-    pending interrupt is raised then.
+    Spawn children import the main module and dependencies before their
+    initializer runs. If SIGINT arrived during those imports, the child would
+    print a traceback. POSIX preserves an ignored disposition across exec, so
+    setting SIG_IGN in the parent before creating the pool protects the
+    import phase without relying on signal-mask inheritance. A Ctrl-C in this
+    short window is ignored; the parent restores its handler immediately after.
     """
-    if hasattr(signal, "pthread_sigmask"):
-        previous = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
-        try:
-            yield
-        finally:
-            signal.pthread_sigmask(signal.SIG_SETMASK, previous)
-    else:
-        previous_handler = signal.getsignal(signal.SIGINT)
-        signal.signal(signal.SIGINT, signal.SIG_IGN)
-        try:
-            yield
-        finally:
-            signal.signal(signal.SIGINT, previous_handler)
+    previous_handler = signal.getsignal(signal.SIGINT)
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGINT, previous_handler)
 
 
 def install_interrupt_handler() -> None:

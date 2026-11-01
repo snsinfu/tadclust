@@ -24,7 +24,7 @@ from .matrix import (
     log2_ratio,
     pcs_from_log_oe,
 )
-from .signals import block_sigint_during_spawn, ignore_sigint
+from .signals import ignore_sigint, ignore_sigint_during_spawn
 from .trees import (
     GENOME_ROOT_LABEL,
     BranchingTree,
@@ -499,7 +499,7 @@ def _scan_parallel(
     context = mp.get_context("spawn")
     pool = None
     try:
-        with block_sigint_during_spawn():
+        with ignore_sigint_during_spawn():
             pool = context.Pool(
                 processes=workers,
                 initializer=_init_scan_worker,

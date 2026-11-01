@@ -14,7 +14,7 @@ from .config import ClusterConfig
 from .domains import ChromosomeTree, UnitSelection, select_units
 from .matrix import canonicalize_pc1_sign, compute_fine_unit_matrices
 from .mcool import open_cooler
-from .signals import block_sigint_during_spawn, ignore_sigint
+from .signals import ignore_sigint, ignore_sigint_during_spawn
 from .sources import CisSource
 
 LOG = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ def run_cis_parallel(
     collected: dict[str, ChromosomeSelection] = {}
     pool = None
     try:
-        with block_sigint_during_spawn():
+        with ignore_sigint_during_spawn():
             pool = context.Pool(
                 processes=config.workers,
                 initializer=_init_worker,

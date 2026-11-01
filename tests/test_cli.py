@@ -471,9 +471,9 @@ def test_exit_by_sigint_unregisters_semaphores() -> None:
     assert "leaked semaphore" not in proc.stderr
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signal masks")
-def test_spawn_children_inherit_blocked_sigint() -> None:
-    helper = Path(__file__).with_name("spawn_mask_helper.py")
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signal inheritance")
+def test_spawn_children_ignore_sigint() -> None:
+    helper = Path(__file__).with_name("spawn_signal_helper.py")
     proc = subprocess.run(
         [sys.executable, str(helper)],
         capture_output=True,
@@ -483,7 +483,7 @@ def test_spawn_children_inherit_blocked_sigint() -> None:
     )
 
     assert proc.returncode == 0
-    assert f"blocked: [{signal.SIGINT}]" in proc.stdout
+    assert "ignored: True" in proc.stdout
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX process-group signals")
