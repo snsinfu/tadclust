@@ -26,7 +26,7 @@ Give an mcool contact matrix, a TAD annotation table, optionally an A/B feature 
 
 ```shell
 $ tadclust \
-  --out-dir          out \
+  --output-dir       out \
   --mcool            contact_map.mcool \
   --tad-table        tad_annotation.bed \
   --ab-feature-track active_signal.bedGraph
@@ -39,8 +39,8 @@ The TAD table can be any disjoint or hierarchical TAD annotation in the BED3+ fo
 | option              | default | description |
 |:--------------------|:--------|:------------|
 | --tree-branch-k  K  | 2       | Split count of recursive k-means. |
-| --enable-trans      | no      | Enable trans-chromosomal clustering (experimental and expensive). |
-| --include-residuals | no      | Fill gaps with `residual` pseudo-domains. |
+| --with-trans        | no      | Enable trans-chromosomal clustering (experimental and expensive). |
+| --with-residuals    | no      | Fill gaps with `residual` pseudo-domains. |
 | --overwrite         | no      | Allow overwriting existing files in the output directory. |
 | --workers        N  | 1       | Run analysis in parallel using N processes. |
 | --seed           N  | 0       | Random seed for reproducibility. |
@@ -110,7 +110,7 @@ For **A/B compartment** annotation, an auxiliary binary split of an augmented fe
 
 The **A/B signal** is the 1D projection of the node's PC centroid onto the A-B axis in the PC space (the axis along the A and B centroids). This is a generalization of the conventional PC1 compartment signal to the bisected, higher-dimensional PC space. The magnitude of the signal is informative: it is the distance from the decision boundary, so close-to-zero signal indicates poor compartmentalization. The PC space is standardized in A/B analysis, so the typical values of the signal distribute in the ~3 sigma range, or within approximtely \[-3,3\], so the "normal" magnitude would be around ~1.
 
-**Genome-wide clustering** (experimental) is also done when `--enable-trans` flag is passed. Genome-wide, trans-chrom O/E is built using the cis-defined TADs as units, diagonalized, and recursively clustered. The trans tree tends to capture chromosome territories or telomere clustering rather than genome-wide A/B compartments. Still, the `unit_id` is shared between the cis table, so one can JOIN cis and trans tables to examine cis-determined A/B on the trans tree.
+**Genome-wide clustering** (experimental) is also done when `--with-trans` flag is passed. Genome-wide, trans-chrom O/E is built using the cis-defined TADs as units, diagonalized, and recursively clustered. The trans tree tends to capture chromosome territories or telomere clustering rather than genome-wide A/B compartments. Still, the `unit_id` is shared between the cis table, so one can JOIN cis and trans tables to examine cis-determined A/B on the trans tree.
 
 ## AI disclosure
 
