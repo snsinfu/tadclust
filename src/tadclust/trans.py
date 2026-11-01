@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import multiprocessing as mp
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,6 +31,8 @@ from .trees import (
 )
 
 CHUNK_ROWS = 10_000_000
+
+LOG = logging.getLogger(__name__)
 
 
 class PairInfo(NamedTuple):
@@ -208,6 +212,12 @@ def trans_matrix(
         pixel_map = build_pixel_map(cooler_object, group, inputs)
         weight = _read_weights(group) if balance else None
         tasks = _pixel_tasks(pixel_map, inputs)
+        LOG.info(
+            "trans: scanning %d pixel chunk(s) across %d chromosome pair(s)",
+            len(tasks),
+            len(pixel_map.pair_info),
+        )
+        started = time.perf_counter()
         if workers > 1:
             chunks = _scan_parallel(
                 mcool_path,
@@ -219,6 +229,11 @@ def trans_matrix(
             )
         else:
             chunks = [_scan_chunk(group, pixel_map, weight, task) for task in tasks]
+        LOG.info(
+            "trans: pixel scan finished in %.1f s (%d chunk(s))",
+            time.perf_counter() - started,
+            len(tasks),
+        )
     finally:
         handle.close()
 

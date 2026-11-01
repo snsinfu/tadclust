@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any
@@ -364,10 +365,19 @@ def _run_trans(
     cooler_object: cooler.Cooler,
     results: list[_ChromosomeResult],
 ) -> _TransRun | None:
-    if not config.with_trans or len(results) < 2:
+    if not config.with_trans:
+        return None
+    if len(results) < 2:
+        LOG.info("trans: skipped (fewer than two chromosomes)")
         return None
 
     inputs = [TransInput(result.chrom, result.selection.units) for result in results]
+    LOG.info(
+        "trans: building matrix for %d units across %d chromosomes",
+        sum(len(result.selection.units) for result in results),
+        len(results),
+    )
+    started = time.perf_counter()
     matrix = trans_matrix(
         config.mcool_path,
         choice.value,
@@ -380,13 +390,30 @@ def _run_trans(
         null=config.trans_null,
         workers=config.workers,
     )
+    LOG.info(
+        "trans: matrix built in %.1f s (%d units, %d chromosome pairs, null=%s)",
+        time.perf_counter() - started,
+        matrix.log_oe.shape[0],
+        matrix.info.pair_count,
+        matrix.info.null,
+    )
     unit_bins = np.concatenate([result.unit_bins for result in results])
+    started = time.perf_counter()
     tree_result = build_trans_tree(
         matrix,
         unit_bins,
         n_pcs=config.tree_pca_dim,
         branch_k=config.tree_branch_k,
         seed=config.seed,
+    )
+    nodes = tree_result.tree.nodes
+    LOG.info(
+        "trans: tree built in %.1f s (%d nodes, %d leaves, %d clustered, %d unclustered)",
+        time.perf_counter() - started,
+        len(nodes),
+        sum(node.is_leaf for node in nodes),
+        int(tree_result.unit_indices.size),
+        matrix.log_oe.shape[0] - int(tree_result.unit_indices.size),
     )
     return _TransRun(
         matrix=matrix,
