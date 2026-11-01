@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import multiprocessing as mp
 from dataclasses import dataclass
 
@@ -14,6 +15,8 @@ from .domains import ChromosomeTree, UnitSelection, select_units
 from .matrix import canonicalize_pc1_sign, compute_fine_unit_matrices
 from .mcool import open_cooler
 from .sources import CisSource
+
+LOG = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -35,16 +38,18 @@ def run_cis_serial(
     cooler_object: cooler.Cooler,
 ) -> list[ChromosomeSelection]:
     """Select units for each chromosome in the current process."""
-    return [
-        _select_chromosome(
+    results: list[ChromosomeSelection] = []
+    for chrom in chromosomes:
+        selection = _select_chromosome(
             config,
             source,
             sizes,
             chrom,
             cooler_object,
         )
-        for chrom in chromosomes
-    ]
+        _log_selection(selection)
+        results.append(selection)
+    return results
 
 
 def run_cis_parallel(
@@ -56,15 +61,36 @@ def run_cis_parallel(
 ) -> list[ChromosomeSelection]:
     """Select units in a spawn pool; results stay in chromosome order."""
     context = mp.get_context("spawn")
+    collected: dict[str, ChromosomeSelection] = {}
     with context.Pool(
         processes=config.workers,
         initializer=_init_worker,
         initargs=(config, source, sizes, resolution),
     ) as pool:
-        return pool.map(
+        for selection in pool.imap_unordered(
             _process_chromosome,
             chromosomes,
             chunksize=1,
+        ):
+            _log_selection(selection)
+            collected[selection.chrom] = selection
+    return [collected[chrom] for chrom in chromosomes]
+
+
+def _log_selection(selection: ChromosomeSelection) -> None:
+    units = selection.unit_selection.units
+    n_tads = sum(unit.unit_kind == "tad" for unit in units)
+    n_residuals = sum(unit.unit_kind == "residual" for unit in units)
+    n_bins = sum(unit.unit_kind == "bin" for unit in units)
+    if n_bins == len(units):
+        LOG.info("%s: %d bin units selected", selection.chrom, n_bins)
+    else:
+        LOG.info(
+            "%s: %d units selected (%d TAD, %d residual)",
+            selection.chrom,
+            len(units),
+            n_tads,
+            n_residuals,
         )
 
 
