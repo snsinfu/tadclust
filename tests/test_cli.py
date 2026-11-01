@@ -46,11 +46,11 @@ def cli_args(mcool, tads, tmp_path, *extra):
         str(mcool),
         "--tad-table",
         str(tads),
-        "--out-dir",
+        "--output-dir",
         str(tmp_path / "out"),
         "--working-binsize",
         "500",
-        "--tree-n-pcs",
+        "--tree-pca-dim",
         "2",
         "--tree-branch-k",
         "2",
@@ -63,11 +63,11 @@ def uniform_cli_args(mcool, tmp_path, *extra):
         "--mcool",
         str(mcool),
         "--uniform-bins",
-        "--out-dir",
+        "--output-dir",
         str(tmp_path / "out"),
         "--working-binsize",
         "500",
-        "--tree-n-pcs",
+        "--tree-pca-dim",
         "2",
         "--tree-branch-k",
         "2",
@@ -82,29 +82,80 @@ def test_cli_default_tree_branch_k() -> None:
             "test.mcool",
             "--tad-table",
             "domains.tsv",
-            "--out-dir",
+            "--output-dir",
             "out",
         ]
     )
 
     assert args.tree_branch_k == 2
-    assert args.include_residuals is False
+    assert args.with_residuals is False
 
 
-def test_cli_include_residuals_flag() -> None:
+def test_cli_with_residuals_flag() -> None:
     args = parse_args(
         [
             "--mcool",
             "test.mcool",
             "--tad-table",
             "domains.tsv",
-            "--out-dir",
+            "--output-dir",
             "out",
-            "--include-residuals",
+            "--with-residuals",
         ]
     )
 
-    assert args.include_residuals is True
+    assert args.with_residuals is True
+
+
+def test_cli_short_aliases(tmp_path) -> None:
+    args = parse_args(
+        [
+            "--mcool",
+            "test.mcool",
+            "--tad-table",
+            "domains.tsv",
+            "-o",
+            str(tmp_path / "out"),
+            "-p",
+            "2",
+            "-s",
+            "7",
+            "-f",
+        ]
+    )
+
+    assert args.output_dir == str(tmp_path / "out")
+    assert args.workers == 2
+    assert args.seed == 7
+    assert args.overwrite is True
+
+
+@pytest.mark.parametrize(
+    "flag",
+    [
+        "--out-dir",
+        "--enable-trans",
+        "--include-residuals",
+        "--tree-n-pcs",
+        "--oe-pseudocount",
+    ],
+)
+def test_cli_old_flags_rejected(flag) -> None:
+    argv = [
+        "--mcool",
+        "test.mcool",
+        "--tad-table",
+        "domains.tsv",
+        "--output-dir",
+        "out",
+        flag,
+    ]
+    if flag not in ("--enable-trans", "--include-residuals"):
+        argv.append("1")
+
+    with pytest.raises(SystemExit) as info:
+        parse_args(argv)
+    assert info.value.code == 2
 
 
 def test_cli_cis_run(mcool, tmp_path) -> None:
@@ -136,7 +187,7 @@ def test_cli_residuals_opt_in(gapped_mcool, gapped_tads, tmp_path) -> None:
     leaves = pl.read_parquet(out / "cis_leaves.parquet")
     assert set(leaves["unit_kind"].to_list()) == {"tad"}
 
-    main([*args, "--include-residuals", "--overwrite"])
+    main([*args, "--with-residuals", "--overwrite"])
 
     manifest = json.loads((out / "manifest.json").read_text())
     assert manifest["params"]["requested"]["with_residuals"] is True
@@ -167,7 +218,7 @@ def test_cli_uniform_bins_requires_working_binsize(mcool, tmp_path) -> None:
         "--mcool",
         str(mcool),
         "--uniform-bins",
-        "--out-dir",
+        "--output-dir",
         str(tmp_path / "out"),
     ]
 
@@ -187,6 +238,15 @@ def test_cli_rejects_tad_table_and_uniform_bins(mcool, tmp_path) -> None:
     assert info.value.code == 2
 
 
+def help_option_order(output: str) -> list[str]:
+    main = output.split("\nadvanced:")[0]
+    order = []
+    for line in main.splitlines():
+        if line.startswith("  -") and not line.startswith("   "):
+            order.append(line.split()[0].rstrip(","))
+    return order
+
+
 def test_help_lists_advanced(capsys) -> None:
     with pytest.raises(SystemExit) as info:
         main(["--help"])
@@ -195,8 +255,36 @@ def test_help_lists_advanced(capsys) -> None:
     out = capsys.readouterr().out
     assert "advanced" in out
     assert "--oe-distance-bins" in out
+    assert "--oe-pseudocount-scale" in out
+    assert "--tree-pca-dim" in out
+    assert "--tree-branch-k" in out
     assert "--uniform-bins" in out
-    assert "--include-residuals" in out
+    assert "--with-residuals" in out
+    assert "--with-trans" in out
+    assert "--output-dir" in out
+
+
+def test_help_option_order(capsys) -> None:
+    with pytest.raises(SystemExit) as info:
+        main(["--help"])
+
+    assert info.value.code == 0
+    out = capsys.readouterr().out
+    assert help_option_order(out) == [
+        "--mcool",
+        "--tad-table",
+        "--uniform-bins",
+        "--ab-feature-track",
+        "-o",
+        "--working-binsize",
+        "--with-trans",
+        "--with-residuals",
+        "-p",
+        "-s",
+        "-f",
+        "-V",
+        "-h",
+    ]
 
 
 def test_cli_trans_run(three_chrom_mcool, trans_tads, tmp_path) -> None:
@@ -204,7 +292,7 @@ def test_cli_trans_run(three_chrom_mcool, trans_tads, tmp_path) -> None:
         three_chrom_mcool,
         trans_tads,
         tmp_path,
-        "--enable-trans",
+        "--with-trans",
         "--trans-null",
         "grand",
     )
@@ -263,7 +351,7 @@ def test_cli_overwrite(mcool, tmp_path) -> None:
 
 def test_cli_invalid_config_returns_error(mcool, tmp_path) -> None:
     tads = base_tads(tmp_path)
-    args = cli_args(mcool, tads, tmp_path, "--oe-pseudocount", "0")
+    args = cli_args(mcool, tads, tmp_path, "--oe-pseudocount-scale", "0")
 
     with pytest.raises(SystemExit) as info:
         main(args)
@@ -277,7 +365,7 @@ def test_cli_parallel_workers(three_chrom_mcool, trans_tads, tmp_path) -> None:
         tmp_path,
         "--workers",
         "2",
-        "--enable-trans",
+        "--with-trans",
         "--trans-null",
         "grand",
     )
@@ -287,9 +375,10 @@ def test_cli_parallel_workers(three_chrom_mcool, trans_tads, tmp_path) -> None:
     assert (tmp_path / "out" / "trans_nodes.parquet").exists()
 
 
-def test_cli_version(capsys) -> None:
+@pytest.mark.parametrize("flag", ["--version", "-V"])
+def test_cli_version(flag, capsys) -> None:
     with pytest.raises(SystemExit) as info:
-        main(["--version"])
+        main([flag])
 
     assert info.value.code == 0
     assert __version__ in capsys.readouterr().out

@@ -19,6 +19,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="tadclust",
         description="Hierarchical clustering of TADs",
+        add_help=False,
+        allow_abbrev=False,
     )
     parser.add_argument("--mcool", required=True, help="multi-resolution mcool")
     source = parser.add_mutually_exclusive_group(required=True)
@@ -32,7 +34,17 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="cluster uniform mcool bins as units; requires --working-binsize",
     )
-    parser.add_argument("--out-dir", required=True, help="output directory")
+    parser.add_argument(
+        "--ab-feature-track",
+        default=None,
+        help="bedGraph or BED feature track; enables A/B",
+    )
+    parser.add_argument(
+        "-o",
+        "--output-dir",
+        required=True,
+        help="output directory",
+    )
     parser.add_argument(
         "--working-binsize",
         type=int,
@@ -40,36 +52,40 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="working bin size in bp; omit for adaptive selection",
     )
     parser.add_argument(
-        "--enable-trans",
+        "--with-trans",
         action="store_true",
         help="enable trans clustering",
     )
     parser.add_argument(
-        "--include-residuals",
+        "--with-residuals",
         action="store_true",
         help="include uncovered-gap residual units in clustering and output",
     )
     parser.add_argument(
-        "--ab-feature-track",
-        default=None,
-        help="bedGraph or BED feature track; enables A/B",
-    )
-    parser.add_argument(
+        "-p",
         "--workers",
         type=int,
         default=1,
         help="worker processes for cis chromosomes",
     )
-    parser.add_argument("--seed", type=int, default=0, help="k-means seed")
+    parser.add_argument("-s", "--seed", type=int, default=0, help="k-means seed")
     parser.add_argument(
+        "-f",
         "--overwrite",
         action="store_true",
         help="replace existing known outputs",
     )
     parser.add_argument(
+        "-V",
         "--version",
         action="version",
         version=f"%(prog)s {__version__}",
+    )
+    parser.add_argument(
+        "-h",
+        "--help",
+        action="help",
+        help="show this help message and exit",
     )
 
     advanced = parser.add_argument_group("advanced")
@@ -92,10 +108,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="upper log2 O/E clip",
     )
     advanced.add_argument(
-        "--oe-pseudocount",
+        "--oe-pseudocount-scale",
         type=float,
         default=1.0,
-        help="pseudocount multiplier",
+        help="pseudocount scale on the smallest non-zero expected value",
     )
     advanced.add_argument(
         "--dp-lambda-scale",
@@ -104,7 +120,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="DP penalty multiplier on the automatic value",
     )
     advanced.add_argument(
-        "--tree-n-pcs",
+        "--tree-pca-dim",
         type=int,
         default=5,
         help="number of PCs used by tree splits",
@@ -139,17 +155,17 @@ def main(argv: Sequence[str] | None = None) -> None:
         config = ClusterConfig(
             mcool_path=args.mcool,
             annotation_path=args.tad_table,
-            output_dir=args.out_dir,
+            output_dir=args.output_dir,
             working_binsize=args.working_binsize,
             oe_distance_bins=args.oe_distance_bins,
             oe_clip_min=args.oe_clip_min,
             oe_clip_max=args.oe_clip_max,
-            oe_pseudocount_scale=args.oe_pseudocount,
+            oe_pseudocount_scale=args.oe_pseudocount_scale,
             dp_lambda_scale=args.dp_lambda_scale,
-            with_residuals=args.include_residuals,
-            tree_pca_dim=args.tree_n_pcs,
+            with_residuals=args.with_residuals,
+            tree_pca_dim=args.tree_pca_dim,
             tree_branch_k=args.tree_branch_k,
-            with_trans=args.enable_trans,
+            with_trans=args.with_trans,
             trans_null=args.trans_null,
             ab_feature_track=args.ab_feature_track,
             workers=args.workers,
