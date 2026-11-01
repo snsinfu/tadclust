@@ -81,6 +81,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="replace existing known outputs",
     )
     parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="suppress INFO logs",
+    )
+    parser.add_argument(
         "-V",
         "--version",
         action="version",
@@ -150,7 +156,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     raw_args = list(sys.argv[1:] if argv is None else argv)
     args = parse_args(raw_args)
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.WARNING if args.quiet else logging.INFO,
         format=LOG_FORMAT,
         datefmt=LOG_DATE_FORMAT,
         force=True,

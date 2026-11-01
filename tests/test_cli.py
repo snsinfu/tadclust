@@ -90,6 +90,7 @@ def test_cli_default_tree_branch_k() -> None:
 
     assert args.tree_branch_k == 2
     assert args.with_residuals is False
+    assert args.quiet is False
 
 
 def test_cli_with_residuals_flag() -> None:
@@ -122,6 +123,7 @@ def test_cli_short_aliases(tmp_path) -> None:
             "-s",
             "7",
             "-f",
+            "-q",
         ]
     )
 
@@ -129,6 +131,7 @@ def test_cli_short_aliases(tmp_path) -> None:
     assert args.workers == 2
     assert args.seed == 7
     assert args.overwrite is True
+    assert args.quiet is True
 
 
 @pytest.mark.parametrize(
@@ -185,6 +188,17 @@ def test_cli_log_format(capsys, mcool, tmp_path) -> None:
     pattern = r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} - INFO - "
     assert re.search(pattern + r"\[CIS\] running", stderr, re.MULTILINE)
     assert re.search(pattern + r"\[WRITE\] wrote", stderr, re.MULTILINE)
+
+
+def test_cli_quiet_suppresses_info(capsys, mcool, tmp_path) -> None:
+    args = cli_args(mcool, base_tads(tmp_path), tmp_path, "-q")
+
+    main(args)
+
+    stderr = capsys.readouterr().err
+    assert "INFO" not in stderr
+    assert "[CIS]" not in stderr
+    assert "[WRITE]" not in stderr
 
 
 def test_cli_residuals_opt_in(gapped_mcool, gapped_tads, tmp_path) -> None:
@@ -273,6 +287,7 @@ def test_help_lists_advanced(capsys) -> None:
     assert "--uniform-bins" in out
     assert "--with-residuals" in out
     assert "--with-trans" in out
+    assert "--quiet" in out
     assert "--output-dir" in out
 
 
@@ -294,6 +309,7 @@ def test_help_option_order(capsys) -> None:
         "-p",
         "-s",
         "-f",
+        "-q",
         "-V",
         "-h",
     ]
