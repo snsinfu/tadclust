@@ -448,6 +448,44 @@ def test_exit_by_sigint_terminates_by_signal() -> None:
     assert "Traceback" not in proc.stderr
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signal semantics")
+def test_exit_by_sigint_unregisters_semaphores() -> None:
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import multiprocessing as mp\n"
+                "from tadclust.signals import exit_by_sigint\n"
+                "sem = mp.get_context('spawn').Semaphore()\n"
+                "exit_by_sigint()\n"
+            ),
+        ],
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=30,
+    )
+
+    assert proc.returncode == -signal.SIGINT
+    assert "leaked semaphore" not in proc.stderr
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signal masks")
+def test_spawn_children_inherit_blocked_sigint() -> None:
+    helper = Path(__file__).with_name("spawn_mask_helper.py")
+    proc = subprocess.run(
+        [sys.executable, str(helper)],
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=30,
+    )
+
+    assert proc.returncode == 0
+    assert f"blocked: [{signal.SIGINT}]" in proc.stdout
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX process-group signals")
 def test_cli_interrupt_stops_parallel_workers(mcool, tmp_path) -> None:
     tads = base_tads(tmp_path)

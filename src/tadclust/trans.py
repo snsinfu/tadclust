@@ -24,7 +24,7 @@ from .matrix import (
     log2_ratio,
     pcs_from_log_oe,
 )
-from .signals import ignore_sigint
+from .signals import block_sigint_during_spawn, ignore_sigint
 from .trees import (
     GENOME_ROOT_LABEL,
     BranchingTree,
@@ -497,18 +497,26 @@ def _scan_parallel(
     workers: int,
 ) -> list[ChunkResult]:
     context = mp.get_context("spawn")
-    with context.Pool(
-        processes=workers,
-        initializer=_init_scan_worker,
-        initargs=(mcool_path, resolution, pixel_map, weight),
-    ) as pool:
-        return list(
-            pool.imap(
-                _scan_worker,
-                tasks,
-                chunksize=1,
+    pool = None
+    try:
+        with block_sigint_during_spawn():
+            pool = context.Pool(
+                processes=workers,
+                initializer=_init_scan_worker,
+                initargs=(mcool_path, resolution, pixel_map, weight),
             )
-        )
+        assert pool is not None
+        with pool:
+            return list(
+                pool.imap(
+                    _scan_worker,
+                    tasks,
+                    chunksize=1,
+                )
+            )
+    finally:
+        if pool is not None:
+            pool.terminate()
 
 
 def _init_scan_worker(

@@ -14,7 +14,7 @@ from .config import ClusterConfig
 from .domains import ChromosomeTree, UnitSelection, select_units
 from .matrix import canonicalize_pc1_sign, compute_fine_unit_matrices
 from .mcool import open_cooler
-from .signals import ignore_sigint
+from .signals import block_sigint_during_spawn, ignore_sigint
 from .sources import CisSource
 
 LOG = logging.getLogger(__name__)
@@ -63,18 +63,26 @@ def run_cis_parallel(
     """Select units in a spawn pool; results stay in chromosome order."""
     context = mp.get_context("spawn")
     collected: dict[str, ChromosomeSelection] = {}
-    with context.Pool(
-        processes=config.workers,
-        initializer=_init_worker,
-        initargs=(config, source, sizes, resolution),
-    ) as pool:
-        for selection in pool.imap_unordered(
-            _process_chromosome,
-            chromosomes,
-            chunksize=1,
-        ):
-            _log_selection(selection)
-            collected[selection.chrom] = selection
+    pool = None
+    try:
+        with block_sigint_during_spawn():
+            pool = context.Pool(
+                processes=config.workers,
+                initializer=_init_worker,
+                initargs=(config, source, sizes, resolution),
+            )
+        assert pool is not None
+        with pool:
+            for selection in pool.imap_unordered(
+                _process_chromosome,
+                chromosomes,
+                chunksize=1,
+            ):
+                _log_selection(selection)
+                collected[selection.chrom] = selection
+    finally:
+        if pool is not None:
+            pool.terminate()
     return [collected[chrom] for chrom in chromosomes]
 
 
