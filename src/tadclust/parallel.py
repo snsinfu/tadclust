@@ -14,6 +14,7 @@ from .config import ClusterConfig
 from .domains import ChromosomeTree, UnitSelection, select_units
 from .matrix import canonicalize_pc1_sign, compute_fine_unit_matrices
 from .mcool import open_cooler
+from .signals import ignore_sigint
 from .sources import CisSource
 
 LOG = logging.getLogger(__name__)
@@ -110,6 +111,7 @@ def _init_worker(
     global _WORKER_COOLER, _WORKER_CONFIG, _WORKER_SOURCE, _WORKER_SIZES
     global _WORKER_LIMITER
 
+    ignore_sigint()
     _WORKER_LIMITER = threadpool_limits(limits=1)
     _WORKER_CONFIG = config
     _WORKER_SOURCE = source

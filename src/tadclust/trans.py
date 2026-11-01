@@ -24,6 +24,7 @@ from .matrix import (
     log2_ratio,
     pcs_from_log_oe,
 )
+from .signals import ignore_sigint
 from .trees import (
     GENOME_ROOT_LABEL,
     BranchingTree,
@@ -518,6 +519,7 @@ def _init_scan_worker(
 ) -> None:
     global _SCAN_FILE, _SCAN_GROUP, _SCAN_MAP, _SCAN_WEIGHT, _SCAN_LIMITER
 
+    ignore_sigint()
     _SCAN_LIMITER = threadpool_limits(limits=1)
     _SCAN_FILE = h5py.File(mcool_path, "r")
     group = _SCAN_FILE.get(f"resolutions/{resolution}")

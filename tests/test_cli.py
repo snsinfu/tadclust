@@ -437,7 +437,7 @@ def test_cli_interrupt_stops_parallel_workers(mcool, tmp_path) -> None:
     combined: list[str] = []
     try:
         deadline = time.monotonic() + 20.0
-        saw_worker = False
+        busy_workers = 0
         while time.monotonic() < deadline:
             try:
                 line = lines.get(timeout=0.2)
@@ -449,10 +449,11 @@ def test_cli_interrupt_stops_parallel_workers(mcool, tmp_path) -> None:
                 break
             combined.append(line)
             if "[TEST] worker busy" in line:
-                saw_worker = True
-                break
+                busy_workers += 1
+                if busy_workers == 2:
+                    break
 
-        assert saw_worker, "".join(combined)
+        assert busy_workers == 2, "".join(combined)
         os.killpg(proc.pid, signal.SIGINT)
         proc.wait(timeout=20)
         reader.join(timeout=5)
