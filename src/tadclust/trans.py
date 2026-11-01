@@ -213,7 +213,7 @@ def trans_matrix(
         weight = _read_weights(group) if balance else None
         tasks = _pixel_tasks(pixel_map, inputs)
         LOG.info(
-            "trans: scanning %d pixel chunk(s) across %d chromosome pair(s)",
+            "[TRANS:SCAN] scanning %d pixel chunk(s) across %d chromosome pair(s)",
             len(tasks),
             len(pixel_map.pair_info),
         )
@@ -230,7 +230,7 @@ def trans_matrix(
         else:
             chunks = [_scan_chunk(group, pixel_map, weight, task) for task in tasks]
         LOG.info(
-            "trans: pixel scan finished in %.1f s (%d chunk(s))",
+            "[TRANS:SCAN] pixel scan finished in %.1f s (%d chunk(s))",
             time.perf_counter() - started,
             len(tasks),
         )

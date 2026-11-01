@@ -802,9 +802,13 @@ def test_cluster_logs_cis_progress(caplog, mcool, tmp_path) -> None:
     cluster(make_config(mcool, base_tads(tmp_path), tmp_path))
 
     messages = logged_messages(caplog)
-    assert any("cis: running 2 chromosome task(s)" in message for message in messages)
-    assert any(message.startswith("chr1: 2 units selected") for message in messages)
-    assert any("chr1: cis clustering finished:" in message for message in messages)
+    assert any("[CIS] running 2 chromosome task(s)" in message for message in messages)
+    assert any(
+        message.startswith("[CIS:UNIT] chr1: 2 units selected") for message in messages
+    )
+    assert any(
+        "[CIS:TREE] chr1: clustering finished:" in message for message in messages
+    )
 
 
 def test_cluster_logs_uniform_units(caplog, mcool, tmp_path) -> None:
@@ -812,7 +816,9 @@ def test_cluster_logs_uniform_units(caplog, mcool, tmp_path) -> None:
     cluster(make_uniform_config(mcool, tmp_path))
 
     messages = logged_messages(caplog)
-    assert any("chr1: 4 bin units selected" in message for message in messages)
+    assert any(
+        "[CIS:UNIT] chr1: 4 bin units selected" in message for message in messages
+    )
 
 
 def test_cluster_logs_ab_units(caplog, mcool, tmp_path) -> None:
@@ -827,14 +833,14 @@ def test_cluster_logs_ab_units(caplog, mcool, tmp_path) -> None:
     )
 
     messages = logged_messages(caplog)
-    finished = [
-        message for message in messages if "cis clustering finished:" in message
-    ]
+    finished = [message for message in messages if "clustering finished:" in message]
     assert any(
-        message.startswith("chr1:") and "A/B " in message for message in finished
+        message.startswith("[CIS:TREE] chr1:") and "A/B " in message
+        for message in finished
     )
     assert any(
-        message.startswith("chr2:") and "A/B " in message for message in finished
+        message.startswith("[CIS:TREE] chr2:") and "A/B " in message
+        for message in finished
     )
     assert not any("A/B units:" in message for message in messages)
 
@@ -858,11 +864,11 @@ def test_cluster_logs_trans_progress(
 
     messages = logged_messages(caplog)
     for fragment in (
-        "trans: building matrix",
-        "trans: scanning",
-        "trans: pixel scan finished",
-        "trans: matrix built",
-        "trans: tree built",
+        "[TRANS] building matrix",
+        "[TRANS:SCAN] scanning",
+        "[TRANS:SCAN] pixel scan finished",
+        "[TRANS:MATRIX] matrix built",
+        "[TRANS:TREE] tree built",
     ):
         assert any(fragment in message for message in messages)
 
@@ -881,5 +887,6 @@ def test_cluster_logs_trans_skipped(caplog, mcool, tmp_path) -> None:
 
     messages = logged_messages(caplog)
     assert any(
-        "trans: skipped (fewer than two chromosomes)" in message for message in messages
+        "[TRANS] skipped (fewer than two chromosomes)" in message
+        for message in messages
     )

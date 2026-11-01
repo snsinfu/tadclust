@@ -182,7 +182,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         raise SystemExit(f"tadclust: error: {exc}") from exc
 
     logger.info(
-        "wrote %d units and %d file(s) to %s",
+        "[WRITE] wrote %d units and %d file(s) to %s",
         result.qc["summary"]["n_units"],
         len(written),
         config.output_dir,

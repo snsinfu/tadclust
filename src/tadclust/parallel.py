@@ -83,10 +83,10 @@ def _log_selection(selection: ChromosomeSelection) -> None:
     n_residuals = sum(unit.unit_kind == "residual" for unit in units)
     n_bins = sum(unit.unit_kind == "bin" for unit in units)
     if n_bins == len(units):
-        LOG.info("%s: %d bin units selected", selection.chrom, n_bins)
+        LOG.info("[CIS:UNIT] %s: %d bin units selected", selection.chrom, n_bins)
     else:
         LOG.info(
-            "%s: %d units selected (%d TAD, %d residual)",
+            "[CIS:UNIT] %s: %d units selected (%d TAD, %d residual)",
             selection.chrom,
             len(units),
             n_tads,

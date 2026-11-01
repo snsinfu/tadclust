@@ -214,7 +214,7 @@ def _run_cis(
     resolution: int,
 ) -> list[_ChromosomeResult]:
     LOG.info(
-        "cis: running %d chromosome task(s) with %d worker(s)",
+        "[CIS] running %d chromosome task(s) with %d worker(s)",
         len(chromosomes),
         config.workers,
     )
@@ -318,7 +318,7 @@ def _build_cis_results(
         n_clustered = int(clusterable.sum())
         if annotation is not None:
             LOG.info(
-                "%s: cis clustering finished: %d units, %d nodes, %d leaves, "
+                "[CIS:TREE] %s: clustering finished: %d units, %d nodes, %d leaves, "
                 "max depth %d, %d unclustered; A/B %d A, %d B",
                 selection.chrom,
                 len(selection.unit_selection.units),
@@ -331,7 +331,7 @@ def _build_cis_results(
             )
         else:
             LOG.info(
-                "%s: cis clustering finished: %d units, %d nodes, %d leaves, "
+                "[CIS:TREE] %s: clustering finished: %d units, %d nodes, %d leaves, "
                 "max depth %d, %d unclustered",
                 selection.chrom,
                 len(selection.unit_selection.units),
@@ -368,12 +368,12 @@ def _run_trans(
     if not config.with_trans:
         return None
     if len(results) < 2:
-        LOG.info("trans: skipped (fewer than two chromosomes)")
+        LOG.info("[TRANS] skipped (fewer than two chromosomes)")
         return None
 
     inputs = [TransInput(result.chrom, result.selection.units) for result in results]
     LOG.info(
-        "trans: building matrix for %d units across %d chromosomes",
+        "[TRANS] building matrix for %d units across %d chromosomes",
         sum(len(result.selection.units) for result in results),
         len(results),
     )
@@ -391,7 +391,7 @@ def _run_trans(
         workers=config.workers,
     )
     LOG.info(
-        "trans: matrix built in %.1f s (%d units, %d chromosome pairs, null=%s)",
+        "[TRANS:MATRIX] matrix built in %.1f s (%d units, %d chromosome pairs, null=%s)",
         time.perf_counter() - started,
         matrix.log_oe.shape[0],
         matrix.info.pair_count,
@@ -408,7 +408,7 @@ def _run_trans(
     )
     nodes = tree_result.tree.nodes
     LOG.info(
-        "trans: tree built in %.1f s (%d nodes, %d leaves, %d clustered, %d unclustered)",
+        "[TRANS:TREE] tree built in %.1f s (%d nodes, %d leaves, %d clustered, %d unclustered)",
         time.perf_counter() - started,
         len(nodes),
         sum(node.is_leaf for node in nodes),
