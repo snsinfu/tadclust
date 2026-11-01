@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any
@@ -50,6 +51,8 @@ from .trees import (
     build_cis_forest,
     format_path_label,
 )
+
+LOG = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -209,6 +212,11 @@ def _run_cis(
     track: FeatureTrack | None,
     resolution: int,
 ) -> list[_ChromosomeResult]:
+    LOG.info(
+        "cis: running %d chromosome task(s) with %d worker(s)",
+        len(chromosomes),
+        config.workers,
+    )
     selections = (
         run_cis_parallel(
             config,
@@ -303,6 +311,33 @@ def _build_cis_results(
                 annotation,
                 features,
                 n_pcs=config.tree_pca_dim,
+            )
+
+        nodes = [node for tree in forest.trees for node in tree.nodes]
+        n_clustered = int(clusterable.sum())
+        if annotation is not None:
+            LOG.info(
+                "%s: cis clustering finished: %d units, %d nodes, %d leaves, "
+                "max depth %d, %d unclustered; A/B %d A, %d B",
+                selection.chrom,
+                len(selection.unit_selection.units),
+                len(nodes),
+                sum(node.is_leaf for node in nodes),
+                max((node.depth for node in nodes), default=0),
+                len(selection.unit_selection.units) - n_clustered,
+                int(np.sum(annotation.labels == "A")),
+                int(np.sum(annotation.labels == "B")),
+            )
+        else:
+            LOG.info(
+                "%s: cis clustering finished: %d units, %d nodes, %d leaves, "
+                "max depth %d, %d unclustered",
+                selection.chrom,
+                len(selection.unit_selection.units),
+                len(nodes),
+                sum(node.is_leaf for node in nodes),
+                max((node.depth for node in nodes), default=0),
+                len(selection.unit_selection.units) - n_clustered,
             )
 
         results.append(
