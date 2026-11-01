@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 
 import numpy as np
@@ -790,3 +791,95 @@ def test_zero_contact_trans_units_are_unclustered(tmp_path) -> None:
     assert trans_chroms == {"chr1", "chr2"}
     assert result.qc["trans"]["n_clustered"] == 4
     assert result.qc["trans"]["n_unclustered"] == 2
+
+
+def logged_messages(caplog) -> list[str]:
+    return [record.getMessage() for record in caplog.records]
+
+
+def test_cluster_logs_cis_progress(caplog, mcool, tmp_path) -> None:
+    caplog.set_level(logging.INFO, logger="tadclust")
+    cluster(make_config(mcool, base_tads(tmp_path), tmp_path))
+
+    messages = logged_messages(caplog)
+    assert any("cis: running 2 chromosome task(s)" in message for message in messages)
+    assert any(message.startswith("chr1: 2 units selected") for message in messages)
+    assert any("chr1: cis clustering finished:" in message for message in messages)
+
+
+def test_cluster_logs_uniform_units(caplog, mcool, tmp_path) -> None:
+    caplog.set_level(logging.INFO, logger="tadclust")
+    cluster(make_uniform_config(mcool, tmp_path))
+
+    messages = logged_messages(caplog)
+    assert any("chr1: 4 bin units selected" in message for message in messages)
+
+
+def test_cluster_logs_ab_units(caplog, mcool, tmp_path) -> None:
+    caplog.set_level(logging.INFO, logger="tadclust")
+    cluster(
+        make_config(
+            mcool,
+            ab_tads(tmp_path),
+            tmp_path,
+            ab_feature_track=ab_track(tmp_path),
+        )
+    )
+
+    messages = logged_messages(caplog)
+    finished = [
+        message for message in messages if "cis clustering finished:" in message
+    ]
+    assert any(
+        message.startswith("chr1:") and "A/B " in message for message in finished
+    )
+    assert any(
+        message.startswith("chr2:") and "A/B " in message for message in finished
+    )
+    assert not any("A/B units:" in message for message in messages)
+
+
+def test_cluster_logs_trans_progress(
+    caplog,
+    three_chrom_mcool,
+    trans_tads,
+    tmp_path,
+) -> None:
+    caplog.set_level(logging.INFO, logger="tadclust")
+    cluster(
+        make_config(
+            three_chrom_mcool,
+            trans_tads,
+            tmp_path,
+            with_trans=True,
+            trans_null="grand",
+        )
+    )
+
+    messages = logged_messages(caplog)
+    for fragment in (
+        "trans: building matrix",
+        "trans: scanning",
+        "trans: pixel scan finished",
+        "trans: matrix built",
+        "trans: tree built",
+    ):
+        assert any(fragment in message for message in messages)
+
+
+def test_cluster_logs_trans_skipped(caplog, mcool, tmp_path) -> None:
+    caplog.set_level(logging.INFO, logger="tadclust")
+    cluster(
+        make_config(
+            mcool,
+            base_tads(tmp_path),
+            tmp_path,
+            chromosomes=["chr1"],
+            with_trans=True,
+        )
+    )
+
+    messages = logged_messages(caplog)
+    assert any(
+        "trans: skipped (fewer than two chromosomes)" in message for message in messages
+    )
