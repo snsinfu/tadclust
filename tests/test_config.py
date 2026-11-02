@@ -52,10 +52,10 @@ def test_default_config_is_valid(tmp_path) -> None:
 @pytest.mark.parametrize(
     "overrides",
     [
-        {"oe_pseudocount_scale": 0},
+        {"pseudocount_scale": 0},
         {"dp_lambda_scale": -1.0},
-        {"oe_clip_min": 1.0, "oe_clip_max": 1.0},
-        {"oe_distance_bins": 1},
+        {"clip_min": 1.0, "clip_max": 1.0},
+        {"distance_bins": 1},
         {"tree_branch_k": 1},
         {"tree_pca_dim": 0},
         {"workers": 0},
@@ -84,10 +84,10 @@ def test_uniform_mode_requires_working_binsize(tmp_path) -> None:
 
 def test_error_can_be_matched_by_class_and_field(tmp_path) -> None:
     with pytest.raises(TadclustError) as info:
-        make_config(tmp_path, oe_pseudocount_scale=0)
+        make_config(tmp_path, pseudocount_scale=0)
 
     match info.value:
-        case ConfigError(message=message, field="oe_pseudocount_scale"):
+        case ConfigError(message=message, field="pseudocount_scale"):
             assert "pseudocount" in message
         case _:
             pytest.fail(f"unexpected error: {info.value!r}")

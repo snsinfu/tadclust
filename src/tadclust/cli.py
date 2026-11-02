@@ -103,28 +103,28 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
     advanced = parser.add_argument_group("advanced")
     advanced.add_argument(
-        "--oe-distance-bins",
+        "--distance-bins",
         type=int,
         default=60,
         help="number of log-spaced distance-decay bins",
     )
     advanced.add_argument(
-        "--oe-clip-min",
+        "--clip-min",
         type=float,
         default=-10.0,
-        help="lower log2 O/E clip",
+        help="lower bound for clipping log2-transformed contact values before PCA",
     )
     advanced.add_argument(
-        "--oe-clip-max",
+        "--clip-max",
         type=float,
         default=10.0,
-        help="upper log2 O/E clip",
+        help="upper bound for clipping log2-transformed contact values before PCA",
     )
     advanced.add_argument(
-        "--oe-pseudocount-scale",
+        "--pseudocount-scale",
         type=float,
         default=1.0,
-        help="pseudocount scale on the smallest non-zero expected value",
+        help="pseudocount scale on the smallest non-zero expected value, used by both PCA sources",
     )
     advanced.add_argument(
         "--dp-lambda-scale",
@@ -179,10 +179,10 @@ def _run(raw_args: list[str]) -> None:
         annotation_path=args.tad_table,
         output_dir=args.output_dir,
         working_binsize=args.working_binsize,
-        oe_distance_bins=args.oe_distance_bins,
-        oe_clip_min=args.oe_clip_min,
-        oe_clip_max=args.oe_clip_max,
-        oe_pseudocount_scale=args.oe_pseudocount_scale,
+        distance_bins=args.distance_bins,
+        clip_min=args.clip_min,
+        clip_max=args.clip_max,
+        pseudocount_scale=args.pseudocount_scale,
         dp_lambda_scale=args.dp_lambda_scale,
         with_residuals=args.with_residuals,
         tree_pca_dim=args.tree_pca_dim,

@@ -27,10 +27,10 @@ class ClusterConfig:
     working_binsize: int | None = None
     tad_size_percentile: float = 10.0
     min_bins_per_tad: int = 3
-    oe_distance_bins: int = 60
-    oe_clip_min: float = -10.0
-    oe_clip_max: float = 10.0
-    oe_pseudocount_scale: float = 1.0
+    distance_bins: int = 60
+    clip_min: float = -10.0
+    clip_max: float = 10.0
+    pseudocount_scale: float = 1.0
     dp_lambda_scale: float = 1.0
     with_residuals: bool = False
     tree_pca_dim: int = 5
@@ -91,20 +91,20 @@ class ClusterConfig:
                 "min_bins_per_tad must be at least 1",
                 field="min_bins_per_tad",
             )
-        if self.oe_distance_bins < 2:
+        if self.distance_bins < 2:
             raise ConfigError(
-                "oe_distance_bins must be at least 2",
-                field="oe_distance_bins",
+                "distance_bins must be at least 2",
+                field="distance_bins",
             )
-        if not self.oe_clip_min < self.oe_clip_max:
+        if not self.clip_min < self.clip_max:
             raise ConfigError(
-                "oe_clip_min must be less than oe_clip_max",
-                field="oe_clip_min",
+                "clip_min must be less than clip_max",
+                field="clip_min",
             )
-        if self.oe_pseudocount_scale <= 0:
+        if self.pseudocount_scale <= 0:
             raise ConfigError(
-                "oe_pseudocount_scale must be positive",
-                field="oe_pseudocount_scale",
+                "pseudocount_scale must be positive",
+                field="pseudocount_scale",
             )
         if self.dp_lambda_scale < 0:
             raise ConfigError(

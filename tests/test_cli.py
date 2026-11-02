@@ -151,6 +151,10 @@ def test_cli_short_aliases(tmp_path) -> None:
         "--include-residuals",
         "--tree-n-pcs",
         "--oe-pseudocount",
+        "--oe-distance-bins",
+        "--oe-clip-min",
+        "--oe-clip-max",
+        "--oe-pseudocount-scale",
     ],
 )
 def test_cli_old_flags_rejected(flag) -> None:
@@ -289,8 +293,10 @@ def test_help_lists_advanced(capsys) -> None:
     assert info.value.code == 0
     out = capsys.readouterr().out
     assert "advanced" in out
-    assert "--oe-distance-bins" in out
-    assert "--oe-pseudocount-scale" in out
+    assert "--distance-bins" in out
+    assert "--clip-min" in out
+    assert "--clip-max" in out
+    assert "--pseudocount-scale" in out
     assert "--tree-pca-dim" in out
     assert "--tree-branch-k" in out
     assert "--uniform-bins" in out
@@ -388,7 +394,7 @@ def test_cli_overwrite(mcool, tmp_path) -> None:
 
 def test_cli_invalid_config_returns_error(mcool, tmp_path) -> None:
     tads = base_tads(tmp_path)
-    args = cli_args(mcool, tads, tmp_path, "--oe-pseudocount-scale", "0")
+    args = cli_args(mcool, tads, tmp_path, "--pseudocount-scale", "0")
 
     with pytest.raises(SystemExit) as info:
         main(args)
