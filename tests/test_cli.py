@@ -99,6 +99,7 @@ def test_cli_default_tree_branch_k() -> None:
 
     assert args.tree_branch_k == 2
     assert args.with_residuals is False
+    assert args.pca_source == "log_oe"
     assert args.quiet is False
 
 
@@ -116,6 +117,41 @@ def test_cli_with_residuals_flag() -> None:
     )
 
     assert args.with_residuals is True
+
+
+def test_cli_pca_source() -> None:
+    args = parse_args(
+        [
+            "--mcool",
+            "test.mcool",
+            "--tad-table",
+            "domains.tsv",
+            "--output-dir",
+            "out",
+            "--pca-source",
+            "log_frequency",
+        ]
+    )
+
+    assert args.pca_source == "log_frequency"
+
+
+def test_cli_rejects_unknown_pca_source() -> None:
+    with pytest.raises(SystemExit) as info:
+        parse_args(
+            [
+                "--mcool",
+                "test.mcool",
+                "--tad-table",
+                "domains.tsv",
+                "--output-dir",
+                "out",
+                "--pca-source",
+                "bogus",
+            ]
+        )
+
+    assert info.value.code == 2
 
 
 def test_cli_short_aliases(tmp_path) -> None:
@@ -297,6 +333,7 @@ def test_help_lists_advanced(capsys) -> None:
     assert "--clip-min" in out
     assert "--clip-max" in out
     assert "--pseudocount-scale" in out
+    assert "--pca-source" in out
     assert "--tree-pca-dim" in out
     assert "--tree-branch-k" in out
     assert "--uniform-bins" in out

@@ -45,6 +45,7 @@ def test_default_config_is_valid(tmp_path) -> None:
     assert config.tree_branch_k == 2
     assert config.with_trans is False
     assert config.with_residuals is False
+    assert config.pca_source == "log_oe"
     assert config.dp_lambda_scale == 1.0
     assert config.seed == 0
 
@@ -56,6 +57,7 @@ def test_default_config_is_valid(tmp_path) -> None:
         {"dp_lambda_scale": -1.0},
         {"clip_min": 1.0, "clip_max": 1.0},
         {"distance_bins": 1},
+        {"pca_source": "bogus"},
         {"tree_branch_k": 1},
         {"tree_pca_dim": 0},
         {"workers": 0},
@@ -91,6 +93,13 @@ def test_error_can_be_matched_by_class_and_field(tmp_path) -> None:
             assert "pseudocount" in message
         case _:
             pytest.fail(f"unexpected error: {info.value!r}")
+
+
+def test_invalid_pca_source_reports_field(tmp_path) -> None:
+    with pytest.raises(ConfigError) as info:
+        make_config(tmp_path, pca_source="bogus")
+
+    assert info.value.field == "pca_source"
 
 
 def test_missing_inputs_are_rejected(tmp_path) -> None:

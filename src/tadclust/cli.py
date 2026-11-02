@@ -8,7 +8,7 @@ import sys
 from collections.abc import Sequence
 
 from . import __version__
-from .config import TRANS_NULL_CHOICES, ClusterConfig
+from .config import PCA_SOURCE_CHOICES, TRANS_NULL_CHOICES, ClusterConfig
 from .errors import TadclustError
 from .pipeline import cluster
 from .processes import prepare_process_context
@@ -127,6 +127,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="pseudocount scale on the smallest non-zero expected value, used by both PCA sources",
     )
     advanced.add_argument(
+        "--pca-source",
+        choices=PCA_SOURCE_CHOICES,
+        default="log_oe",
+        help="cis PCA source: log_oe (default) or double-centered log_frequency",
+    )
+    advanced.add_argument(
         "--dp-lambda-scale",
         type=float,
         default=1.0,
@@ -183,6 +189,7 @@ def _run(raw_args: list[str]) -> None:
         clip_min=args.clip_min,
         clip_max=args.clip_max,
         pseudocount_scale=args.pseudocount_scale,
+        pca_source=args.pca_source,
         dp_lambda_scale=args.dp_lambda_scale,
         with_residuals=args.with_residuals,
         tree_pca_dim=args.tree_pca_dim,
