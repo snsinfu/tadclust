@@ -17,6 +17,8 @@ from tadclust.matrix import (
     expected_by_distance,
     log2_ratio,
     orient_pcs_to_feature,
+    pcs_from_cis_source,
+    pcs_from_log_frequency,
     pcs_from_log_oe,
     scaled_pseudocount,
     symmetrize_matrix,
@@ -209,6 +211,116 @@ def test_top_pcs_rejects_zero_matrix() -> None:
 def test_pcs_from_oe_rejects_zero_matrix() -> None:
     with pytest.raises(ClusteringError):
         pcs_from_log_oe(np.zeros((2, 2)), 2, label="cis")
+
+
+def test_pcs_from_log_frequency_double_centers_and_zeroes_diagonal() -> None:
+    observed = np.array(
+        [
+            [10.0, 2.0, 0.0],
+            [2.0, 20.0, 3.0],
+            [0.0, 3.0, 30.0],
+        ]
+    )
+    alpha = 0.5
+    clip_min = -10.0
+    clip_max = 10.0
+
+    pcs, eigenvalues, fractions = pcs_from_log_frequency(
+        observed,
+        alpha,
+        2,
+        clip_min=clip_min,
+        clip_max=clip_max,
+    )
+
+    values = np.log2(1.0 + observed / alpha)
+    values = np.clip(values, clip_min, clip_max)
+    values = values - values.mean(axis=1, keepdims=True)
+    values = values - values.mean(axis=0, keepdims=True) + values.mean()
+    np.fill_diagonal(values, 0.0)
+    expected, _, _ = compute_top_pcs(cosine_normalize(values), 2)
+
+    assert np.allclose(pcs, expected)
+    assert eigenvalues.shape == (2,)
+    assert np.isclose(fractions.sum(), 1.0)
+
+
+def test_pcs_from_log_frequency_keeps_zero_rows_exact() -> None:
+    observed = np.array(
+        [
+            [0.0, 0.0, 0.0, 0.0],
+            [0.0, 2.0, 1.0, 0.0],
+            [0.0, 1.0, 3.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+        ]
+    )
+
+    pcs, _, _ = pcs_from_log_frequency(
+        observed,
+        1.0,
+        2,
+        clip_min=-10.0,
+        clip_max=10.0,
+    )
+
+    assert np.all(pcs[[0, 3]] == 0.0)
+    assert np.all(np.isfinite(pcs))
+
+
+def test_pcs_from_log_frequency_rejects_non_positive_alpha() -> None:
+    with pytest.raises(ClusteringError):
+        pcs_from_log_frequency(
+            np.eye(2),
+            0.0,
+            2,
+            clip_min=-10.0,
+            clip_max=10.0,
+        )
+
+
+def test_pcs_from_cis_source_log_oe_matches_existing_path() -> None:
+    log_oe = np.array(
+        [
+            [2.0, 1.0, 0.0],
+            [1.0, 3.0, -1.0],
+            [0.0, -1.0, 4.0],
+        ]
+    )
+    expected, _, _ = pcs_from_log_oe(
+        np.array(
+            [
+                [0.0, 1.0, 0.0],
+                [1.0, 0.0, -1.0],
+                [0.0, -1.0, 0.0],
+            ]
+        ),
+        2,
+    )
+
+    pcs, _, _ = pcs_from_cis_source(
+        np.eye(3),
+        log_oe,
+        1.0,
+        "log_oe",
+        2,
+        clip_min=-10.0,
+        clip_max=10.0,
+    )
+
+    assert np.allclose(pcs, expected)
+
+
+def test_pcs_from_cis_source_rejects_unknown_source() -> None:
+    with pytest.raises(ClusteringError):
+        pcs_from_cis_source(
+            np.eye(2),
+            np.zeros((2, 2)),
+            1.0,
+            "bogus",
+            2,
+            clip_min=-10.0,
+            clip_max=10.0,
+        )
 
 
 def test_orient_pcs_to_feature_makes_positive_a() -> None:

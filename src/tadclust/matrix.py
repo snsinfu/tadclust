@@ -287,6 +287,95 @@ def pcs_from_log_oe(
     return compute_top_pcs(cosine_normalize(matrix), n_pcs, label=label)
 
 
+def pcs_from_log_frequency(
+    observed: np.ndarray,
+    alpha: float,
+    n_pcs: int,
+    *,
+    clip_min: float,
+    clip_max: float,
+    label: str = "cis",
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Compute PCs from double-centered log-frequency contacts.
+
+    The log-frequency matrix has no distance-decay null. Symmetric
+    double-centering removes additive row/column effects (unit-level contact
+    propensity) and the global level without modeling distance. Positive
+    residuals are above that additive null. The diagonal is removed after
+    centering, and rows or columns with no observed contacts stay exactly zero.
+    """
+    if not np.isfinite(alpha) or alpha <= 0.0:
+        raise ClusteringError(
+            "log-frequency alpha must be positive and finite",
+            matrix=label,
+        )
+
+    values_in = np.nan_to_num(
+        np.asarray(observed, dtype=np.float64),
+        nan=0.0,
+        posinf=0.0,
+        neginf=0.0,
+    )
+    if values_in.ndim != 2 or values_in.shape[0] != values_in.shape[1]:
+        raise ClusteringError(
+            "log-frequency observed matrix must be square",
+            matrix=label,
+        )
+
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        values = np.log2(1.0 + values_in / alpha)
+    values = np.nan_to_num(
+        values,
+        nan=0.0,
+        posinf=clip_max,
+        neginf=clip_min,
+    )
+    values = np.clip(values, clip_min, clip_max)
+
+    zero_rows = ~np.any(values_in != 0.0, axis=1)
+    zero_cols = ~np.any(values_in != 0.0, axis=0)
+    row_mean = values.mean(axis=1, keepdims=True)
+    col_mean = values.mean(axis=0, keepdims=True)
+    grand_mean = values.mean()
+    values = values - row_mean - col_mean + grand_mean
+    values[zero_rows, :] = 0.0
+    values[:, zero_cols] = 0.0
+    np.fill_diagonal(values, 0.0)
+
+    return compute_top_pcs(cosine_normalize(values), n_pcs, label=label)
+
+
+def pcs_from_cis_source(
+    observed: np.ndarray,
+    log_oe: np.ndarray,
+    alpha: float,
+    pca_source: str,
+    n_pcs: int,
+    *,
+    clip_min: float,
+    clip_max: float,
+    label: str = "cis",
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Compute cis PCs from the selected source."""
+    if pca_source == "log_oe":
+        pca_input = np.array(log_oe, dtype=np.float64, copy=True)
+        np.fill_diagonal(pca_input, 0.0)
+        return pcs_from_log_oe(pca_input, n_pcs, label=label)
+    if pca_source == "log_frequency":
+        return pcs_from_log_frequency(
+            observed,
+            alpha,
+            n_pcs,
+            clip_min=clip_min,
+            clip_max=clip_max,
+            label=label,
+        )
+    raise ClusteringError(
+        f"unknown pca_source: {pca_source!r}",
+        matrix=label,
+    )
+
+
 def canonicalize_pc1_sign(embedding: np.ndarray) -> np.ndarray:
     """Flip PC1 so its largest-magnitude entry is positive."""
     values = np.array(embedding, dtype=np.float64, copy=True)
