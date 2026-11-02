@@ -10,7 +10,7 @@ import polars as pl
 
 from .errors import MetadataError
 
-MANIFEST_VERSION = "1.1"
+MANIFEST_VERSION = "1.2"
 METADATA_VERSION = "1.0"
 METADATA_KEY = "tadclust"
 

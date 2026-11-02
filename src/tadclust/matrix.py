@@ -434,9 +434,10 @@ def compute_fine_unit_matrices(
     clip_min: float,
     clip_max: float,
     n_pcs: int,
+    pca_source: str = "log_oe",
     balance: bool = True,
 ) -> FineUnitMatrices:
-    """Aggregate cis O/E to fine units and compute fine-unit PCs."""
+    """Aggregate cis O/E to fine units and compute PCs from `pca_source`."""
     if n_fine < 1:
         raise ClusteringError(
             f"{chrom}: no fine units",
@@ -536,12 +537,14 @@ def compute_fine_unit_matrices(
         clip_min=clip_min,
         clip_max=clip_max,
     )
-    pca_input = log_oe.copy()
-    np.fill_diagonal(pca_input, 0.0)
-
-    pcs, eigenvalues, fractions = pcs_from_log_oe(
-        pca_input,
+    pcs, eigenvalues, fractions = pcs_from_cis_source(
+        observed_fine,
+        log_oe,
+        alpha,
+        pca_source,
         n_pcs,
+        clip_min=clip_min,
+        clip_max=clip_max,
         label=f"cis:{chrom}",
     )
     return FineUnitMatrices(
@@ -565,9 +568,10 @@ def compute_unit_matrices(
     clip_min: float,
     clip_max: float,
     n_pcs: int,
+    pca_source: str = "log_oe",
     label: str = "units",
 ) -> UnitMatrices:
-    """Aggregate fine O/E to selected units and compute unit PCs."""
+    """Aggregate fine O/E to selected units and compute PCs from `pca_source`."""
     observed = np.asarray(
         unit_map.T @ observed_fine @ unit_map,
         dtype=np.float64,
@@ -585,12 +589,14 @@ def compute_unit_matrices(
         clip_min=clip_min,
         clip_max=clip_max,
     )
-    pca_input = log_oe.copy()
-    np.fill_diagonal(pca_input, 0.0)
-
-    pcs, eigenvalues, fractions = pcs_from_log_oe(
-        pca_input,
+    pcs, eigenvalues, fractions = pcs_from_cis_source(
+        observed,
+        log_oe,
+        alpha,
+        pca_source,
         n_pcs,
+        clip_min=clip_min,
+        clip_max=clip_max,
         label=label,
     )
     return UnitMatrices(

@@ -159,6 +159,7 @@ def _select_chromosome(
         clip_min=config.clip_min,
         clip_max=config.clip_max,
         n_pcs=config.tree_pca_dim,
+        pca_source=config.pca_source,
     )
     selection = select_units(
         tree,
@@ -170,6 +171,7 @@ def _select_chromosome(
         dp_lambda_scale=config.dp_lambda_scale,
         tree_branch_k=config.tree_branch_k,
         seed=config.seed,
+        pca_source=config.pca_source,
         unit_kind=source.unit_kind,
         with_residuals=config.with_residuals,
     )

@@ -717,6 +717,7 @@ def _build_params(
             "clip_min": config.clip_min,
             "clip_max": config.clip_max,
             "pseudocount_scale": config.pseudocount_scale,
+            "pca_source": config.pca_source,
             "dp_lambda_scale": config.dp_lambda_scale,
             "with_residuals": config.with_residuals,
             "tree_pca_dim": config.tree_pca_dim,

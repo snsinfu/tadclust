@@ -554,10 +554,11 @@ def select_units(
     dp_lambda_scale: float,
     tree_branch_k: int,
     seed: int,
+    pca_source: str = "log_oe",
     unit_kind: str = "tad",
     with_residuals: bool = False,
 ) -> UnitSelection:
-    """Select units, aggregate O/E, and compute unit PCs.
+    """Select units, aggregate O/E, and compute unit PCs from `pca_source`.
 
     The DP always runs on the complete fine-unit set, including gaps. Residual
     units are added after the cut only when `with_residuals` is true.
@@ -619,6 +620,7 @@ def select_units(
             clip_min=clip_min,
             clip_max=clip_max,
             n_pcs=n_pcs,
+            pca_source=pca_source,
             label=f"units:{tree.chrom}",
         )
     return UnitSelection(
