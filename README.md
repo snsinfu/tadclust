@@ -1,6 +1,6 @@
 # TADCLUST - Hierarchical clustering of TADs
 
-Given any TAD annotation and a contact map, TADCLUST applies hierarchical clustering of the TADs based on TAD-level O/E matrix, to build a tree on each chromosome. The clustering analysis identifies a higher-order organization of locally-defined TADs, which is correlated to chromosome compartmentalization.
+Given any TAD annotation and a contact map, TADCLUST applies hierarchical clustering of the TADs based on TAD-level contact matrix. The clustering analysis identifies a higher-order organization of locally-defined TADs as trees, which is correlated to epigenetic states and chromosome compartmentalization.
 
 ![Example TADCLUST tree for human HL-60 chr10](assets/example_tree.webp)
 
@@ -48,6 +48,7 @@ The TAD table can be any disjoint or hierarchical TAD annotation in the BED3+ fo
 | --tree-branch-k  K  | 2       | Split count of recursive k-means. |
 | --with-trans        | no      | Enable trans-chromosomal clustering (experimental and expensive). |
 | --with-residuals    | no      | Fill gaps with `residual` pseudo-domains. |
+| --pca-source        | log_oe  | Use (log_oe) O/E or (log_frequency) contact frequency as the  source of PC features. `log_frequency` retains sequential locality in the resulting tree. |
 | --overwrite         | no      | Allow overwriting existing files in the output directory. |
 | --workers        N  | 1       | Run analysis in parallel using N processes. |
 | --seed           N  | 0       | Random seed for reproducibility. |
@@ -89,7 +90,7 @@ Columns in the main table:
 | path              | int[]            | Branches to take to arrive at the node from the root, like \[0,1,0,1,1,1\]. |
 | path_label        | string           | Root + path as a dot-delimited string, like "chrom.0.1.0.1.1.1". |
 | ab_label          | A/B              | A/B classification (ab_signal <=> 0) of the node. |
-| ab_signal         | float            | A/B compartment signal for the node. |
+| ab_signal         | float            | A/B compartment-like signal for the node. |
 | ab_frac_a         | float            | Fraction of A leaves under the node. |
 | ab_frac_b         | float            | Fraction of B leaves under the node. |
 | ab_purity         | float            | Max(ab_frac_a, ab_frac_b). |
@@ -109,7 +110,7 @@ Notes:
 
 ## Method notes
 
-**TAD-level L2-normalized log-O/E** is diagonalized (without centering; zero is the natural center for log-O/E) to produce principal components. This PC feature space is hierarchically clustered like CALDER. The first branch gives a similar result to the conventional compartment analysis, and deeper branches describe subcompartment organization.
+**TAD-level L2-normalized log-O/E** is diagonalized (without centering; zero is the natural center for log-O/E) to produce principal components in the `log_oe` mode. This PC feature space is hierarchically clustered like CALDER. The first branch gives a similar result to the conventional compartment analysis, and deeper branches describe subcompartment organization.
 
 When **hierarchical TAD annotation** is given (i.e., there are nested intervals), the optimal levels of sub-TAD hierarchies are decided by dynamic programming so that within-TAD variance (among sub-TADs and gaps) is minimized in the feature space. The selected (sub-)TADs are output as leaf units with `unit_kind` = "tad". Besides clustering, this selection of the "most coherent" sub-TADs can be useful on its own.
 
