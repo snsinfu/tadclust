@@ -140,6 +140,48 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert not (tmp_path / "out").exists()
 
 
+def test_cluster_log_oe_source_is_default(mcool, tmp_path) -> None:
+    tads = base_tads(tmp_path)
+    default = cluster(make_config(mcool, tads, tmp_path))
+    explicit = cluster(
+        make_config(
+            mcool,
+            tads,
+            tmp_path,
+            output_dir=tmp_path / "explicit",
+            pca_source="log_oe",
+        )
+    )
+
+    assert default.params["requested"]["pca_source"] == "log_oe"
+    assert explicit.params["requested"]["pca_source"] == "log_oe"
+    assert default.cis_nodes.equals(explicit.cis_nodes)
+    assert default.cis_leaves.equals(explicit.cis_leaves)
+
+
+def test_cluster_log_frequency_source(mcool, tmp_path) -> None:
+    tads = base_tads(tmp_path)
+    default = cluster(make_config(mcool, tads, tmp_path))
+    frequency = cluster(
+        make_config(
+            mcool,
+            tads,
+            tmp_path,
+            output_dir=tmp_path / "frequency",
+            pca_source="log_frequency",
+        )
+    )
+
+    assert frequency.params["requested"]["pca_source"] == "log_frequency"
+    assert frequency.cis_leaves.height == default.cis_leaves.height
+    assert frequency.cis_nodes["node_oe"].is_finite().all()
+    assert frequency.cis_leaves["node_oe"].is_finite().all()
+    assert not np.allclose(
+        np.vstack(default.cis_leaves["pc"].to_list()),
+        np.vstack(frequency.cis_leaves["pc"].to_list()),
+    )
+
+
 def test_cluster_residuals_are_opt_in(gapped_mcool, gapped_tads, tmp_path) -> None:
     default = cluster(
         make_config(
@@ -483,6 +525,25 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
         "cis_leaves_ab.tsv",
         "cis_nodes_ab.parquet",
     ]
+
+
+def test_cluster_with_ab_log_frequency_source(mcool, tmp_path) -> None:
+    result = cluster(
+        make_config(
+            mcool,
+            ab_tads(tmp_path),
+            tmp_path,
+            ab_feature_track=ab_track(tmp_path),
+            pca_source="log_frequency",
+        )
+    )
+
+    assert result.params["requested"]["pca_source"] == "log_frequency"
+    assert result.cis_nodes_ab is not None
+    assert result.cis_leaves_ab is not None
+    assert "ab_label" in result.cis_nodes_ab.columns
+    assert set(result.cis_nodes_ab["root_label"].to_list()) >= {"A", "B"}
+    assert result.cis_nodes["node_oe"].is_finite().all()
 
 
 def test_cluster_with_ab_omits_residuals(

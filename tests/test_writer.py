@@ -176,6 +176,11 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     assert manifest["cli"] == {"argv": ["--mcool", str(mcool)]}
     assert manifest["params"]["resolved"]["working_binsize"] == 500
     assert manifest["params"]["requested"]["with_residuals"] is False
+    assert manifest["params"]["requested"]["pca_source"] == "log_oe"
+    assert manifest["params"]["requested"]["distance_bins"] == 60
+    assert manifest["params"]["requested"]["clip_min"] == -10.0
+    assert manifest["params"]["requested"]["clip_max"] == 10.0
+    assert manifest["params"]["requested"]["pseudocount_scale"] == 1.0
     assert manifest["qc"]["summary"]["n_units"] == 4
     for chromosome_qc in manifest["qc"]["per_chromosome"].values():
         assert chromosome_qc["cis"]["coverage_fraction"] == 1.0

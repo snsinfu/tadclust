@@ -335,6 +335,11 @@ def test_manifest_contract(mcool, tmp_path) -> None:
     assert manifest["params"]["resolved"]["working_binsize"] == 500
     assert manifest["params"]["resolved"]["working_binsize_mode"] == "explicit"
     assert manifest["params"]["requested"]["with_residuals"] is False
+    assert manifest["params"]["requested"]["pca_source"] == "log_oe"
+    assert manifest["params"]["requested"]["distance_bins"] == 60
+    assert manifest["params"]["requested"]["clip_min"] == -10.0
+    assert manifest["params"]["requested"]["clip_max"] == 10.0
+    assert manifest["params"]["requested"]["pseudocount_scale"] == 1.0
     assert "ab_split_policy" not in manifest["params"]["requested"]
     assert manifest["qc"]["summary"]["n_units"] == 4
     for chromosome_qc in manifest["qc"]["per_chromosome"].values():
