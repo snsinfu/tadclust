@@ -63,6 +63,7 @@ out/
 ├── cis_leaves.tsv
 ├── cis_leaves_ab.parquet       # optional
 ├── cis_leaves_ab.tsv           # optional
+├── cis_matrices.h5
 ├── trans_nodes.parquet         # optional
 └── manifest.json
 ```
