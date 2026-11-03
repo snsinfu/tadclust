@@ -14,6 +14,7 @@ from tadclust.matrix import (
     compute_unit_matrices,
     cosine_normalize,
     distance_bin_edges,
+    double_centered_log_frequency,
     expected_by_distance,
     log2_ratio,
     orient_pcs_to_feature,
@@ -265,6 +266,67 @@ def test_pcs_from_log_frequency_keeps_zero_rows_exact() -> None:
 
     assert np.all(pcs[[0, 3]] == 0.0)
     assert np.all(np.isfinite(pcs))
+
+
+def test_double_centered_log_frequency_matches_manual_formula() -> None:
+    observed = np.array(
+        [
+            [10.0, 2.0, 0.0],
+            [2.0, 20.0, 3.0],
+            [0.0, 3.0, 30.0],
+        ]
+    )
+    alpha = 0.5
+    clip_min = -3.0
+    clip_max = 4.0
+
+    values = double_centered_log_frequency(
+        observed,
+        alpha,
+        clip_min=clip_min,
+        clip_max=clip_max,
+    )
+
+    expected = np.log2(1.0 + observed / alpha)
+    expected = np.clip(expected, clip_min, clip_max)
+    expected = expected - expected.mean(axis=1, keepdims=True)
+    expected = expected - expected.mean(axis=0, keepdims=True) + expected.mean()
+    np.fill_diagonal(expected, 0.0)
+
+    assert np.allclose(values, expected)
+
+
+def test_double_centered_log_frequency_keeps_zero_rows_and_columns() -> None:
+    observed = np.array(
+        [
+            [0.0, 0.0, 0.0, 0.0],
+            [0.0, 2.0, 1.0, 0.0],
+            [0.0, 1.0, 3.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+        ]
+    )
+
+    values = double_centered_log_frequency(
+        observed,
+        1.0,
+        clip_min=-10.0,
+        clip_max=10.0,
+    )
+
+    assert np.all(values[[0, 3], :] == 0.0)
+    assert np.all(values[:, [0, 3]] == 0.0)
+    assert np.all(np.diag(values) == 0.0)
+
+
+def test_double_centered_log_frequency_rejects_invalid_alpha() -> None:
+    for alpha in (0.0, -1.0, np.inf, np.nan):
+        with pytest.raises(ClusteringError):
+            double_centered_log_frequency(
+                np.eye(2),
+                alpha,
+                clip_min=-10.0,
+                clip_max=10.0,
+            )
 
 
 def test_pcs_from_log_frequency_rejects_non_positive_alpha() -> None:

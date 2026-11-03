@@ -287,16 +287,15 @@ def pcs_from_log_oe(
     return compute_top_pcs(cosine_normalize(matrix), n_pcs, label=label)
 
 
-def pcs_from_log_frequency(
+def double_centered_log_frequency(
     observed: np.ndarray,
     alpha: float,
-    n_pcs: int,
     *,
     clip_min: float,
     clip_max: float,
     label: str = "cis",
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Compute PCs from double-centered log-frequency contacts (`frequency` source).
+) -> np.ndarray:
+    """Return the double-centered log-frequency matrix used by `frequency`.
 
     The log-frequency matrix has no distance-decay null. Symmetric
     double-centering removes additive row/column effects (unit-level contact
@@ -341,7 +340,26 @@ def pcs_from_log_frequency(
     values[zero_rows, :] = 0.0
     values[:, zero_cols] = 0.0
     np.fill_diagonal(values, 0.0)
+    return values
 
+
+def pcs_from_log_frequency(
+    observed: np.ndarray,
+    alpha: float,
+    n_pcs: int,
+    *,
+    clip_min: float,
+    clip_max: float,
+    label: str = "cis",
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Compute PCs from double-centered log-frequency contacts (`frequency` source)."""
+    values = double_centered_log_frequency(
+        observed,
+        alpha,
+        clip_min=clip_min,
+        clip_max=clip_max,
+        label=label,
+    )
     return compute_top_pcs(cosine_normalize(values), n_pcs, label=label)
 
 
