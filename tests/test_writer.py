@@ -13,6 +13,11 @@ from conftest import write_mcool, write_tads, write_track
 import tadclust
 from tadclust.config import ClusterConfig
 from tadclust.errors import OutputError
+from tadclust.matrix_io import (
+    MATRIX_DATASETS,
+    MATRIX_FILE,
+    MATRIX_SCHEMA_VERSION,
+)
 from tadclust.metadata import MANIFEST_VERSION, METADATA_KEY, METADATA_VERSION
 from tadclust.pipeline import cluster
 from tadclust.schema import Schema
@@ -150,6 +155,7 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
         "cis_leaves.parquet",
         "cis_leaves.tsv",
         "cis_nodes.parquet",
+        "cis_matrices.h5",
         "manifest.json",
     }
     for path in written.values():
@@ -166,6 +172,7 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
         "cli",
         "params",
         "qc",
+        "matrices",
         "output_files",
     ]
     assert manifest["manifest_version"] == MANIFEST_VERSION
@@ -182,6 +189,12 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     assert manifest["params"]["requested"]["clip_min"] == -10.0
     assert manifest["params"]["requested"]["clip_max"] == 10.0
     assert manifest["params"]["requested"]["pseudocount_scale"] == 1.0
+    assert manifest["matrices"] == {
+        "file": MATRIX_FILE,
+        "schema_version": MATRIX_SCHEMA_VERSION,
+        "storage": "dense",
+        "datasets": list(MATRIX_DATASETS),
+    }
     assert manifest["qc"]["summary"]["n_units"] == 4
     for chromosome_qc in manifest["qc"]["per_chromosome"].values():
         assert chromosome_qc["cis"]["coverage_fraction"] == 1.0
@@ -189,6 +202,7 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
         "cis_leaves.parquet",
         "cis_leaves.tsv",
         "cis_nodes.parquet",
+        "cis_matrices.h5",
         "manifest.json",
     ]
     assert "checksums" not in manifest
@@ -311,6 +325,7 @@ def test_write_ab_and_trans_outputs(
         "cis_leaves.parquet",
         "cis_leaves.tsv",
         "cis_nodes.parquet",
+        "cis_matrices.h5",
         "cis_leaves_ab.parquet",
         "cis_leaves_ab.tsv",
         "cis_nodes_ab.parquet",
@@ -434,6 +449,7 @@ def test_write_outputs_restores_old_outputs_on_failure(
     sentinel = b"old leaves"
     leaves.write_bytes(sentinel)
     old_nodes = (out / "cis_nodes.parquet").read_bytes()
+    old_matrices = (out / "cis_matrices.h5").read_bytes()
     old_manifest = (out / "manifest.json").read_bytes()
 
     real_replace = os.replace
@@ -453,6 +469,7 @@ def test_write_outputs_restores_old_outputs_on_failure(
 
     assert leaves.read_bytes() == sentinel
     assert (out / "cis_nodes.parquet").read_bytes() == old_nodes
+    assert (out / "cis_matrices.h5").read_bytes() == old_matrices
     assert (out / "manifest.json").read_bytes() == old_manifest
     assert not list(out.glob("*.tmp"))
 
@@ -472,6 +489,7 @@ def test_write_outputs_restores_old_outputs_on_interrupt(
     sentinel = b"old leaves"
     leaves.write_bytes(sentinel)
     old_nodes = (out / "cis_nodes.parquet").read_bytes()
+    old_matrices = (out / "cis_matrices.h5").read_bytes()
     old_manifest = (out / "manifest.json").read_bytes()
 
     real_replace = os.replace
@@ -491,6 +509,7 @@ def test_write_outputs_restores_old_outputs_on_interrupt(
 
     assert leaves.read_bytes() == sentinel
     assert (out / "cis_nodes.parquet").read_bytes() == old_nodes
+    assert (out / "cis_matrices.h5").read_bytes() == old_matrices
     assert (out / "manifest.json").read_bytes() == old_manifest
     assert not list(out.glob("*.tmp"))
 
@@ -545,6 +564,7 @@ def test_overwrite_removes_stale_optional_tables(
         "cis_leaves.parquet",
         "cis_leaves.tsv",
         "cis_nodes.parquet",
+        "cis_matrices.h5",
         "manifest.json",
     ]
 

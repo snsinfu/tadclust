@@ -13,6 +13,13 @@ import polars as pl
 from . import __version__
 from .config import ClusterConfig
 from .errors import OutputError
+from .matrix_io import (
+    MATRIX_DATASETS,
+    MATRIX_FILE,
+    MATRIX_SCHEMA_VERSION,
+    CisMatrices,
+    write_cis_matrices,
+)
 from .metadata import MANIFEST_VERSION, parquet_metadata
 from .pipeline import ClusterResult
 from .schema import (
@@ -32,6 +39,7 @@ KNOWN_OUTPUTS = (
     "cis_leaves.parquet",
     "cis_leaves.tsv",
     "cis_nodes.parquet",
+    "cis_matrices.h5",
     "cis_leaves_ab.parquet",
     "cis_leaves_ab.tsv",
     "cis_nodes_ab.parquet",
@@ -47,7 +55,7 @@ def write_outputs(
     cli_args: list[str] | None = None,
     overwrite: bool = False,
 ) -> dict[str, Path]:
-    """Write parquet tables and the manifest, committing them together."""
+    """Write parquet tables, the matrix product, and the manifest together."""
     output_dir = Path(config.output_dir)
     _prepare_output_dir(output_dir, overwrite)
 
@@ -64,6 +72,12 @@ def write_outputs(
         "cli": None if cli_args is None else {"argv": list(cli_args)},
         "params": result.params,
         "qc": result.qc,
+        "matrices": {
+            "file": MATRIX_FILE,
+            "schema_version": MATRIX_SCHEMA_VERSION,
+            "storage": result.cis_matrices.storage,
+            "datasets": list(MATRIX_DATASETS),
+        },
         "output_files": [*result.output_files, "manifest.json"],
     }
     cis_leaves_sources = ["cis_nodes.parquet"]
@@ -102,6 +116,14 @@ def write_outputs(
                     sources=[],
                     manifest=manifest,
                 ),
+            )
+        )
+
+        staged.append(
+            _stage_hdf5(
+                result.cis_matrices,
+                output_dir / MATRIX_FILE,
+                manifest,
             )
         )
 
@@ -220,6 +242,21 @@ def _stage_tsv(
     temporary = _temporary_path(path)
     try:
         frame.write_csv(temporary, separator="\t", null_value=_TSV_NULL_STRING)
+    except BaseException:
+        if temporary.exists():
+            temporary.unlink()
+        raise
+    return temporary, path
+
+
+def _stage_hdf5(
+    matrices: CisMatrices,
+    path: Path,
+    manifest: dict,
+) -> tuple[Path, Path]:
+    temporary = _temporary_path(path)
+    try:
+        write_cis_matrices(temporary, matrices, manifest)
     except BaseException:
         if temporary.exists():
             temporary.unlink()

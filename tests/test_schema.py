@@ -320,6 +320,7 @@ def test_manifest_contract(mcool, tmp_path) -> None:
         "cli",
         "params",
         "qc",
+        "matrices",
         "output_files",
     ]
     assert manifest["manifest_version"] == MANIFEST_VERSION
@@ -350,6 +351,7 @@ def test_manifest_contract(mcool, tmp_path) -> None:
         "cis_leaves.parquet",
         "cis_leaves.tsv",
         "cis_nodes.parquet",
+        "cis_matrices.h5",
         "manifest.json",
     ]
     assert "checksums" not in manifest

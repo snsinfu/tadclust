@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+import h5py
 import polars as pl
 import pytest
 
@@ -84,3 +85,56 @@ def test_read_manifest_wraps_unreadable_file(tmp_path) -> None:
 
     assert error.value.path == str(path)
     assert "cannot read parquet metadata" in error.value.message
+
+
+def test_read_manifest_reads_hdf5(tmp_path) -> None:
+    manifest = {"manifest_version": "1.3", "inputs": {"mcool": "map.mcool"}}
+    path = tmp_path / "cis_matrices.h5"
+    with h5py.File(path, "w") as handle:
+        handle.create_dataset(
+            "manifest",
+            data=json.dumps(manifest, separators=(",", ":")),
+            dtype=h5py.string_dtype(encoding="utf-8"),
+        )
+
+    assert read_manifest(path) == manifest
+    assert tadclust.read_manifest(path) == manifest
+
+
+def test_read_manifest_requires_hdf5_manifest_dataset(tmp_path) -> None:
+    path = tmp_path / "plain.h5"
+    with h5py.File(path, "w") as handle:
+        handle.create_dataset("x", data=[1])
+
+    with pytest.raises(MetadataError) as error:
+        read_manifest(path)
+
+    assert error.value.path == str(path)
+    assert "no embedded HDF5 metadata" in error.value.message
+
+
+def test_read_manifest_rejects_invalid_hdf5_json(tmp_path) -> None:
+    path = tmp_path / "invalid.h5"
+    with h5py.File(path, "w") as handle:
+        handle.create_dataset(
+            "manifest",
+            data="not json",
+            dtype=h5py.string_dtype(encoding="utf-8"),
+        )
+
+    with pytest.raises(MetadataError) as error:
+        read_manifest(path)
+
+    assert error.value.path == str(path)
+    assert "invalid embedded HDF5 metadata" in error.value.message
+
+
+def test_read_manifest_wraps_unreadable_hdf5_file(tmp_path) -> None:
+    path = tmp_path / "not-hdf5.h5"
+    path.write_text("not hdf5")
+
+    with pytest.raises(MetadataError) as error:
+        read_manifest(path)
+
+    assert error.value.path == str(path)
+    assert "cannot read HDF5 metadata" in error.value.message

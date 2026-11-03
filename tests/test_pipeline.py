@@ -136,6 +136,7 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
         "cis_leaves.parquet",
         "cis_leaves.tsv",
         "cis_nodes.parquet",
+        "cis_matrices.h5",
     ]
     assert not (tmp_path / "out").exists()
 
@@ -561,6 +562,7 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
         "cis_leaves.parquet",
         "cis_leaves.tsv",
         "cis_nodes.parquet",
+        "cis_matrices.h5",
         "cis_leaves_ab.parquet",
         "cis_leaves_ab.tsv",
         "cis_nodes_ab.parquet",

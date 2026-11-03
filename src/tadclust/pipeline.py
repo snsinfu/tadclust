@@ -17,6 +17,7 @@ from .config import ClusterConfig
 from .domains import ChromosomeTree, UnitSelection
 from .errors import ClusteringError
 from .matrix import area_weighted_mean_oe, orient_pcs_to_feature
+from .matrix_io import CisMatrices, CisMatrixInput, build_cis_matrices
 from .mcool import (
     ResolutionChoice,
     choose_resolution,
@@ -64,6 +65,7 @@ class ClusterResult:
     cis_leaves_ab: pl.DataFrame | None
     cis_nodes_ab: pl.DataFrame | None
     trans_nodes: pl.DataFrame | None
+    cis_matrices: CisMatrices
     params: dict[str, Any]
     qc: dict[str, Any]
     inputs: dict[str, str | None]
@@ -157,10 +159,12 @@ def cluster(config: ClusterConfig) -> ClusterResult:
     cis_leaves_ab = (
         _cis_leaf_ab_rows(cis_nodes_ab) if cis_nodes_ab is not None else None
     )
+    cis_matrices = _build_cis_matrices(results, config)
     output_files = [
         "cis_leaves.parquet",
         "cis_leaves.tsv",
         "cis_nodes.parquet",
+        "cis_matrices.h5",
     ]
     if is_ab:
         output_files.extend(
@@ -179,6 +183,7 @@ def cluster(config: ClusterConfig) -> ClusterResult:
         cis_leaves_ab=cis_leaves_ab,
         cis_nodes_ab=cis_nodes_ab,
         trans_nodes=trans_nodes,
+        cis_matrices=cis_matrices,
         params=_build_params(config, choice, chromosomes, source),
         qc=_build_qc(results, trans_run, config, is_ab),
         inputs={
@@ -417,6 +422,27 @@ def _run_trans(
         matrix=matrix,
         tree_result=tree_result,
         unit_bins=unit_bins,
+    )
+
+
+def _build_cis_matrices(
+    results: list[_ChromosomeResult],
+    config: ClusterConfig,
+) -> CisMatrices:
+    inputs = [
+        CisMatrixInput(
+            chrom=result.chrom,
+            units=result.selection.units,
+            matrices=result.selection.matrices,
+            n_bins_chrom=result.tree.n_bins_chrom,
+        )
+        for result in results
+    ]
+    return build_cis_matrices(
+        inputs,
+        distance_bins=config.distance_bins,
+        clip_min=config.clip_min,
+        clip_max=config.clip_max,
     )
 
 
