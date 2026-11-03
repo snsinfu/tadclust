@@ -47,6 +47,7 @@ def test_default_config_is_valid(tmp_path) -> None:
     assert config.with_residuals is False
     assert config.cis_clustering_source == "oe"
     assert config.dp_lambda_scale == 1.0
+    assert config.unit_selection == "dp"
     assert config.seed == 0
 
 
@@ -58,6 +59,7 @@ def test_default_config_is_valid(tmp_path) -> None:
         {"clip_min": 1.0, "clip_max": 1.0},
         {"distance_bins": 1},
         {"cis_clustering_source": "bogus"},
+        {"unit_selection": "bogus"},
         {"tree_branch_k": 1},
         {"tree_pca_dim": 0},
         {"workers": 0},
@@ -114,6 +116,26 @@ def test_invalid_cis_clustering_source_reports_field(tmp_path) -> None:
         make_config(tmp_path, cis_clustering_source="bogus")
 
     assert info.value.field == "cis_clustering_source"
+
+
+def test_roots_unit_selection_is_valid(tmp_path) -> None:
+    config = make_config(tmp_path, unit_selection="roots")
+
+    assert config.unit_selection == "roots"
+
+
+def test_invalid_unit_selection_reports_field(tmp_path) -> None:
+    with pytest.raises(ConfigError) as info:
+        make_config(tmp_path, unit_selection="bogus")
+
+    assert info.value.field == "unit_selection"
+
+
+def test_roots_unit_selection_rejects_uniform_bins(tmp_path) -> None:
+    with pytest.raises(ConfigError) as info:
+        make_uniform_config(tmp_path, unit_selection="roots")
+
+    assert info.value.field == "unit_selection"
 
 
 def test_missing_inputs_are_rejected(tmp_path) -> None:

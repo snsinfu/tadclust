@@ -9,6 +9,7 @@ from .errors import ConfigError
 
 TRANS_NULL_CHOICES = ("pair", "grand")
 CIS_CLUSTERING_SOURCE_CHOICES = ("oe", "frequency")
+UNIT_SELECTION_CHOICES = ("dp", "roots")
 
 
 @dataclass(frozen=True)
@@ -34,6 +35,7 @@ class ClusterConfig:
     pseudocount_scale: float = 1.0
     cis_clustering_source: str = "oe"
     dp_lambda_scale: float = 1.0
+    unit_selection: str = "dp"
     with_residuals: bool = False
     tree_pca_dim: int = 5
     tree_branch_k: int = 2
@@ -119,6 +121,18 @@ class ClusterConfig:
             raise ConfigError(
                 "dp_lambda_scale must be non-negative",
                 field="dp_lambda_scale",
+            )
+        if self.unit_selection not in UNIT_SELECTION_CHOICES:
+            raise ConfigError(
+                f"unit_selection must be one of {UNIT_SELECTION_CHOICES}, "
+                f"got {self.unit_selection!r}",
+                field="unit_selection",
+            )
+        if self.annotation_path is None and self.unit_selection == "roots":
+            raise ConfigError(
+                "unit_selection='roots' requires an annotation table",
+                notes=("uniform-bin mode has no TAD hierarchy to take roots from",),
+                field="unit_selection",
             )
         if self.tree_pca_dim < 1:
             raise ConfigError(
