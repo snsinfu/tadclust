@@ -43,19 +43,19 @@ The TAD table can be any disjoint or hierarchical TAD annotation in the BED3+ fo
 
 ### Options
 
-| option              | default | description |
-|:--------------------|:--------|:------------|
-| --tree-branch-k  K  | 2       | Split count of recursive k-means. |
-| --with-trans        | no      | Enable trans-chromosomal clustering (experimental and expensive). |
-| --with-residuals    | no      | Fill gaps with `residual` pseudo-domains. |
-| --pca-source        | log_oe  | Use (log_oe) O/E or (log_frequency) contact frequency as the  source of PC features. `log_frequency` retains sequential locality in the resulting tree. |
-| --overwrite         | no      | Allow overwriting existing files in the output directory. |
-| --workers        N  | 1       | Run analysis in parallel using N processes. |
-| --seed           N  | 0       | Random seed for reproducibility. |
+| option                  | default | description |
+|:------------------------|:--------|:------------|
+| --tree-branch-k  K      | 2       | Split count of recursive k-means. |
+| --with-trans            | no      | Enable trans-chromosomal clustering (experimental and expensive). |
+| --with-residuals        | no      | Fill gaps with `residual` pseudo-domains. |
+| --cis-clustering-source | oe      | Use (oe) log-O/E or (frequency) log-contact frequency for cis clustering. `frequency` retains sequential locality in the resulting tree. |
+| --overwrite             | no      | Allow overwriting existing files in the output directory. |
+| --workers        N      | 1       | Run analysis in parallel using N processes. |
+| --seed           N      | 0       | Random seed for reproducibility. |
 
 ### Output
 
-Results are stored as parquet/tsv tables and a json summary in the output directory:
+Results are stored as parquet/tsv tables and a json manifest in the output directory:
 
 ```
 out/
@@ -99,7 +99,7 @@ Columns in the main table:
 | n_working_bins    | int              | Number of working bins covered by the units under the node. |
 | node_oe           | float            | Mean log2 O/E over all units and unit pairs under the node. |
 | node_internal_sse | float            | Feature-space SSE of leaves under the node. |
-| node_split_gain   | float            | Relative SSE cost of splitting at this node. |
+| node_split_gain   | float            | Relative SSE reduction of splitting at this node. |
 | stop_reason       | degenerate       | Reason of abruptly stopped splitting or null. |
 
 Notes:
@@ -110,7 +110,9 @@ Notes:
 
 ## Method notes
 
-**TAD-level L2-normalized log-O/E** is diagonalized (without centering; zero is the natural center for log-O/E) to produce principal components in the `log_oe` mode. This PC feature space is hierarchically clustered like CALDER. The first branch gives a similar result to the conventional compartment analysis, and deeper branches describe subcompartment organization.
+**TAD-level L2-normalized log-O/E** is diagonalized (without centering; zero is the natural center for log-O/E) to produce principal components in the `oe` mode. This PC feature space is hierarchically clustered like CALDER. The first branch gives a similar result to the conventional compartment analysis, and deeper branches describe subcompartment organization. Because O/E drops information on seqence separation, clustered TADs are not necessarily physically proximal. Deeper branches are generally not informative.
+
+**TAD-level L2-normalized, double-centered log-contact frequency** is diagonalized to produce PCs, and herarchically clustered, in the `frequency` mode. Double-centering here means that the log-contact frequency for a unit pair i, j is centered to the means of the i-th and the j-th units, so baseline frequency excepting for the distance decay is removed. Since it retains distance decay, resulting clusters emphasize sequential proximity, so deeper branches tend to group neighboring TADs. Well-compartmentalized genomes still show a clear A/B split near the root of the tree even in this mode.
 
 When **hierarchical TAD annotation** is given (i.e., there are nested intervals), the optimal levels of sub-TAD hierarchies are decided by dynamic programming so that within-TAD variance (among sub-TADs and gaps) is minimized in the feature space. The selected (sub-)TADs are output as leaf units with `unit_kind` = "tad". Besides clustering, this selection of the "most coherent" sub-TADs can be useful on its own.
 
@@ -118,7 +120,7 @@ When **hierarchical TAD annotation** is given (i.e., there are nested intervals)
 
 For **A/B compartment** annotation, an auxiliary binary split of an augmented feature space is made. Bisection of the raw PC space does not reliably give a useful "A/B"-like clusters except for mammalian datasets, so the PC space needs to be augmented by a reference signal track (`--ab-feature-track`; ATAC, H4ac, and gene density tracks work well) to determine the A/B decision boundary and the orientation. Once the boundary is determined, it is projected onto the original PC space, and the TADs are A/B-annotated. This auxiliary split is done solely for annotation and it does not affect the cluster hierarchy.
 
-The **A/B signal** is the 1D projection of the node's PC centroid onto the A-B axis in the PC space (the axis along the A and B centroids). This is a generalization of the conventional PC1 compartment signal to the bisected, higher-dimensional PC space. The magnitude of the signal is informative: it is the distance from the decision boundary, so close-to-zero signal indicates poor compartmentalization. The PC space is standardized in A/B analysis, so the typical values of the signal distribute in the ~3 sigma range, or within approximtely \[-3,3\], so the "normal" magnitude would be around ~1.
+The **A/B signal** is the 1D projection of the node's PC centroid onto the A-B axis in the PC space (the axis along the A and B centroids). This is a generalization of the conventional PC1 compartment signal to the bisected, higher-dimensional PC space. The magnitude of the signal is informative: it is the distance from the decision boundary, so close-to-zero signal indicates poor compartmentalization. The PC space is standardized in A/B analysis, so the typical values of the signal distribute in the ~3 sigma range, so the "normal" magnitude would be around ~1.
 
 **Genome-wide clustering** (experimental) is also done when `--with-trans` flag is passed. Genome-wide, trans-chrom O/E is built using the cis-defined TADs as units, diagonalized, and recursively clustered. The trans tree tends to capture chromosome territories or telomere clustering rather than genome-wide A/B compartments. Still, the `unit_id` is shared between the cis table, so one can JOIN cis and trans tables to examine cis-determined A/B on the trans tree.
 
