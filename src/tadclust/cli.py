@@ -128,7 +128,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--pseudocount-scale",
         type=float,
         default=1.0,
-        help="pseudocount scale on the smallest non-zero expected value, used by both PCA sources",
+        help=(
+            "pseudocount scale on the smallest non-zero expected value, "
+            "used by both cis clustering PC sources"
+        ),
     )
     advanced.add_argument(
         "--cis-clustering-source",

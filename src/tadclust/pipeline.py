@@ -241,14 +241,16 @@ def _build_cis_results(
     ab_node_base = 0
 
     for selection in selections:
-        base_pcs = selection.pcs
-        ab_base_pcs = selection.ab_pcs if selection.ab_pcs is not None else base_pcs
+        # Tree splits use the configured cis clustering source; A/B annotation
+        # always uses the log O/E PC space.
+        cluster_pcs = selection.pcs
+        ab_pcs = selection.ab_pcs if selection.ab_pcs is not None else cluster_pcs
         unit_bins = selection.unit_bins
         annotation = None
         n_uncovered = 0
 
         if track is None:
-            pcs = base_pcs
+            pcs = cluster_pcs
             clusterable = informative_mask(pcs, config.tree_pca_dim)
         else:
             values = overlap_weighted_values(
@@ -257,8 +259,8 @@ def _build_cis_results(
                 selection.chrom,
             )
             feature_rank, n_uncovered = fill_and_rank(values, selection.chrom)
-            pcs = orient_pcs_to_feature(base_pcs, feature_rank)
-            ab_pcs = orient_pcs_to_feature(ab_base_pcs, feature_rank)
+            pcs = orient_pcs_to_feature(cluster_pcs, feature_rank)
+            ab_pcs = orient_pcs_to_feature(ab_pcs, feature_rank)
             clusterable = informative_mask(pcs, config.tree_pca_dim)
             ab_clusterable = informative_mask(ab_pcs, config.tree_pca_dim)
             features = ab_feature_matrix(ab_pcs, feature_rank, config.tree_pca_dim)

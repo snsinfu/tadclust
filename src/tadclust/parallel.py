@@ -181,6 +181,7 @@ def _select_chromosome(
         with_residuals=config.with_residuals,
     )
     pcs = canonicalize_pc1_sign(selection.matrices.pcs)
+    # A/B annotation always uses log O/E PCs, independent of the tree source.
     ab_pcs = None
     if config.ab_feature_track is not None and config.cis_clustering_source != "oe":
         ab_pcs, _, _ = pcs_from_cis_source(
