@@ -241,6 +241,8 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     assert nodes.schema["unit_id"] == pl.Int64
     assert nodes.schema["pc"] == pl.Array(pl.Float64, 2)
     assert nodes.schema["node_oe"] == pl.Float64
+    assert nodes.schema["cross_oe"] == pl.Float64
+    assert nodes.schema["cross_oe_excess"] == pl.Float64
     assert "ab_label" not in nodes.columns
 
     assert leaves_tsv.columns == CIS_LEAVES_TSV_COLUMNS

@@ -107,8 +107,16 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert result.cis_leaves["node_oe"].null_count() == 0
     assert result.cis_nodes["node_oe"].is_finite().all()
     assert result.cis_nodes["pc"].null_count() == 0
-    assert result.cis_nodes.filter(~pl.col("is_leaf")).height > 0
-    assert result.cis_nodes.filter(~pl.col("is_leaf"))["pc"].null_count() == 0
+    branch_nodes = result.cis_nodes.filter(~pl.col("is_leaf"))
+    assert branch_nodes.height > 0
+    assert branch_nodes["pc"].null_count() == 0
+    assert branch_nodes["cross_oe"].null_count() == 0
+    assert branch_nodes["cross_oe_excess"].null_count() == 0
+    assert branch_nodes["cross_oe"].is_finite().all()
+    assert branch_nodes["cross_oe_excess"].is_finite().all()
+    assert result.cis_nodes.filter(pl.col("is_leaf"))["cross_oe"].null_count() == (
+        result.cis_nodes.filter(pl.col("is_leaf")).height
+    )
     assert_node_references(result.cis_nodes)
 
     assert result.cis_leaves_ab is None

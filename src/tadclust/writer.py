@@ -31,7 +31,7 @@ from .schema import (
     trans_nodes_schema,
 )
 
-SCHEMA_VERSION = "7.0"
+SCHEMA_VERSION = "8.0"
 _TSV_NULL_INT = -1
 _TSV_NULL_FLOAT = float("nan")
 _TSV_NULL_STRING = "NA"

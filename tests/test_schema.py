@@ -149,6 +149,8 @@ def cis_nodes_schema(include_ab: bool, n_pcs: int = 3):
             ("n_units", pl.Int64),
             ("n_working_bins", pl.Int64),
             ("node_oe", pl.Float64),
+            ("cross_oe", pl.Float64),
+            ("cross_oe_excess", pl.Float64),
             ("node_internal_sse", pl.Float64),
             ("node_split_gain", pl.Float64),
             ("stop_reason", pl.String),

@@ -13,6 +13,7 @@ import numpy as np
 import polars as pl
 
 from .clustering import informative_mask
+from .cohesion import CohesionContext, build_cohesion_context
 from .config import ClusterConfig
 from .domains import ChromosomeTree, UnitSelection
 from .errors import ClusteringError
@@ -133,17 +134,30 @@ def cluster(config: ClusterConfig) -> ClusterResult:
     )
     trans_run = _run_trans(config, choice, cooler_object, results)
 
+    cohesion_contexts = [
+        build_cohesion_context(
+            result.selection.units,
+            result.selection.matrices.log_oe,
+            result.tree.n_bins_chrom,
+            working_binsize=choice.value,
+            distance_bins=config.distance_bins,
+        )
+        for result in results
+    ]
+
     is_ab = track is not None
     cis_nodes = _cis_node_rows(
         results,
         n_pcs=config.tree_pca_dim,
         include_composition=is_ab,
+        cohesion_contexts=cohesion_contexts,
     )
     cis_nodes_ab = (
         _cis_node_rows(
             results,
             n_pcs=config.tree_pca_dim,
             include_composition=True,
+            cohesion_contexts=cohesion_contexts,
             use_ab_forest=True,
         )
         if is_ab
@@ -513,6 +527,8 @@ def _node_fields(
     node: TreeNode,
     offset: int,
     node_oe: float | None,
+    cross_oe: float | None,
+    cross_oe_excess: float | None,
 ) -> dict[str, Any]:
     return {
         "chrom": chrom,
@@ -530,6 +546,8 @@ def _node_fields(
         "child_ids": [child + offset for child in node.children],
         "stop_reason": node.stop_reason,
         "node_oe": node_oe,
+        "cross_oe": cross_oe,
+        "cross_oe_excess": cross_oe_excess,
         "pc": [float(value) for value in node.centroid],
     }
 
@@ -550,12 +568,13 @@ def _cis_node_rows(
     *,
     n_pcs: int,
     include_composition: bool,
+    cohesion_contexts: list[CohesionContext],
     use_ab_forest: bool = False,
 ) -> pl.DataFrame:
     rows: list[dict[str, Any]] = []
     unit_base = 0
 
-    for result in results:
+    for result, context in zip(results, cohesion_contexts, strict=True):
         forest = result.ab_forest if use_ab_forest else result.forest
         annotation = _result_annotation(result, include_composition)
         units = result.selection.units
@@ -569,12 +588,15 @@ def _cis_node_rows(
             ):
                 for node in tree.nodes:
                     local_indices = group[node.unit_indices]
+                    cross_oe, cross_oe_excess = context.node_metrics(local_indices)
                     base = _node_fields(
                         result.chrom,
                         tree.root_label,
                         node,
                         offset,
                         _node_oe(result, local_indices),
+                        cross_oe,
+                        cross_oe_excess,
                     )
                     if not node.is_leaf:
                         row = dict(base)
@@ -622,6 +644,8 @@ def _cis_node_rows(
                 "child_ids": [],
                 "stop_reason": None,
                 "node_oe": _node_oe(result, np.array([local_index], dtype=np.int64)),
+                "cross_oe": None,
+                "cross_oe_excess": None,
             }
             row.update(
                 _leaf_unit_fields(
