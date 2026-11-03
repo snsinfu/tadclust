@@ -97,6 +97,8 @@ Columns in the main table:
 | n_units           | int              | Number of units under the node. |
 | n_working_bins    | int              | Number of working bins covered by the units under the node. |
 | node_oe           | float            | Mean log2 O/E over all units and unit pairs under the node. |
+| cross_oe          | float            | The pairwise component of node_oe. |
+| cross_oe_excess   | float            | cross_oe with distance-dependent baseline subtracted. |
 | node_internal_sse | float            | Feature-space SSE of leaves under the node. |
 | node_split_gain   | float            | Relative SSE reduction of splitting at this node. |
 | stop_reason       | degenerate       | Reason of abruptly stopped splitting or null. |
