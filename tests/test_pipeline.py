@@ -140,7 +140,7 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert not (tmp_path / "out").exists()
 
 
-def test_cluster_log_oe_source_is_default(mcool, tmp_path) -> None:
+def test_cluster_oe_source_is_default(mcool, tmp_path) -> None:
     tads = base_tads(tmp_path)
     default = cluster(make_config(mcool, tads, tmp_path))
     explicit = cluster(
@@ -149,17 +149,17 @@ def test_cluster_log_oe_source_is_default(mcool, tmp_path) -> None:
             tads,
             tmp_path,
             output_dir=tmp_path / "explicit",
-            pca_source="log_oe",
+            cis_clustering_source="oe",
         )
     )
 
-    assert default.params["requested"]["pca_source"] == "log_oe"
-    assert explicit.params["requested"]["pca_source"] == "log_oe"
+    assert default.params["requested"]["cis_clustering_source"] == "oe"
+    assert explicit.params["requested"]["cis_clustering_source"] == "oe"
     assert default.cis_nodes.equals(explicit.cis_nodes)
     assert default.cis_leaves.equals(explicit.cis_leaves)
 
 
-def test_cluster_log_frequency_source(mcool, tmp_path) -> None:
+def test_cluster_frequency_source(mcool, tmp_path) -> None:
     tads = base_tads(tmp_path)
     default = cluster(make_config(mcool, tads, tmp_path))
     frequency = cluster(
@@ -168,11 +168,11 @@ def test_cluster_log_frequency_source(mcool, tmp_path) -> None:
             tads,
             tmp_path,
             output_dir=tmp_path / "frequency",
-            pca_source="log_frequency",
+            cis_clustering_source="frequency",
         )
     )
 
-    assert frequency.params["requested"]["pca_source"] == "log_frequency"
+    assert frequency.params["requested"]["cis_clustering_source"] == "frequency"
     assert frequency.cis_leaves.height == default.cis_leaves.height
     assert frequency.cis_nodes["node_oe"].is_finite().all()
     assert frequency.cis_leaves["node_oe"].is_finite().all()
@@ -527,41 +527,41 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
     ]
 
 
-def test_cluster_with_ab_log_frequency_source(mcool, tmp_path) -> None:
+def test_cluster_with_ab_frequency_source(mcool, tmp_path) -> None:
     tads = ab_tads(tmp_path)
     track = ab_track(tmp_path)
-    log_oe = cluster(
+    oe_run = cluster(
         make_config(
             mcool,
             tads,
             tmp_path,
-            output_dir=tmp_path / "log_oe",
+            output_dir=tmp_path / "oe",
             ab_feature_track=track,
         )
     )
-    log_frequency = cluster(
+    frequency_run = cluster(
         make_config(
             mcool,
             tads,
             tmp_path,
-            output_dir=tmp_path / "log_frequency",
+            output_dir=tmp_path / "frequency",
             ab_feature_track=track,
-            pca_source="log_frequency",
+            cis_clustering_source="frequency",
         )
     )
 
-    assert log_frequency.params["requested"]["pca_source"] == "log_frequency"
-    assert log_frequency.params["resolved"]["ab_pca_source"] == "log_oe"
-    assert log_frequency.cis_nodes_ab is not None
-    assert log_frequency.cis_leaves_ab is not None
-    assert "ab_label" in log_frequency.cis_nodes_ab.columns
-    assert set(log_frequency.cis_nodes_ab["root_label"].to_list()) >= {"A", "B"}
-    assert log_frequency.cis_nodes["node_oe"].is_finite().all()
+    assert frequency_run.params["requested"]["cis_clustering_source"] == "frequency"
+    assert frequency_run.params["resolved"]["ab_pca_source"] == "oe"
+    assert frequency_run.cis_nodes_ab is not None
+    assert frequency_run.cis_leaves_ab is not None
+    assert "ab_label" in frequency_run.cis_nodes_ab.columns
+    assert set(frequency_run.cis_nodes_ab["root_label"].to_list()) >= {"A", "B"}
+    assert frequency_run.cis_nodes["node_oe"].is_finite().all()
 
     # Per-unit A/B annotation must not depend on the tree PC source.
     for table_name in ("cis_leaves", "cis_leaves_ab"):
-        left = getattr(log_oe, table_name)
-        right = getattr(log_frequency, table_name)
+        left = getattr(oe_run, table_name)
+        right = getattr(frequency_run, table_name)
         assert (
             left.select("unit_id", "ab_label")
             .sort("unit_id")
@@ -575,12 +575,12 @@ def test_cluster_with_ab_log_frequency_source(mcool, tmp_path) -> None:
 
     # The tree source is not silently changed.
     assert not np.allclose(
-        np.vstack(log_oe.cis_leaves["pc"].to_list()),
-        np.vstack(log_frequency.cis_leaves["pc"].to_list()),
+        np.vstack(oe_run.cis_leaves["pc"].to_list()),
+        np.vstack(frequency_run.cis_leaves["pc"].to_list()),
     )
 
 
-def test_cluster_ab_log_frequency_parallel_matches_serial(mcool, tmp_path) -> None:
+def test_cluster_ab_frequency_parallel_matches_serial(mcool, tmp_path) -> None:
     tads = ab_tads(tmp_path)
     track = ab_track(tmp_path)
     serial = cluster(
@@ -590,7 +590,7 @@ def test_cluster_ab_log_frequency_parallel_matches_serial(mcool, tmp_path) -> No
             tmp_path,
             output_dir=tmp_path / "serial",
             ab_feature_track=track,
-            pca_source="log_frequency",
+            cis_clustering_source="frequency",
             workers=1,
         )
     )
@@ -601,7 +601,7 @@ def test_cluster_ab_log_frequency_parallel_matches_serial(mcool, tmp_path) -> No
             tmp_path,
             output_dir=tmp_path / "parallel",
             ab_feature_track=track,
-            pca_source="log_frequency",
+            cis_clustering_source="frequency",
             workers=2,
         )
     )

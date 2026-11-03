@@ -283,7 +283,7 @@ def pcs_from_log_oe(
     *,
     label: str = "cis",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Compute PCs from the cosine-normalized O/E matrix."""
+    """Compute PCs from the cosine-normalized log O/E matrix (`oe` source)."""
     return compute_top_pcs(cosine_normalize(matrix), n_pcs, label=label)
 
 
@@ -296,7 +296,7 @@ def pcs_from_log_frequency(
     clip_max: float,
     label: str = "cis",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Compute PCs from double-centered log-frequency contacts.
+    """Compute PCs from double-centered log-frequency contacts (`frequency` source).
 
     The log-frequency matrix has no distance-decay null. Symmetric
     double-centering removes additive row/column effects (unit-level contact
@@ -349,19 +349,19 @@ def pcs_from_cis_source(
     observed: np.ndarray,
     log_oe: np.ndarray,
     alpha: float,
-    pca_source: str,
+    pc_source: str,
     n_pcs: int,
     *,
     clip_min: float,
     clip_max: float,
     label: str = "cis",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Compute cis PCs from the selected source."""
-    if pca_source == "log_oe":
+    """Compute cis PCs from the selected PC source (`oe` or `frequency`)."""
+    if pc_source == "oe":
         pca_input = np.array(log_oe, dtype=np.float64, copy=True)
         np.fill_diagonal(pca_input, 0.0)
         return pcs_from_log_oe(pca_input, n_pcs, label=label)
-    if pca_source == "log_frequency":
+    if pc_source == "frequency":
         return pcs_from_log_frequency(
             observed,
             alpha,
@@ -371,7 +371,7 @@ def pcs_from_cis_source(
             label=label,
         )
     raise ClusteringError(
-        f"unknown pca_source: {pca_source!r}",
+        f"unknown pc_source: {pc_source!r}",
         matrix=label,
     )
 
@@ -434,10 +434,10 @@ def compute_fine_unit_matrices(
     clip_min: float,
     clip_max: float,
     n_pcs: int,
-    pca_source: str = "log_oe",
+    pc_source: str = "oe",
     balance: bool = True,
 ) -> FineUnitMatrices:
-    """Aggregate cis O/E to fine units and compute PCs from `pca_source`."""
+    """Aggregate cis O/E to fine units and compute PCs from `pc_source`."""
     if n_fine < 1:
         raise ClusteringError(
             f"{chrom}: no fine units",
@@ -541,7 +541,7 @@ def compute_fine_unit_matrices(
         observed_fine,
         log_oe,
         alpha,
-        pca_source,
+        pc_source,
         n_pcs,
         clip_min=clip_min,
         clip_max=clip_max,
@@ -568,10 +568,10 @@ def compute_unit_matrices(
     clip_min: float,
     clip_max: float,
     n_pcs: int,
-    pca_source: str = "log_oe",
+    pc_source: str = "oe",
     label: str = "units",
 ) -> UnitMatrices:
-    """Aggregate fine O/E to selected units and compute PCs from `pca_source`."""
+    """Aggregate fine O/E to selected units and compute PCs from `pc_source`."""
     observed = np.asarray(
         unit_map.T @ observed_fine @ unit_map,
         dtype=np.float64,
@@ -593,7 +593,7 @@ def compute_unit_matrices(
         observed,
         log_oe,
         alpha,
-        pca_source,
+        pc_source,
         n_pcs,
         clip_min=clip_min,
         clip_max=clip_max,

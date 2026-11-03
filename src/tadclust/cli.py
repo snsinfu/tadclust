@@ -8,7 +8,11 @@ import sys
 from collections.abc import Sequence
 
 from . import __version__
-from .config import PCA_SOURCE_CHOICES, TRANS_NULL_CHOICES, ClusterConfig
+from .config import (
+    CIS_CLUSTERING_SOURCE_CHOICES,
+    TRANS_NULL_CHOICES,
+    ClusterConfig,
+)
 from .errors import TadclustError
 from .pipeline import cluster
 from .processes import prepare_process_context
@@ -127,12 +131,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="pseudocount scale on the smallest non-zero expected value, used by both PCA sources",
     )
     advanced.add_argument(
-        "--pca-source",
-        choices=PCA_SOURCE_CHOICES,
-        default="log_oe",
+        "--cis-clustering-source",
+        choices=CIS_CLUSTERING_SOURCE_CHOICES,
+        default="oe",
         help=(
-            "cis tree PCA source: log_oe (default) or double-centered "
-            "log_frequency; A/B annotation always uses log_oe"
+            "cis clustering PC source: oe (default) uses distance-corrected log O/E "
+            "and favors global/compartment-correlated structure; frequency uses "
+            "double-centered log contact frequency and keeps deep branches local. "
+            "A/B annotation always uses oe; trans always uses oe."
         ),
     )
     advanced.add_argument(
@@ -192,7 +198,7 @@ def _run(raw_args: list[str]) -> None:
         clip_min=args.clip_min,
         clip_max=args.clip_max,
         pseudocount_scale=args.pseudocount_scale,
-        pca_source=args.pca_source,
+        cis_clustering_source=args.cis_clustering_source,
         dp_lambda_scale=args.dp_lambda_scale,
         with_residuals=args.with_residuals,
         tree_pca_dim=args.tree_pca_dim,

@@ -176,7 +176,7 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     assert manifest["cli"] == {"argv": ["--mcool", str(mcool)]}
     assert manifest["params"]["resolved"]["working_binsize"] == 500
     assert manifest["params"]["requested"]["with_residuals"] is False
-    assert manifest["params"]["requested"]["pca_source"] == "log_oe"
+    assert manifest["params"]["requested"]["cis_clustering_source"] == "oe"
     assert manifest["params"]["requested"]["distance_bins"] == 60
     assert manifest["params"]["requested"]["clip_min"] == -10.0
     assert manifest["params"]["requested"]["clip_max"] == 10.0

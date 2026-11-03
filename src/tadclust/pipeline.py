@@ -720,7 +720,7 @@ def _build_params(
             "clip_min": config.clip_min,
             "clip_max": config.clip_max,
             "pseudocount_scale": config.pseudocount_scale,
-            "pca_source": config.pca_source,
+            "cis_clustering_source": config.cis_clustering_source,
             "dp_lambda_scale": config.dp_lambda_scale,
             "with_residuals": config.with_residuals,
             "tree_pca_dim": config.tree_pca_dim,
@@ -735,9 +735,7 @@ def _build_params(
             "working_binsize_mode": choice.mode,
             "input_mode": source.mode,
             "chromosomes": list(chromosomes),
-            "ab_pca_source": (
-                "log_oe" if config.ab_feature_track is not None else None
-            ),
+            "ab_pca_source": ("oe" if config.ab_feature_track is not None else None),
         },
     }
 

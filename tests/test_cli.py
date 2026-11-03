@@ -99,7 +99,7 @@ def test_cli_default_tree_branch_k() -> None:
 
     assert args.tree_branch_k == 2
     assert args.with_residuals is False
-    assert args.pca_source == "log_oe"
+    assert args.cis_clustering_source == "oe"
     assert args.quiet is False
 
 
@@ -119,7 +119,7 @@ def test_cli_with_residuals_flag() -> None:
     assert args.with_residuals is True
 
 
-def test_cli_pca_source() -> None:
+def test_cli_cis_clustering_source() -> None:
     args = parse_args(
         [
             "--mcool",
@@ -128,15 +128,15 @@ def test_cli_pca_source() -> None:
             "domains.tsv",
             "--output-dir",
             "out",
-            "--pca-source",
-            "log_frequency",
+            "--cis-clustering-source",
+            "frequency",
         ]
     )
 
-    assert args.pca_source == "log_frequency"
+    assert args.cis_clustering_source == "frequency"
 
 
-def test_cli_rejects_unknown_pca_source() -> None:
+def test_cli_rejects_unknown_cis_clustering_source() -> None:
     with pytest.raises(SystemExit) as info:
         parse_args(
             [
@@ -146,8 +146,27 @@ def test_cli_rejects_unknown_pca_source() -> None:
                 "domains.tsv",
                 "--output-dir",
                 "out",
-                "--pca-source",
+                "--cis-clustering-source",
                 "bogus",
+            ]
+        )
+
+    assert info.value.code == 2
+
+
+@pytest.mark.parametrize("source", ["log_oe", "log_frequency"])
+def test_cli_rejects_legacy_clustering_source_values(source) -> None:
+    with pytest.raises(SystemExit) as info:
+        parse_args(
+            [
+                "--mcool",
+                "test.mcool",
+                "--tad-table",
+                "domains.tsv",
+                "--output-dir",
+                "out",
+                "--cis-clustering-source",
+                source,
             ]
         )
 
@@ -191,6 +210,7 @@ def test_cli_short_aliases(tmp_path) -> None:
         "--oe-clip-min",
         "--oe-clip-max",
         "--oe-pseudocount-scale",
+        "--pca-source",
     ],
 )
 def test_cli_old_flags_rejected(flag) -> None:
@@ -226,6 +246,22 @@ def test_cli_cis_run(mcool, tmp_path) -> None:
     assert (out / "cis_leaves.tsv").exists()
     assert not (out / "cis_leaves_ab.tsv").exists()
     assert not (out / "trans_nodes.parquet").exists()
+
+
+def test_cli_frequency_clustering_source(mcool, tmp_path) -> None:
+    args = cli_args(
+        mcool,
+        base_tads(tmp_path),
+        tmp_path,
+        "--cis-clustering-source",
+        "frequency",
+    )
+
+    main(args)
+
+    out = tmp_path / "out"
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert manifest["params"]["requested"]["cis_clustering_source"] == "frequency"
 
 
 def test_cli_log_format(capsys, mcool, tmp_path) -> None:
@@ -333,7 +369,7 @@ def test_help_lists_advanced(capsys) -> None:
     assert "--clip-min" in out
     assert "--clip-max" in out
     assert "--pseudocount-scale" in out
-    assert "--pca-source" in out
+    assert "--cis-clustering-source" in out
     assert "--tree-pca-dim" in out
     assert "--tree-branch-k" in out
     assert "--uniform-bins" in out

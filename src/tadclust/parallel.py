@@ -164,7 +164,7 @@ def _select_chromosome(
         clip_min=config.clip_min,
         clip_max=config.clip_max,
         n_pcs=config.tree_pca_dim,
-        pca_source=config.pca_source,
+        pc_source=config.cis_clustering_source,
     )
     selection = select_units(
         tree,
@@ -176,18 +176,18 @@ def _select_chromosome(
         dp_lambda_scale=config.dp_lambda_scale,
         tree_branch_k=config.tree_branch_k,
         seed=config.seed,
-        pca_source=config.pca_source,
+        pc_source=config.cis_clustering_source,
         unit_kind=source.unit_kind,
         with_residuals=config.with_residuals,
     )
     pcs = canonicalize_pc1_sign(selection.matrices.pcs)
     ab_pcs = None
-    if config.ab_feature_track is not None and config.pca_source != "log_oe":
+    if config.ab_feature_track is not None and config.cis_clustering_source != "oe":
         ab_pcs, _, _ = pcs_from_cis_source(
             selection.matrices.observed,
             selection.matrices.log_oe,
             selection.matrices.alpha,
-            "log_oe",
+            "oe",
             config.tree_pca_dim,
             clip_min=config.clip_min,
             clip_max=config.clip_max,

@@ -278,7 +278,7 @@ def test_pcs_from_log_frequency_rejects_non_positive_alpha() -> None:
         )
 
 
-def test_pcs_from_cis_source_log_oe_matches_existing_path() -> None:
+def test_pcs_from_cis_source_oe_matches_existing_path() -> None:
     log_oe = np.array(
         [
             [2.0, 1.0, 0.0],
@@ -301,7 +301,38 @@ def test_pcs_from_cis_source_log_oe_matches_existing_path() -> None:
         np.eye(3),
         log_oe,
         1.0,
-        "log_oe",
+        "oe",
+        2,
+        clip_min=-10.0,
+        clip_max=10.0,
+    )
+
+    assert np.allclose(pcs, expected)
+
+
+def test_pcs_from_cis_source_frequency_matches_log_frequency() -> None:
+    observed = np.array(
+        [
+            [10.0, 2.0, 0.0],
+            [2.0, 20.0, 3.0],
+            [0.0, 3.0, 30.0],
+        ]
+    )
+    log_oe = np.zeros((3, 3))
+    alpha = 0.5
+
+    expected, _, _ = pcs_from_log_frequency(
+        observed,
+        alpha,
+        2,
+        clip_min=-10.0,
+        clip_max=10.0,
+    )
+    pcs, _, _ = pcs_from_cis_source(
+        observed,
+        log_oe,
+        alpha,
+        "frequency",
         2,
         clip_min=-10.0,
         clip_max=10.0,
