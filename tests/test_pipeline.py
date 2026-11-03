@@ -313,6 +313,46 @@ def test_hierarchical_tads_use_dp(monkeypatch, mcool, tmp_path) -> None:
         cluster(make_config(mcool, tads, tmp_path))
 
 
+def test_hierarchy_roots_selection_skips_dp(monkeypatch, mcool, tmp_path) -> None:
+    tads = write_tads(
+        tmp_path,
+        [
+            ("chr1", 0, 1500),
+            ("chr1", 0, 500),
+            ("chr1", 500, 1500),
+            ("chr1", 1500, 2000),
+            ("chr2", 0, 1500),
+            ("chr2", 0, 500),
+            ("chr2", 500, 1500),
+            ("chr2", 1500, 2000),
+        ],
+    )
+
+    def fail(*args, **kwargs):
+        raise AssertionError("DP must not run for roots selection")
+
+    monkeypatch.setattr(domains_module, "antichain_dp", fail)
+
+    result = cluster(
+        make_config(
+            mcool,
+            tads,
+            tmp_path,
+            unit_selection="roots",
+        )
+    )
+
+    assert result.cis_leaves.height == 4
+    assert result.cis_leaves["unit_start"].to_list() == [0, 1500, 0, 1500]
+    assert result.cis_leaves["unit_end"].to_list() == [1500, 2000, 1500, 2000]
+    assert result.cis_leaves["tad_table_row"].to_list() == [0, 3, 4, 7]
+    assert result.params["requested"]["unit_selection"] == "roots"
+    for chromosome_qc in result.qc["per_chromosome"].values():
+        assert chromosome_qc["cis"]["dp_cut_size"] == 2
+        assert chromosome_qc["cis"]["dp_objective"] == 0.0
+        assert chromosome_qc["cis"]["dp_lambda"] == 0.0
+
+
 def test_cluster_uniform_bins_parallel_matches_serial(mcool, tmp_path) -> None:
     serial = cluster(
         make_uniform_config(

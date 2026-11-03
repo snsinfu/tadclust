@@ -7,6 +7,7 @@ import math
 import numpy as np
 import pytest
 
+import tadclust.domains as domains_module
 from tadclust.domains import (
     antichain_dp,
     assign_bin_counts,
@@ -446,6 +447,93 @@ def test_select_units_disjoint_residuals_are_opt_in(tmp_path) -> None:
     assert sum(unit.unit_kind == "residual" for unit in with_residuals.units) == 2
     assert with_residuals.fine_to_unit.tolist() == [0, 1, 2, 3, 4]
     assert with_residuals.matrices.pcs.shape[0] == 5
+
+
+def test_select_units_hierarchy_roots_skip_dp(tmp_path, monkeypatch) -> None:
+    tree = make_tree(tmp_path, hierarchy_rows())
+    centers = (np.arange(20) + 0.5) * 100.0
+    assign_bin_counts(tree, centers)
+    fine = make_fine(
+        [
+            [-2.0, 0.0],
+            [-1.0, 0.0],
+            [1.0, 0.0],
+            [2.0, 0.0],
+        ],
+        [4, 2, 4, 10],
+    )
+
+    def fail(*args, **kwargs):
+        raise AssertionError("DP must not run")
+
+    monkeypatch.setattr(domains_module, "antichain_dp", fail)
+
+    selection = select_units(
+        tree,
+        fine,
+        n_pcs=2,
+        pseudocount=1.0,
+        clip_min=-10.0,
+        clip_max=10.0,
+        dp_lambda_scale=100.0,
+        tree_branch_k=3,
+        seed=0,
+        unit_selection="roots",
+    )
+
+    assert [(unit.unit_kind, unit.start, unit.end) for unit in selection.units] == [
+        ("tad", 0, 1000),
+        ("tad", 1000, 2000),
+    ]
+    assert [unit.tad_table_row for unit in selection.units] == [0, 3]
+    assert selection.cut_size == 2
+    assert selection.objective == 0.0
+    assert selection.dp_lambda == 0.0
+
+
+def test_select_units_hierarchy_roots_add_residuals(tmp_path) -> None:
+    tree = make_tree(
+        tmp_path,
+        [
+            ("chr1", 200, 800),
+            ("chr1", 400, 600),
+        ],
+        chromsize=1000,
+    )
+    centers = (np.arange(10) + 0.5) * 100.0
+    assign_bin_counts(tree, centers)
+    fine = make_fine(
+        [
+            [-2.0, 0.0],
+            [-1.0, 0.0],
+            [0.0, 0.0],
+            [1.0, 0.0],
+            [2.0, 0.0],
+        ],
+        [2, 2, 2, 2, 2],
+    )
+
+    selection = select_units(
+        tree,
+        fine,
+        n_pcs=2,
+        pseudocount=1.0,
+        clip_min=-10.0,
+        clip_max=10.0,
+        dp_lambda_scale=100.0,
+        tree_branch_k=3,
+        seed=0,
+        unit_selection="roots",
+        with_residuals=True,
+    )
+
+    assert [(unit.unit_kind, unit.start, unit.end) for unit in selection.units] == [
+        ("residual", 0, 200),
+        ("tad", 200, 800),
+        ("residual", 800, 1000),
+    ]
+    assert [unit.tad_table_row for unit in selection.units] == [None, 0, None]
+    assert selection.cut_size == 1
 
 
 def test_select_units_flat_tree_uses_bin_kind_and_reuses_matrices() -> None:

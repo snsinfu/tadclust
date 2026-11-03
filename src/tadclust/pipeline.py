@@ -724,6 +724,7 @@ def _build_params(
             "pseudocount_scale": config.pseudocount_scale,
             "cis_clustering_source": config.cis_clustering_source,
             "dp_lambda_scale": config.dp_lambda_scale,
+            "unit_selection": config.unit_selection,
             "with_residuals": config.with_residuals,
             "tree_pca_dim": config.tree_pca_dim,
             "tree_branch_k": config.tree_branch_k,

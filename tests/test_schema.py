@@ -336,6 +336,7 @@ def test_manifest_contract(mcool, tmp_path) -> None:
     assert manifest["params"]["resolved"]["working_binsize_mode"] == "explicit"
     assert manifest["params"]["requested"]["with_residuals"] is False
     assert manifest["params"]["requested"]["cis_clustering_source"] == "oe"
+    assert manifest["params"]["requested"]["unit_selection"] == "dp"
     assert manifest["params"]["requested"]["distance_bins"] == 60
     assert manifest["params"]["requested"]["clip_min"] == -10.0
     assert manifest["params"]["requested"]["clip_max"] == 10.0
