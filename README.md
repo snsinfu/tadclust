@@ -6,21 +6,19 @@ Given any TAD annotation and a contact map, TADCLUST applies hierarchical cluste
 
 ## Install
 
-TADCLUST is experimental and not released yet. Git clone, and use uv to try it out:
+TADCLUST is available on pypi as [tadclust](https://pypi.org/project/tadclust/). You may use uvx to quickly try it out:
 
 ```console
-$ git clone https://github.com/snsinfu/tadclust.git
-$ cd tadclust
-$ uv run tadclust -h
-````
+$ uvx tadclust -h
+```
 
-Or, use docker (currently not regularly updated):
+or docker:
 
 ```console
 $ docker run --rm ghcr.io/snsinfu/tadclust tadclust -h
 ```
 
-Installing to a uv/pixi project from the GitHub repository:
+To install a dev version to a uv/pixi project:
 
 ```console
 $ uv add git+https://github.com/snsinfu/tadclust.git
