@@ -100,6 +100,7 @@ def test_cli_default_tree_branch_k() -> None:
     assert args.tree_branch_k == 2
     assert args.with_residuals is False
     assert args.cis_clustering_source == "oe"
+    assert args.unit_selection == "dp"
     assert args.quiet is False
 
 
@@ -134,6 +135,41 @@ def test_cli_cis_clustering_source() -> None:
     )
 
     assert args.cis_clustering_source == "frequency"
+
+
+def test_cli_unit_selection_roots() -> None:
+    args = parse_args(
+        [
+            "--mcool",
+            "test.mcool",
+            "--tad-table",
+            "domains.tsv",
+            "--output-dir",
+            "out",
+            "--unit-selection",
+            "roots",
+        ]
+    )
+
+    assert args.unit_selection == "roots"
+
+
+def test_cli_rejects_unknown_unit_selection() -> None:
+    with pytest.raises(SystemExit) as info:
+        parse_args(
+            [
+                "--mcool",
+                "test.mcool",
+                "--tad-table",
+                "domains.tsv",
+                "--output-dir",
+                "out",
+                "--unit-selection",
+                "bogus",
+            ]
+        )
+
+    assert info.value.code == 2
 
 
 def test_cli_rejects_unknown_cis_clustering_source() -> None:
@@ -241,6 +277,7 @@ def test_cli_cis_run(mcool, tmp_path) -> None:
     manifest = json.loads((out / "manifest.json").read_text())
     assert manifest["cli"]["argv"] == args
     assert manifest["params"]["resolved"]["working_binsize"] == 500
+    assert manifest["params"]["requested"]["unit_selection"] == "dp"
     assert manifest["qc"]["summary"]["n_units"] == 4
     assert (out / "cis_leaves.parquet").exists()
     assert (out / "cis_leaves.tsv").exists()
@@ -370,6 +407,7 @@ def test_help_lists_advanced(capsys) -> None:
     assert "--clip-max" in out
     assert "--pseudocount-scale" in out
     assert "--cis-clustering-source" in out
+    assert "--unit-selection" in out
     assert "--tree-pca-dim" in out
     assert "--tree-branch-k" in out
     assert "--uniform-bins" in out
