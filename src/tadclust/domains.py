@@ -556,11 +556,15 @@ def select_units(
     seed: int,
     pc_source: str = "oe",
     unit_kind: str = "tad",
+    unit_selection: str = "dp",
     with_residuals: bool = False,
 ) -> UnitSelection:
     """Select units, aggregate O/E, and compute unit PCs from `pc_source`.
 
-    The DP always runs on the complete fine-unit set, including gaps. Residual
+    `unit_selection="dp"` chooses an SSE-DP antichain of TAD nodes.
+    `unit_selection="roots"` takes the top-level TAD node of each input
+    hierarchy and skips the DP. Disjoint and flat trees always select every
+    node. The DP runs on the complete fine-unit set, including gaps. Residual
     units are added after the cut only when `with_residuals` is true.
     """
     bins_per_fine_unit = np.asarray(
@@ -577,6 +581,10 @@ def select_units(
     total_variance = total_weighted_variance(fine.pcs, bins_per_fine_unit)
     if is_disjoint(tree):
         cut = [node_id for node_id in tree.nodes if node_id != tree.root_id]
+        objective = 0.0
+        lambda_value = 0.0
+    elif unit_selection == "roots":
+        cut = list(tree.nodes[tree.root_id].children)
         objective = 0.0
         lambda_value = 0.0
     else:

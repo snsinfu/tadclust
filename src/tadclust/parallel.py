@@ -178,6 +178,7 @@ def _select_chromosome(
         seed=config.seed,
         pc_source=config.cis_clustering_source,
         unit_kind=source.unit_kind,
+        unit_selection=config.unit_selection,
         with_residuals=config.with_residuals,
     )
     pcs = canonicalize_pc1_sign(selection.matrices.pcs)
