@@ -11,7 +11,11 @@ from threadpoolctl import threadpool_limits
 
 from .config import ClusterConfig
 from .domains import ChromosomeTree, UnitSelection, select_units
-from .matrix import canonicalize_pc1_sign, compute_fine_unit_matrices
+from .matrix import (
+    canonicalize_pc1_sign,
+    compute_fine_unit_matrices,
+    pcs_from_cis_source,
+)
 from .mcool import open_cooler
 from .processes import process_context
 from .signals import ignore_sigint
@@ -29,6 +33,7 @@ class ChromosomeSelection:
     unit_selection: UnitSelection
     pcs: np.ndarray
     unit_bins: np.ndarray
+    ab_pcs: np.ndarray | None = None
 
 
 def run_cis_serial(
@@ -176,6 +181,19 @@ def _select_chromosome(
         with_residuals=config.with_residuals,
     )
     pcs = canonicalize_pc1_sign(selection.matrices.pcs)
+    ab_pcs = None
+    if config.ab_feature_track is not None and config.pca_source != "log_oe":
+        ab_pcs, _, _ = pcs_from_cis_source(
+            selection.matrices.observed,
+            selection.matrices.log_oe,
+            selection.matrices.alpha,
+            "log_oe",
+            config.tree_pca_dim,
+            clip_min=config.clip_min,
+            clip_max=config.clip_max,
+            label=f"units-ab:{chrom}",
+        )
+        ab_pcs = canonicalize_pc1_sign(ab_pcs)
     unit_bins = np.asarray(
         [unit.n_working_bins for unit in selection.units],
         dtype=np.int64,
@@ -186,4 +204,5 @@ def _select_chromosome(
         unit_selection=selection,
         pcs=pcs,
         unit_bins=unit_bins,
+        ab_pcs=ab_pcs,
     )

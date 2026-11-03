@@ -242,6 +242,7 @@ def _build_cis_results(
 
     for selection in selections:
         base_pcs = selection.pcs
+        ab_base_pcs = selection.ab_pcs if selection.ab_pcs is not None else base_pcs
         unit_bins = selection.unit_bins
         annotation = None
         n_uncovered = 0
@@ -257,15 +258,17 @@ def _build_cis_results(
             )
             feature_rank, n_uncovered = fill_and_rank(values, selection.chrom)
             pcs = orient_pcs_to_feature(base_pcs, feature_rank)
+            ab_pcs = orient_pcs_to_feature(ab_base_pcs, feature_rank)
             clusterable = informative_mask(pcs, config.tree_pca_dim)
-            features = ab_feature_matrix(pcs, feature_rank, config.tree_pca_dim)
+            ab_clusterable = informative_mask(ab_pcs, config.tree_pca_dim)
+            features = ab_feature_matrix(ab_pcs, feature_rank, config.tree_pca_dim)
             annotation = annotate_ab(
                 features,
                 feature_rank,
                 len(selection.unit_selection.units),
                 config.seed,
                 n_pcs=config.tree_pca_dim,
-                clusterable=clusterable,
+                clusterable=ab_clusterable,
             )
 
         forest = build_cis_forest(
@@ -732,6 +735,9 @@ def _build_params(
             "working_binsize_mode": choice.mode,
             "input_mode": source.mode,
             "chromosomes": list(chromosomes),
+            "ab_pca_source": (
+                "log_oe" if config.ab_feature_track is not None else None
+            ),
         },
     }
 

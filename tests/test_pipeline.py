@@ -528,22 +528,97 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
 
 
 def test_cluster_with_ab_log_frequency_source(mcool, tmp_path) -> None:
-    result = cluster(
+    tads = ab_tads(tmp_path)
+    track = ab_track(tmp_path)
+    log_oe = cluster(
         make_config(
             mcool,
-            ab_tads(tmp_path),
+            tads,
             tmp_path,
-            ab_feature_track=ab_track(tmp_path),
+            output_dir=tmp_path / "log_oe",
+            ab_feature_track=track,
+        )
+    )
+    log_frequency = cluster(
+        make_config(
+            mcool,
+            tads,
+            tmp_path,
+            output_dir=tmp_path / "log_frequency",
+            ab_feature_track=track,
             pca_source="log_frequency",
         )
     )
 
-    assert result.params["requested"]["pca_source"] == "log_frequency"
-    assert result.cis_nodes_ab is not None
-    assert result.cis_leaves_ab is not None
-    assert "ab_label" in result.cis_nodes_ab.columns
-    assert set(result.cis_nodes_ab["root_label"].to_list()) >= {"A", "B"}
-    assert result.cis_nodes["node_oe"].is_finite().all()
+    assert log_frequency.params["requested"]["pca_source"] == "log_frequency"
+    assert log_frequency.params["resolved"]["ab_pca_source"] == "log_oe"
+    assert log_frequency.cis_nodes_ab is not None
+    assert log_frequency.cis_leaves_ab is not None
+    assert "ab_label" in log_frequency.cis_nodes_ab.columns
+    assert set(log_frequency.cis_nodes_ab["root_label"].to_list()) >= {"A", "B"}
+    assert log_frequency.cis_nodes["node_oe"].is_finite().all()
+
+    # Per-unit A/B annotation must not depend on the tree PC source.
+    for table_name in ("cis_leaves", "cis_leaves_ab"):
+        left = getattr(log_oe, table_name)
+        right = getattr(log_frequency, table_name)
+        assert (
+            left.select("unit_id", "ab_label")
+            .sort("unit_id")
+            .equals(right.select("unit_id", "ab_label").sort("unit_id"))
+        )
+        np.testing.assert_allclose(
+            left["ab_signal"].to_numpy(),
+            right["ab_signal"].to_numpy(),
+            equal_nan=True,
+        )
+
+    # The tree source is not silently changed.
+    assert not np.allclose(
+        np.vstack(log_oe.cis_leaves["pc"].to_list()),
+        np.vstack(log_frequency.cis_leaves["pc"].to_list()),
+    )
+
+
+def test_cluster_ab_log_frequency_parallel_matches_serial(mcool, tmp_path) -> None:
+    tads = ab_tads(tmp_path)
+    track = ab_track(tmp_path)
+    serial = cluster(
+        make_config(
+            mcool,
+            tads,
+            tmp_path,
+            output_dir=tmp_path / "serial",
+            ab_feature_track=track,
+            pca_source="log_frequency",
+            workers=1,
+        )
+    )
+    parallel = cluster(
+        make_config(
+            mcool,
+            tads,
+            tmp_path,
+            output_dir=tmp_path / "parallel",
+            ab_feature_track=track,
+            pca_source="log_frequency",
+            workers=2,
+        )
+    )
+
+    for table_name in ("cis_leaves", "cis_leaves_ab"):
+        left = getattr(serial, table_name)
+        right = getattr(parallel, table_name)
+        assert (
+            left.select("unit_id", "ab_label")
+            .sort("unit_id")
+            .equals(right.select("unit_id", "ab_label").sort("unit_id"))
+        )
+        np.testing.assert_allclose(
+            left["ab_signal"].to_numpy(),
+            right["ab_signal"].to_numpy(),
+            equal_nan=True,
+        )
 
 
 def test_cluster_with_ab_omits_residuals(

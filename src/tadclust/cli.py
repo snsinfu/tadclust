@@ -130,7 +130,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--pca-source",
         choices=PCA_SOURCE_CHOICES,
         default="log_oe",
-        help="cis PCA source: log_oe (default) or double-centered log_frequency",
+        help=(
+            "cis tree PCA source: log_oe (default) or double-centered "
+            "log_frequency; A/B annotation always uses log_oe"
+        ),
     )
     advanced.add_argument(
         "--dp-lambda-scale",
