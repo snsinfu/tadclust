@@ -263,7 +263,7 @@ def test_build_ab_forest_two_roots() -> None:
         node_base=100,
     )
 
-    assert [tree.root_label for tree in forest.trees] == ["A", "B"]
+    assert [tree.branch_label for tree in forest.trees] == ["A", "B"]
     assert forest.node_offsets[0] == 100
     assert forest.node_offsets[1] == 100 + len(forest.trees[0].nodes)
     assert forest.groups[0].tolist() == annotation.a_indices.tolist()
@@ -295,7 +295,7 @@ def test_build_ab_forest_degenerate_fallback() -> None:
     )
 
     assert len(forest.trees) == 1
-    assert forest.trees[0].root_label == "chrom"
+    assert forest.trees[0].branch_label is None
     assert forest.trees[0].nodes[0].stop_reason == "ab_degenerate"
     assert forest.groups[0].tolist() == [0, 1]
 

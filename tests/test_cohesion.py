@@ -358,10 +358,12 @@ def assert_mst_rows(
     for row in branch_rows.iter_rows(named=True):
         path_label = row["path_label"]
         if row["path"] == []:
-            descendants = leaves.filter(
-                pl.col("path_label").is_not_null()
-                & (pl.col("root_label") == row["root_label"])
-            )
+            if path_label.rsplit(":", 1)[-1] in {"A", "B"}:
+                descendants = leaves.filter(
+                    pl.col("path_label").str.starts_with(path_label + ".")
+                )
+            else:
+                descendants = leaves
         else:
             descendants = leaves.filter(
                 pl.col("path_label").str.starts_with(path_label + ".")

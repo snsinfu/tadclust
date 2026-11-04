@@ -85,7 +85,6 @@ def cis_leaves_schema(include_trans: bool, include_ab: bool):
         ("unit_start", pl.Int64),
         ("unit_end", pl.Int64),
         ("tad_table_row", pl.Int64),
-        ("root_label", pl.String),
         ("path", pl.List(pl.Int64)),
         ("path_label", pl.String),
         ("depth", pl.Int64),
@@ -107,7 +106,6 @@ def cis_leaves_schema(include_trans: bool, include_ab: bool):
     if include_trans:
         schema.extend(
             [
-                ("trans_root_label", pl.String),
                 ("trans_path", pl.List(pl.Int64)),
                 ("trans_path_label", pl.String),
                 ("trans_depth", pl.Int64),
@@ -129,7 +127,6 @@ def cis_nodes_schema(include_ab: bool, n_pcs: int = 3):
         ("unit_start", pl.Int64),
         ("unit_end", pl.Int64),
         ("tad_table_row", pl.Int64),
-        ("root_label", pl.String),
         ("path", pl.List(pl.Int64)),
         ("path_label", pl.String),
     ]
@@ -181,7 +178,6 @@ CIS_LEAVES_TSV_BASE_COLUMNS = [
     "unit_start",
     "unit_end",
     "tad_table_row",
-    "root_label",
     "path_label",
     "depth",
 ]
@@ -192,7 +188,6 @@ CIS_LEAVES_TSV_STATS_COLUMNS = [
 CIS_LEAVES_TSV_COLUMNS = CIS_LEAVES_TSV_BASE_COLUMNS + CIS_LEAVES_TSV_STATS_COLUMNS
 
 TRANS_LEAVES_TSV_COLUMNS = [
-    "trans_root_label",
     "trans_path_label",
     "trans_depth",
 ]
@@ -211,7 +206,6 @@ CIS_LEAVES_AB_SCHEMA = [
     ("unit_start", pl.Int64),
     ("unit_end", pl.Int64),
     ("tad_table_row", pl.Int64),
-    ("root_label", pl.String),
     ("path", pl.List(pl.Int64)),
     ("path_label", pl.String),
     ("depth", pl.Int64),
@@ -226,7 +220,6 @@ TRANS_NODES_SCHEMA = [
     ("depth", pl.Int64),
     ("is_leaf", pl.Boolean),
     ("unit_id", pl.Int64),
-    ("root_label", pl.String),
     ("path", pl.List(pl.Int64)),
     ("path_label", pl.String),
     ("n_units", pl.Int64),
@@ -432,7 +425,6 @@ def test_trans_leaves_derived_from_cis_and_trans_nodes(
     assert trans_leaf["unit_id"].null_count() == 0
     trans_columns = trans_leaf.select(
         "unit_id",
-        pl.col("root_label").alias("trans_root_label"),
         pl.col("path").alias("trans_path"),
         pl.col("path_label").alias("trans_path_label"),
         pl.col("depth").alias("trans_depth"),

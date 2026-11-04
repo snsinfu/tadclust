@@ -9,7 +9,6 @@ import numpy as np
 from .clustering import derive_seed, informative_mask, kmeans_labels
 from .errors import ClusteringError
 
-CHROM_ROOT_LABEL = "chrom"
 GENOME_ROOT_LABEL = "genome"
 _TREE_SEED_NAMESPACE = 0
 _AB_SEED_NAMESPACE = 1
@@ -45,11 +44,11 @@ class TreeNode:
 
 @dataclass
 class BranchingTree:
-    """One complete tree with a tree-level root label."""
+    """One complete tree with an optional A/B branch label."""
 
     nodes: list[TreeNode]
     root_id: int
-    root_label: str
+    branch_label: str | None = None
 
 
 @dataclass
@@ -83,11 +82,29 @@ class AbAnnotation:
     b_centroid_pc: np.ndarray = field(default_factory=lambda: np.zeros(0))
 
 
-def format_path_label(root_label: str, path: list[int]) -> str:
-    """Format a root label and child-index path for display."""
+def format_path_label(
+    root: str,
+    path: list[int],
+    *,
+    branch: str | None = None,
+) -> str:
+    """Format a tree path as a label that is unique within its output table.
+
+    The root is an actual chromosome name or `genome`. Unbranched labels use a
+    colon between the root and the child-index path, for example `chr1:0.1`.
+    Branched labels use a colon before the A/B branch and dots for the path,
+    for example `chr1:A.0.1`. The root row has an empty path.
+    """
+    if branch is None:
+        prefix = root
+        separator = ":"
+    else:
+        prefix = f"{root}:{branch}"
+        separator = "."
+
     if not path:
-        return root_label
-    return f"{root_label}." + ".".join(str(index) for index in path)
+        return prefix
+    return prefix + separator + ".".join(str(index) for index in path)
 
 
 def build_branching_tree(
@@ -96,7 +113,7 @@ def build_branching_tree(
     n_pcs: int,
     seed: int,
     branch_k: int,
-    root_label: str = CHROM_ROOT_LABEL,
+    branch_label: str | None = None,
 ) -> BranchingTree:
     """Build a full tree by recursively splitting nodes with k-means.
 
@@ -150,7 +167,7 @@ def build_branching_tree(
     return BranchingTree(
         nodes=nodes,
         root_id=root_id,
-        root_label=root_label,
+        branch_label=branch_label,
     )
 
 
@@ -367,7 +384,6 @@ def build_cis_forest(
         n_pcs=n_pcs,
         seed=seed,
         branch_k=branch_k,
-        root_label=CHROM_ROOT_LABEL,
     )
     return _make_cis_forest(
         chrom,
@@ -674,7 +690,6 @@ def build_ab_forest(
             n_pcs=n_pcs,
             seed=seed,
             branch_k=branch_k,
-            root_label=CHROM_ROOT_LABEL,
         )
         if annotation.fallback_reason is not None:
             tree.nodes[tree.root_id].stop_reason = annotation.fallback_reason
@@ -693,7 +708,7 @@ def build_ab_forest(
         n_pcs=n_pcs,
         seed=seed,
         branch_k=branch_k,
-        root_label="A",
+        branch_label="A",
     )
     b_tree = build_branching_tree(
         values[b_indices],
@@ -701,7 +716,7 @@ def build_ab_forest(
         n_pcs=n_pcs,
         seed=seed,
         branch_k=branch_k,
-        root_label="B",
+        branch_label="B",
     )
     return _make_cis_forest(
         chrom,

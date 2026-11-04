@@ -82,8 +82,9 @@ def assert_node_references(nodes) -> None:
 def primary_member_families(leaves):
     members = defaultdict(set)
     for row in leaves.filter(pl.col("path_label").is_not_null()).iter_rows(named=True):
-        parts = row["path_label"].split(".")
-        for index in range(1, len(parts) + 1):
+        _, _, path = row["path_label"].partition(":")
+        parts = path.split(".") if path else []
+        for index in range(len(parts) + 1):
             members[(row["chrom"], ".".join(parts[:index]))].add(int(row["unit_id"]))
     return {frozenset(values) for values in members.values()}
 
@@ -95,13 +96,20 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert result.cis_leaves.height == 4
     assert result.cis_leaves["unit_id"].to_list() == [0, 1, 2, 3]
     assert result.cis_leaves["pc"].dtype == pl.Array(pl.Float64, 2)
-    assert result.cis_leaves["root_label"].unique().to_list() == ["chrom"]
+    assert "root_label" not in result.cis_leaves.columns
+    assert result.cis_leaves["path_label"].null_count() == 0
+    assert result.cis_leaves["path_label"].n_unique() == result.cis_leaves.height
+    assert set(
+        result.cis_leaves["path_label"].str.split(":").list.first()
+    ) == {"chr1", "chr2"}
     assert result.cis_leaves["tad_table_row"].to_list() == [0, 1, 2, 3]
     assert "ab_label" not in result.cis_leaves.columns
     assert "trans_path" not in result.cis_leaves.columns
 
     assert "ab_label" not in result.cis_nodes.columns
-    assert set(result.cis_nodes["root_label"].unique().to_list()) == {"chrom"}
+    assert "root_label" not in result.cis_nodes.columns
+    assert result.cis_nodes["path_label"].null_count() == 0
+    assert result.cis_nodes["path_label"].n_unique() == result.cis_nodes.height
     assert result.cis_nodes["parent_id"].null_count() == 2
     assert result.cis_nodes["node_oe"].null_count() == 0
     assert result.cis_leaves["node_oe"].null_count() == 0
@@ -438,13 +446,22 @@ def test_cluster_with_trans(three_chrom_mcool, trans_tads, tmp_path) -> None:
     )
 
     assert result.trans_nodes is not None
-    assert "trans_root_label" in result.cis_leaves.columns
+    assert "trans_root_label" not in result.cis_leaves.columns
     assert "trans_path" in result.cis_leaves.columns
     assert "trans_path_label" in result.cis_leaves.columns
     assert "trans_depth" in result.cis_leaves.columns
-    assert result.trans_nodes["root_label"].unique().to_list() == ["genome"]
+    assert result.trans_nodes["path_label"].null_count() == 0
+    assert (
+        result.trans_nodes["path_label"].n_unique() == result.trans_nodes.height
+    )
+    assert result.trans_nodes.filter(
+        pl.col("node_id") == 0
+    )["path_label"].to_list() == ["genome"]
     assert set(
-        result.cis_leaves["trans_root_label"].drop_nulls().unique().to_list()
+        result.cis_leaves["trans_path_label"]
+        .drop_nulls()
+        .str.split(":")
+        .list.first()
     ) == {"genome"}
     assert {"chroms", "chrom_unit_counts"}.issubset(result.trans_nodes.columns)
     assert result.qc["trans"] is not None
@@ -490,8 +507,12 @@ def test_cluster_with_trans_gapped_units(
     assert result.trans_nodes is not None
     assert result.cis_leaves.height == 6
     assert set(result.cis_leaves["unit_kind"].to_list()) == {"tad"}
+    assert "trans_root_label" not in result.cis_leaves.columns
     assert set(
-        result.cis_leaves["trans_root_label"].drop_nulls().unique().to_list()
+        result.cis_leaves["trans_path_label"]
+        .drop_nulls()
+        .str.split(":")
+        .list.first()
     ) == {"genome"}
     assert result.qc["trans"]["n_units"] == 6
     assert result.qc["trans"]["pair_count"] == 108
@@ -554,7 +575,16 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
         "A",
         "B",
     }
-    assert set(result.cis_nodes_ab["root_label"].to_list()) >= {"A", "B"}
+    assert "root_label" not in result.cis_nodes_ab.columns
+    assert result.cis_nodes_ab["path_label"].null_count() == 0
+    assert (
+        result.cis_nodes_ab["path_label"].n_unique()
+        == result.cis_nodes_ab.height
+    )
+    ab_root_labels = result.cis_nodes_ab.filter(
+        pl.col("depth") == 0
+    )["path_label"].to_list()
+    assert {"chr1:A", "chr1:B", "chr2:A", "chr2:B"} <= set(ab_root_labels)
 
     ab_qc = result.qc["ab"]
     assert ab_qc is not None
@@ -612,7 +642,11 @@ def test_cluster_with_ab_frequency_source(mcool, tmp_path) -> None:
     assert frequency_run.cis_nodes_ab is not None
     assert frequency_run.cis_leaves_ab is not None
     assert "ab_label" in frequency_run.cis_nodes_ab.columns
-    assert set(frequency_run.cis_nodes_ab["root_label"].to_list()) >= {"A", "B"}
+    assert set(
+        frequency_run.cis_nodes_ab.filter(pl.col("depth") == 0)[
+            "path_label"
+        ].str.split(":").list.last()
+    ) >= {"A", "B"}
     assert frequency_run.cis_nodes["node_oe"].is_finite().all()
 
     # Per-unit A/B annotation must not depend on the tree PC source.
@@ -924,7 +958,7 @@ def test_zero_contact_cis_unit_is_unclustered(tmp_path) -> None:
     clustered = leaves.filter(pl.col("unit_start") >= 1000)
     assert unclustered["path"].to_list() == [None, None]
     assert unclustered["path_label"].to_list() == [None, None]
-    assert unclustered["root_label"].to_list() == [None, None]
+    assert "root_label" not in leaves.columns
     assert unclustered["depth"].to_list() == [None, None]
     assert clustered["path"].null_count() == 0
 

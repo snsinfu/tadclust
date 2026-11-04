@@ -45,6 +45,7 @@ from .trans import (
     trans_matrix,
 )
 from .trees import (
+    GENOME_ROOT_LABEL,
     AbAnnotation,
     CisForest,
     TreeNode,
@@ -564,7 +565,7 @@ def _null_graph_fields() -> dict[str, Any]:
 
 def _node_fields(
     chrom: str,
-    root_label: str,
+    branch_label: str | None,
     node: TreeNode,
     offset: int,
     node_oe: float | None,
@@ -577,9 +578,12 @@ def _node_fields(
         "node_id": node.node_id + offset,
         "parent_id": (node.parent_id + offset if node.parent_id is not None else None),
         "depth": node.depth,
-        "root_label": root_label,
         "path": list(node.path),
-        "path_label": format_path_label(root_label, node.path),
+        "path_label": format_path_label(
+            chrom,
+            node.path,
+            branch=branch_label,
+        ),
         "is_leaf": node.is_leaf,
         "n_units": len(node.unit_indices),
         "n_working_bins": node.n_working_bins,
@@ -636,7 +640,7 @@ def _cis_node_rows(
                     mst = maximum_spanning_tree(excess, local_indices)
                     base = _node_fields(
                         result.chrom,
-                        tree.root_label,
+                        tree.branch_label,
                         node,
                         offset,
                         _node_oe(result, local_indices),
@@ -679,7 +683,6 @@ def _cis_node_rows(
                 "node_id": None,
                 "parent_id": None,
                 "depth": None,
-                "root_label": None,
                 "path": None,
                 "path_label": None,
                 "is_leaf": True,
@@ -745,7 +748,6 @@ def _cis_leaf_rows(
 
     trans = trans_nodes.filter(pl.col("is_leaf")).select(
         "unit_id",
-        pl.col("root_label").alias("trans_root_label"),
         pl.col("path").alias("trans_path"),
         pl.col("path_label").alias("trans_path_label"),
         pl.col("depth").alias("trans_depth"),
@@ -785,12 +787,8 @@ def _trans_node_rows(trans_run: _TransRun | None) -> pl.DataFrame | None:
             "node_id": node.node_id,
             "parent_id": node.parent_id,
             "depth": node.depth,
-            "root_label": tree.root_label,
             "path": list(node.path),
-            "path_label": format_path_label(
-                tree.root_label,
-                node.path,
-            ),
+            "path_label": format_path_label(GENOME_ROOT_LABEL, node.path),
             "is_leaf": node.is_leaf,
             "n_units": len(node.unit_indices),
             "n_working_bins": node.n_working_bins,

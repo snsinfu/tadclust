@@ -36,7 +36,6 @@ CIS_LEAVES_TSV_BASE_COLUMNS = [
     "unit_start",
     "unit_end",
     "tad_table_row",
-    "root_label",
     "path_label",
     "depth",
 ]
@@ -46,7 +45,6 @@ CIS_LEAVES_TSV_STATS_COLUMNS = [
 ]
 CIS_LEAVES_TSV_COLUMNS = CIS_LEAVES_TSV_BASE_COLUMNS + CIS_LEAVES_TSV_STATS_COLUMNS
 TRANS_LEAVES_TSV_COLUMNS = [
-    "trans_root_label",
     "trans_path_label",
     "trans_depth",
 ]
@@ -222,7 +220,6 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
         "unit_start",
         "unit_end",
         "tad_table_row",
-        "root_label",
         "path",
         "path_label",
         "depth",
@@ -306,7 +303,7 @@ def test_uniform_bin_tsv_nulls_use_sentinels(tmp_path) -> None:
     leaves = read_tsv(out / "cis_leaves.tsv")
     assert leaves["tad_table_row"].to_list() == ["-1"] * leaves.height
     unclustered = leaves.filter(pl.col("unit_start").cast(pl.Int64) < 1000)
-    assert unclustered["root_label"].to_list() == ["NA", "NA"]
+    assert "root_label" not in leaves.columns
     assert unclustered["path_label"].to_list() == ["NA", "NA"]
     assert unclustered["depth"].to_list() == ["-1", "-1"]
     assert unclustered["ab_label"].to_list() == ["NA", "NA"]

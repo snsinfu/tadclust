@@ -23,7 +23,6 @@ def cis_leaves_schema(
         "unit_start": pl.Int64,
         "unit_end": pl.Int64,
         "tad_table_row": pl.Int64,
-        "root_label": pl.String,
         "path": pl.List(pl.Int64),
         "path_label": pl.String,
         "depth": pl.Int64,
@@ -45,7 +44,6 @@ def cis_leaves_schema(
     if include_trans:
         schema.update(
             {
-                "trans_root_label": pl.String,
                 "trans_path": pl.List(pl.Int64),
                 "trans_path_label": pl.String,
                 "trans_depth": pl.Int64,
@@ -72,7 +70,6 @@ def cis_nodes_schema(n_pcs: int, include_ab: bool) -> Schema:
         "unit_start": pl.Int64,
         "unit_end": pl.Int64,
         "tad_table_row": pl.Int64,
-        "root_label": pl.String,
         "path": pl.List(pl.Int64),
         "path_label": pl.String,
     }
@@ -123,7 +120,6 @@ def cis_leaves_ab_schema() -> Schema:
         "unit_start": pl.Int64,
         "unit_end": pl.Int64,
         "tad_table_row": pl.Int64,
-        "root_label": pl.String,
         "path": pl.List(pl.Int64),
         "path_label": pl.String,
         "depth": pl.Int64,
@@ -141,7 +137,6 @@ def trans_nodes_schema() -> Schema:
         "depth": pl.Int64,
         "is_leaf": pl.Boolean,
         "unit_id": pl.Int64,
-        "root_label": pl.String,
         "path": pl.List(pl.Int64),
         "path_label": pl.String,
         "n_units": pl.Int64,
