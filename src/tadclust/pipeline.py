@@ -173,7 +173,12 @@ def cluster(config: ClusterConfig) -> ClusterResult:
     cis_leaves_ab = (
         _cis_leaf_ab_rows(cis_nodes_ab) if cis_nodes_ab is not None else None
     )
-    cis_matrices = _build_cis_matrices(results, config)
+    cis_matrices = _build_cis_matrices(
+        results,
+        config,
+        cohesion_contexts,
+        working_binsize=choice.value,
+    )
     output_files = [
         "cis_leaves.parquet",
         "cis_leaves.tsv",
@@ -442,6 +447,9 @@ def _run_trans(
 def _build_cis_matrices(
     results: list[_ChromosomeResult],
     config: ClusterConfig,
+    cohesion_contexts: list[CohesionContext],
+    *,
+    working_binsize: int,
 ) -> CisMatrices:
     inputs = [
         CisMatrixInput(
@@ -449,11 +457,13 @@ def _build_cis_matrices(
             units=result.selection.units,
             matrices=result.selection.matrices,
             n_bins_chrom=result.tree.n_bins_chrom,
+            cohesion=context,
         )
-        for result in results
+        for result, context in zip(results, cohesion_contexts, strict=True)
     ]
     return build_cis_matrices(
         inputs,
+        working_binsize=working_binsize,
         distance_bins=config.distance_bins,
         clip_min=config.clip_min,
         clip_max=config.clip_max,

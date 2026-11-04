@@ -105,6 +105,7 @@ def test_cis_matrices_output_and_manifest(mcool, tmp_path) -> None:
         assert handle.attrs["storage"] == "dense"
         assert handle.attrs["clip_min"] == -10.0
         assert handle.attrs["clip_max"] == 10.0
+        assert handle.attrs["working_binsize"] == 500
         assert "source" not in handle.attrs
 
         groups = chrom_groups(handle)
@@ -137,6 +138,7 @@ def test_cis_matrix_contents(mcool, tmp_path, source) -> None:
     with h5py.File(out / MATRIX_FILE, "r") as handle:
         clip_min = cast(float, handle.attrs["clip_min"])
         clip_max = cast(float, handle.attrs["clip_max"])
+        working_binsize = cast(int, handle.attrs["working_binsize"])
         groups = chrom_groups(handle)
 
         for chrom, group in groups.items():
@@ -150,13 +152,28 @@ def test_cis_matrix_contents(mcool, tmp_path, source) -> None:
             expected = dataset(group, "expected")[()]
             log_oe = dataset(group, "log_oe")[()]
             dc_log_freq = dataset(group, "dc_log_freq")[()]
+            log_oe_excess = dataset(group, "log_oe_excess")[()]
+            log_oe_baseline = dataset(group, "log_oe_baseline")[()]
             alpha = cast(float, group.attrs["alpha"])
+            edges = np.asarray(group.attrs["distance_bin_edges"], dtype=np.float64)
 
-            for values in (observed, expected, log_oe, dc_log_freq):
+            for values in (
+                observed,
+                expected,
+                log_oe,
+                dc_log_freq,
+                log_oe_excess,
+            ):
                 assert values.shape == (n, n)
                 assert values.dtype == np.float32
                 assert np.all(np.isfinite(values))
                 assert np.allclose(values, values.T)
+
+            assert log_oe_baseline.ndim == 1
+            assert log_oe_baseline.dtype == np.float64
+            assert log_oe_baseline.size == edges.size - 1
+            assert np.all(np.isfinite(log_oe_baseline))
+            assert np.all(np.diag(log_oe_excess) == 0.0)
 
             recomputed = log2_ratio(
                 observed.astype(np.float64),
@@ -178,6 +195,57 @@ def test_cis_matrix_contents(mcool, tmp_path, source) -> None:
                 recomputed_dc,
                 rtol=1e-4,
                 atol=1e-4,
+            )
+
+            centers = dataset(group, "unit_center")[()]
+            distance = np.floor(
+                np.abs(centers[:, None] - centers[None, :]) / working_binsize
+            ).astype(np.int64)
+            np.maximum(distance, 1, out=distance)
+            np.fill_diagonal(distance, 0)
+            distance_bin = np.clip(
+                np.searchsorted(edges, distance, side="right") - 1,
+                0,
+                edges.size - 2,
+            )
+            unit_bins = dataset(group, "n_working_bins")[()].astype(np.float64)
+            upper = np.triu_indices(n, 1)
+            pair_weights = (unit_bins[:, None] * unit_bins[None, :])[upper]
+            pair_values = log_oe.astype(np.float64)[upper]
+            pair_bins = distance_bin[upper]
+            total_weight = float(pair_weights.sum())
+            global_mean = (
+                float(np.dot(pair_weights, pair_values) / total_weight)
+                if total_weight > 0.0
+                else float(pair_values.mean())
+            )
+            sums = np.bincount(
+                pair_bins,
+                weights=pair_weights * pair_values,
+                minlength=edges.size - 1,
+            )
+            totals = np.bincount(
+                pair_bins,
+                weights=pair_weights,
+                minlength=edges.size - 1,
+            )
+            recomputed_baseline = np.full(edges.size - 1, global_mean)
+            valid = totals > 0.0
+            recomputed_baseline[valid] = sums[valid] / totals[valid]
+            assert np.allclose(
+                log_oe_baseline,
+                recomputed_baseline,
+                rtol=1e-4,
+                atol=1e-4,
+            )
+
+            expected_excess = log_oe.astype(np.float64) - log_oe_baseline[distance_bin]
+            np.fill_diagonal(expected_excess, 0.0)
+            assert np.allclose(
+                log_oe_excess,
+                expected_excess,
+                rtol=1e-3,
+                atol=1e-3,
             )
 
 
@@ -240,8 +308,15 @@ def test_cis_matrices_match_serial_and_parallel(mcool, tmp_path) -> None:
         parallel.cis_matrices.groups,
         strict=True,
     ):
-        for name in ("observed", "expected", "log_oe", "dc_log_freq"):
+        for name in (
+            "observed",
+            "expected",
+            "log_oe",
+            "dc_log_freq",
+            "log_oe_excess",
+        ):
             assert np.array_equal(getattr(left, name), getattr(right, name))
+        assert np.array_equal(left.log_oe_baseline, right.log_oe_baseline)
         assert np.array_equal(left.unit_id, right.unit_id)
         assert left.alpha == right.alpha
 

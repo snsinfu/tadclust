@@ -275,30 +275,8 @@ def direct_cohesion(
         len(edges) - 2,
     )
 
-    weights = unit_bins[:, None] * unit_bins[None, :]
-    upper = np.triu_indices(centers.size, 1)
-    pair_weights = weights[upper]
-    pair_values = log_oe[upper]
-    pair_bins = bins[upper]
-    total = pair_weights.sum()
-    global_mean = (
-        float(np.dot(pair_weights, pair_values) / total)
-        if total > 0
-        else float(pair_values.mean())
-    )
-    sums = np.bincount(
-        pair_bins,
-        weights=pair_weights * pair_values,
-        minlength=len(edges) - 1,
-    )
-    totals = np.bincount(
-        pair_bins,
-        weights=pair_weights,
-        minlength=len(edges) - 1,
-    )
-    baseline = np.full(len(edges) - 1, global_mean)
-    valid = totals > 0
-    baseline[valid] = sums[valid] / totals[valid]
+    baseline = dataset(group, "log_oe_baseline")[()]
+    stored_excess = dataset(group, "log_oe_excess")[()].astype(np.float64)
 
     sub = log_oe[np.ix_(positions, positions)]
     sub_bins = bins[np.ix_(positions, positions)]
@@ -312,9 +290,20 @@ def direct_cohesion(
     if total > 0:
         cross = float(np.dot(weights_selected, values) / total)
         excess = float(np.dot(weights_selected, values - baseline[bins]) / total)
+        stored_excess_mean = float(
+            np.dot(
+                weights_selected,
+                stored_excess[np.ix_(positions, positions)][sub_upper],
+            )
+            / total
+        )
     else:
         cross = float(values.mean())
         excess = float((values - baseline[bins]).mean())
+        stored_excess_mean = float(
+            stored_excess[np.ix_(positions, positions)][sub_upper].mean()
+        )
+    assert stored_excess_mean == pytest.approx(excess, abs=1e-6)
     return cross, excess
 
 

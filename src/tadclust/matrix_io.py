@@ -10,6 +10,7 @@ from typing import Any
 import h5py
 import numpy as np
 
+from .cohesion import CohesionContext
 from .domains import SelectedUnit
 from .errors import ClusteringError
 from .matrix import (
@@ -19,7 +20,7 @@ from .matrix import (
 )
 
 MATRIX_FILE = "cis_matrices.h5"
-MATRIX_SCHEMA_VERSION = "1.0"
+MATRIX_SCHEMA_VERSION = "2.0"
 MATRIX_DTYPE = np.float32
 MATRIX_COMPRESSION = "gzip"
 MATRIX_COMPRESSION_LEVEL = 1
@@ -34,17 +35,20 @@ MATRIX_DATASETS = (
     "observed",
     "expected",
     "dc_log_freq",
+    "log_oe_excess",
+    "log_oe_baseline",
 )
 
 
 @dataclass(frozen=True)
 class CisMatrixInput:
-    """Per-chromosome selected units and aggregated matrices."""
+    """Per-chromosome selected units, aggregated matrices, and baseline."""
 
     chrom: str
     units: list[SelectedUnit]
     matrices: UnitMatrices
     n_bins_chrom: int
+    cohesion: CohesionContext
 
 
 @dataclass(frozen=True)
@@ -64,6 +68,8 @@ class CisMatrixGroup:
     expected: np.ndarray
     log_oe: np.ndarray
     dc_log_freq: np.ndarray
+    log_oe_excess: np.ndarray
+    log_oe_baseline: np.ndarray
 
 
 @dataclass(frozen=True)
@@ -73,17 +79,22 @@ class CisMatrices:
     storage: str
     clip_min: float
     clip_max: float
+    working_binsize: int
     groups: list[CisMatrixGroup]
 
 
 def build_cis_matrices(
     inputs: list[CisMatrixInput],
     *,
+    working_binsize: int,
     distance_bins: int,
     clip_min: float,
     clip_max: float,
 ) -> CisMatrices:
     """Build write-ready dense float32 matrices in `cis_leaves` unit order."""
+    if working_binsize <= 0:
+        raise ClusteringError("working_binsize must be positive for matrix output")
+
     groups: list[CisMatrixGroup] = []
     unit_base = 0
 
@@ -100,6 +111,27 @@ def build_cis_matrices(
                     chrom=item.chrom,
                     matrix=name,
                 )
+
+        context = item.cohesion
+        for name in ("log_oe", "distance_bin"):
+            values = getattr(context, name)
+            if values.shape != expected_shape:
+                raise ClusteringError(
+                    f"{item.chrom}: cohesion {name} has shape {values.shape}, "
+                    f"expected {expected_shape}",
+                    chrom=item.chrom,
+                    matrix=name,
+                )
+
+        edges = distance_bin_edges(item.n_bins_chrom, distance_bins)
+        expected_baseline = len(edges) - 1
+        if context.baseline.shape != (expected_baseline,):
+            raise ClusteringError(
+                f"{item.chrom}: cohesion baseline has shape "
+                f"{context.baseline.shape}, expected {(expected_baseline,)}",
+                chrom=item.chrom,
+                matrix="log_oe_baseline",
+            )
 
         unit_ids = np.array(
             [unit_base + index for index in range(n_units)],
@@ -126,6 +158,10 @@ def build_cis_matrices(
             clip_max=clip_max,
             label=f"units:{item.chrom}",
         )
+        log_oe_excess = np.asarray(
+            context.log_oe_excess_matrix(),
+            dtype=MATRIX_DTYPE,
+        )
 
         groups.append(
             CisMatrixGroup(
@@ -137,14 +173,13 @@ def build_cis_matrices(
                 unit_center=centers,
                 n_working_bins=n_bins,
                 alpha=float(matrices.alpha),
-                distance_bin_edges=distance_bin_edges(
-                    item.n_bins_chrom,
-                    distance_bins,
-                ),
+                distance_bin_edges=edges,
                 observed=np.asarray(matrices.observed, dtype=MATRIX_DTYPE),
                 expected=np.asarray(matrices.expected, dtype=MATRIX_DTYPE),
                 log_oe=np.asarray(matrices.log_oe, dtype=MATRIX_DTYPE),
                 dc_log_freq=np.asarray(dc_log_freq, dtype=MATRIX_DTYPE),
+                log_oe_excess=log_oe_excess,
+                log_oe_baseline=np.asarray(context.baseline, dtype=np.float64),
             )
         )
         unit_base += n_units
@@ -153,6 +188,7 @@ def build_cis_matrices(
         storage="dense",
         clip_min=clip_min,
         clip_max=clip_max,
+        working_binsize=working_binsize,
         groups=groups,
     )
 
@@ -168,6 +204,7 @@ def write_cis_matrices(
         handle.attrs["storage"] = matrices.storage
         handle.attrs["clip_min"] = matrices.clip_min
         handle.attrs["clip_max"] = matrices.clip_max
+        handle.attrs["working_binsize"] = matrices.working_binsize
 
         for group_data in matrices.groups:
             group = handle.create_group(group_data.chrom)
@@ -190,7 +227,13 @@ def write_cis_matrices(
                 "n_working_bins",
                 data=group_data.n_working_bins,
             )
-            for name in ("log_oe", "observed", "expected", "dc_log_freq"):
+            for name in (
+                "log_oe",
+                "observed",
+                "expected",
+                "dc_log_freq",
+                "log_oe_excess",
+            ):
                 group.create_dataset(
                     name,
                     data=getattr(group_data, name),
@@ -199,6 +242,10 @@ def write_cis_matrices(
                     shuffle=True,
                     chunks=True,
                 )
+            group.create_dataset(
+                "log_oe_baseline",
+                data=group_data.log_oe_baseline,
+            )
 
         handle.create_dataset(
             "manifest",

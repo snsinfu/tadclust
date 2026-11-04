@@ -8,6 +8,7 @@ import h5py
 import numpy as np
 import pytest
 
+from tadclust.cohesion import build_cohesion_context
 from tadclust.domains import SelectedUnit
 from tadclust.errors import ClusteringError
 from tadclust.matrix import UnitMatrices, double_centered_log_frequency
@@ -17,6 +18,8 @@ from tadclust.matrix_io import (
     build_cis_matrices,
     write_cis_matrices,
 )
+
+WORKING_BINSIZE = 1000
 
 
 def make_unit(
@@ -64,23 +67,49 @@ def dataset(group: h5py.Group, name: str) -> h5py.Dataset:
     return value
 
 
+def make_context(units, matrices, *, n_bins_chrom: int = 4):
+    return build_cohesion_context(
+        units,
+        matrices.log_oe,
+        n_bins_chrom,
+        working_binsize=WORKING_BINSIZE,
+        distance_bins=60,
+    )
+
+
 def test_build_cis_matrices_uses_global_unit_order_and_metadata() -> None:
     units_a = [
         make_unit("chr1", 0, 1000, unit_id=0, tad_table_row=4),
         make_unit("chr1", 1000, 2000, unit_id=1, n_working_bins=3),
     ]
     units_b = [make_unit("chr2", 0, 500, unit_id=0, tad_table_row=7)]
+    matrices_a = make_matrices(2)
+    matrices_b = make_matrices(1, seed=1)
     matrices = build_cis_matrices(
         [
-            CisMatrixInput("chr1", units_a, make_matrices(2), n_bins_chrom=4),
-            CisMatrixInput("chr2", units_b, make_matrices(1, seed=1), n_bins_chrom=4),
+            CisMatrixInput(
+                "chr1",
+                units_a,
+                matrices_a,
+                n_bins_chrom=4,
+                cohesion=make_context(units_a, matrices_a),
+            ),
+            CisMatrixInput(
+                "chr2",
+                units_b,
+                matrices_b,
+                n_bins_chrom=4,
+                cohesion=make_context(units_b, matrices_b),
+            ),
         ],
+        working_binsize=WORKING_BINSIZE,
         distance_bins=60,
         clip_min=-10.0,
         clip_max=10.0,
     )
 
     assert matrices.storage == "dense"
+    assert matrices.working_binsize == WORKING_BINSIZE
     assert [group.chrom for group in matrices.groups] == ["chr1", "chr2"]
 
     first, second = matrices.groups
@@ -94,6 +123,10 @@ def test_build_cis_matrices_uses_global_unit_order_and_metadata() -> None:
     assert first.expected.dtype == np.float32
     assert first.log_oe.dtype == np.float32
     assert first.dc_log_freq.dtype == np.float32
+    assert first.log_oe_excess.dtype == np.float32
+    assert first.log_oe_baseline.dtype == np.float64
+    assert first.log_oe_baseline.shape == (len(first.distance_bin_edges) - 1,)
+    assert np.all(np.diag(first.log_oe_excess) == 0.0)
     assert first.distance_bin_edges[0] == 1
     assert first.distance_bin_edges[-1] == 4
 
@@ -101,10 +134,26 @@ def test_build_cis_matrices_uses_global_unit_order_and_metadata() -> None:
 def test_build_cis_matrices_rejects_wrong_matrix_shape() -> None:
     unit = make_unit("chr1", 0, 1000, unit_id=0)
     matrices = make_matrices(2)
+    context = build_cohesion_context(
+        [unit],
+        np.zeros((1, 1)),
+        n_bins_chrom=4,
+        working_binsize=WORKING_BINSIZE,
+        distance_bins=60,
+    )
 
     with pytest.raises(ClusteringError):
         build_cis_matrices(
-            [CisMatrixInput("chr1", [unit], matrices, n_bins_chrom=4)],
+            [
+                CisMatrixInput(
+                    "chr1",
+                    [unit],
+                    matrices,
+                    n_bins_chrom=4,
+                    cohesion=context,
+                )
+            ],
+            working_binsize=WORKING_BINSIZE,
             distance_bins=60,
             clip_min=-10.0,
             clip_max=10.0,
@@ -112,24 +161,33 @@ def test_build_cis_matrices_rejects_wrong_matrix_shape() -> None:
 
 
 def test_write_cis_matrices_round_trip(tmp_path) -> None:
+    units_a = [
+        make_unit("chr1", 0, 1000, unit_id=0, tad_table_row=0),
+        make_unit("chr1", 1000, 2000, unit_id=1),
+    ]
+    matrices_a = make_matrices(2)
+    context_a = make_context(units_a, matrices_a)
+    units_b = [make_unit("chr2", 0, 1000, unit_id=0, tad_table_row=1)]
+    matrices_b = make_matrices(1, seed=2)
+    context_b = make_context(units_b, matrices_b)
     matrices = build_cis_matrices(
         [
             CisMatrixInput(
                 "chr1",
-                [
-                    make_unit("chr1", 0, 1000, unit_id=0, tad_table_row=0),
-                    make_unit("chr1", 1000, 2000, unit_id=1),
-                ],
-                make_matrices(2),
+                units_a,
+                matrices_a,
                 n_bins_chrom=4,
+                cohesion=context_a,
             ),
             CisMatrixInput(
                 "chr2",
-                [make_unit("chr2", 0, 1000, unit_id=0, tad_table_row=1)],
-                make_matrices(1, seed=2),
+                units_b,
+                matrices_b,
                 n_bins_chrom=4,
+                cohesion=context_b,
             ),
         ],
+        working_binsize=WORKING_BINSIZE,
         distance_bins=60,
         clip_min=-10.0,
         clip_max=10.0,
@@ -148,6 +206,7 @@ def test_write_cis_matrices_round_trip(tmp_path) -> None:
         assert handle.attrs["storage"] == "dense"
         assert handle.attrs["clip_min"] == -10.0
         assert handle.attrs["clip_max"] == 10.0
+        assert handle.attrs["working_binsize"] == WORKING_BINSIZE
         assert list(handle) == ["chr1", "chr2", "manifest"]
         manifest_data = handle["manifest"]
         assert isinstance(manifest_data, h5py.Dataset)
@@ -168,11 +227,28 @@ def test_write_cis_matrices_round_trip(tmp_path) -> None:
         assert dataset(first, "unit_id")[()].tolist() == [0, 1]
         assert dataset(first, "tad_table_row")[()].tolist() == [0, -1]
         assert dataset(first, "unit_center")[()].tolist() == [500.0, 1500.0]
-        for name in ("log_oe", "observed", "expected", "dc_log_freq"):
+        for name in (
+            "log_oe",
+            "observed",
+            "expected",
+            "dc_log_freq",
+            "log_oe_excess",
+        ):
             values = dataset(first, name)[()]
             assert values.shape == (2, 2)
             assert values.dtype == np.float32
             assert np.allclose(values, values.T)
+
+        excess = dataset(first, "log_oe_excess")[()]
+        baseline = dataset(first, "log_oe_baseline")[()]
+        assert baseline.dtype == np.float64
+        assert baseline.shape == (len(matrices.groups[0].distance_bin_edges) - 1,)
+        assert np.all(np.diag(excess) == 0.0)
+        assert np.allclose(
+            excess,
+            context_a.log_oe_excess_matrix().astype(np.float32),
+            atol=1e-5,
+        )
 
         expected_dc = double_centered_log_frequency(
             matrices.groups[0].observed.astype(np.float64),
