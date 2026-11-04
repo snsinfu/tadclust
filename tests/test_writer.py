@@ -243,6 +243,18 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     assert nodes.schema["node_oe"] == pl.Float64
     assert nodes.schema["cross_oe"] == pl.Float64
     assert nodes.schema["cross_oe_excess"] == pl.Float64
+    assert nodes.schema["mst_bottleneck"] == pl.Float64
+    assert nodes.schema["mst_components_at_zero"] == pl.Int64
+    assert nodes.schema["mst_lcc_frac_at_zero"] == pl.Float64
+    assert nodes.schema["mst_edges"] == pl.List(
+        pl.Struct(
+            {
+                "u": pl.Int64,
+                "v": pl.Int64,
+                "weight": pl.Float64,
+            }
+        )
+    )
     assert "ab_label" not in nodes.columns
 
     assert leaves_tsv.columns == CIS_LEAVES_TSV_COLUMNS

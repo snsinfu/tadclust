@@ -26,6 +26,7 @@ from .mcool import (
     list_resolutions,
     open_cooler,
 )
+from .mst import NodeMst, maximum_spanning_tree
 from .parallel import ChromosomeSelection, run_cis_parallel, run_cis_serial
 from .schema import cis_leaves_ab_schema, cis_leaves_schema
 from .sources import CisSource, make_source
@@ -531,6 +532,36 @@ def _node_oe(result: _ChromosomeResult, local_indices: np.ndarray) -> float | No
     )
 
 
+def _mst_fields(mst: NodeMst, unit_base: int) -> dict[str, Any]:
+    return {
+        "mst_bottleneck": mst.bottleneck,
+        "mst_components_at_zero": mst.components_at_zero,
+        "mst_lcc_frac_at_zero": mst.lcc_frac_at_zero,
+        "mst_edges": [
+            {
+                "u": unit_base + int(edge_u),
+                "v": unit_base + int(edge_v),
+                "weight": float(weight),
+            }
+            for edge_u, edge_v, weight in zip(
+                mst.edge_u,
+                mst.edge_v,
+                mst.edge_weight,
+                strict=True,
+            )
+        ],
+    }
+
+
+def _null_mst_fields() -> dict[str, Any]:
+    return {
+        "mst_bottleneck": None,
+        "mst_components_at_zero": None,
+        "mst_lcc_frac_at_zero": None,
+        "mst_edges": [],
+    }
+
+
 def _node_fields(
     chrom: str,
     root_label: str,
@@ -539,6 +570,7 @@ def _node_fields(
     node_oe: float | None,
     cross_oe: float | None,
     cross_oe_excess: float | None,
+    mst_fields: dict[str, Any],
 ) -> dict[str, Any]:
     return {
         "chrom": chrom,
@@ -558,6 +590,7 @@ def _node_fields(
         "node_oe": node_oe,
         "cross_oe": cross_oe,
         "cross_oe_excess": cross_oe_excess,
+        **mst_fields,
         "pc": [float(value) for value in node.centroid],
     }
 
@@ -589,6 +622,7 @@ def _cis_node_rows(
         annotation = _result_annotation(result, include_composition)
         units = result.selection.units
         covered: set[int] = set()
+        excess = context.log_oe_excess_matrix()
 
         if forest is not None:
             for tree, offset, group in zip(
@@ -599,6 +633,7 @@ def _cis_node_rows(
                 for node in tree.nodes:
                     local_indices = group[node.unit_indices]
                     cross_oe, cross_oe_excess = context.node_metrics(local_indices)
+                    mst = maximum_spanning_tree(excess, local_indices)
                     base = _node_fields(
                         result.chrom,
                         tree.root_label,
@@ -607,6 +642,7 @@ def _cis_node_rows(
                         _node_oe(result, local_indices),
                         cross_oe,
                         cross_oe_excess,
+                        _mst_fields(mst, unit_base),
                     )
                     if not node.is_leaf:
                         row = dict(base)
@@ -656,6 +692,7 @@ def _cis_node_rows(
                 "node_oe": _node_oe(result, np.array([local_index], dtype=np.int64)),
                 "cross_oe": None,
                 "cross_oe_excess": None,
+                **_null_mst_fields(),
             }
             row.update(
                 _leaf_unit_fields(
@@ -672,7 +709,21 @@ def _cis_node_rows(
         unit_base += len(units)
 
     return pl.DataFrame(rows).with_columns(
-        pl.col("pc").cast(pl.Array(pl.Float64, n_pcs))
+        pl.col("pc").cast(pl.Array(pl.Float64, n_pcs)),
+        pl.col("mst_bottleneck").cast(pl.Float64),
+        pl.col("mst_components_at_zero").cast(pl.Int64),
+        pl.col("mst_lcc_frac_at_zero").cast(pl.Float64),
+        pl.col("mst_edges").cast(
+            pl.List(
+                pl.Struct(
+                    {
+                        "u": pl.Int64,
+                        "v": pl.Int64,
+                        "weight": pl.Float64,
+                    }
+                )
+            )
+        ),
     )
 
 
