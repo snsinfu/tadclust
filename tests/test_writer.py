@@ -255,6 +255,9 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
             }
         )
     )
+    branch_nodes = nodes.filter(~pl.col("is_leaf"))
+    assert (branch_nodes["mst_edges"].list.len() == branch_nodes["n_units"] - 1).all()
+    assert nodes.filter(pl.col("is_leaf"))["mst_edges"].list.len().sum() == 0
     assert "ab_label" not in nodes.columns
 
     assert leaves_tsv.columns == CIS_LEAVES_TSV_COLUMNS

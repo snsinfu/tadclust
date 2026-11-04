@@ -307,6 +307,94 @@ def direct_cohesion(
     return cross, excess
 
 
+def mst_component_summary(
+    member_ids: set[int],
+    edge_u: np.ndarray,
+    edge_v: np.ndarray,
+    edge_weight: np.ndarray,
+) -> tuple[int, float]:
+    members = sorted(member_ids)
+    position = {unit_id: index for index, unit_id in enumerate(members)}
+    parent = np.arange(len(members), dtype=np.int64)
+    size = np.ones(len(members), dtype=np.int64)
+
+    def find(index: int) -> int:
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = int(parent[index])
+        return index
+
+    for u, v, weight in zip(edge_u, edge_v, edge_weight, strict=True):
+        if weight < 0.0:
+            continue
+        root_u = find(position[int(u)])
+        root_v = find(position[int(v)])
+        if root_u == root_v:
+            continue
+        if size[root_u] < size[root_v]:
+            root_u, root_v = root_v, root_u
+        parent[root_v] = root_u
+        size[root_u] += size[root_v]
+
+    roots = np.array([find(index) for index in range(len(members))], dtype=np.int64)
+    components = int(np.unique(roots).size)
+    lcc_frac = float(np.bincount(roots).max() / len(members))
+    return components, lcc_frac
+
+
+def assert_mst_rows(
+    nodes: pl.DataFrame,
+    leaves: pl.DataFrame,
+    group: h5py.Group,
+) -> None:
+    group_units = dataset(group, "unit_id")[()]
+    excess = dataset(group, "log_oe_excess")[()].astype(np.float64)
+    position_of = {
+        int(unit_id): index for index, unit_id in enumerate(group_units.tolist())
+    }
+    branch_rows = nodes.filter(~pl.col("is_leaf"))
+    assert branch_rows.height > 0
+
+    for row in branch_rows.iter_rows(named=True):
+        path_label = row["path_label"]
+        if row["path"] == []:
+            descendants = leaves.filter(
+                pl.col("path_label").is_not_null()
+                & (pl.col("root_label") == row["root_label"])
+            )
+        else:
+            descendants = leaves.filter(
+                pl.col("path_label").str.starts_with(path_label + ".")
+            )
+
+        member_ids = set(descendants["unit_id"].to_list())
+        assert len(member_ids) == row["n_units"]
+
+        edges = row["mst_edges"]
+        assert len(edges) == row["n_units"] - 1
+        edge_u = np.array([edge["u"] for edge in edges], dtype=np.int64)
+        edge_v = np.array([edge["v"] for edge in edges], dtype=np.int64)
+        edge_weight = np.array([edge["weight"] for edge in edges], dtype=np.float64)
+
+        assert np.all(edge_u < edge_v)
+        assert np.all(np.diff(edge_weight) >= 0.0)
+        assert set(edge_u.tolist()) | set(edge_v.tolist()) == member_ids
+
+        for u, v, weight in zip(edge_u, edge_v, edge_weight, strict=True):
+            expected = excess[position_of[int(u)], position_of[int(v)]]
+            assert weight == pytest.approx(expected, abs=1e-5)
+
+        assert row["mst_bottleneck"] == pytest.approx(edge_weight[0])
+        components, lcc_frac = mst_component_summary(
+            member_ids,
+            edge_u,
+            edge_v,
+            edge_weight,
+        )
+        assert row["mst_components_at_zero"] == components
+        assert row["mst_lcc_frac_at_zero"] == pytest.approx(lcc_frac)
+
+
 def test_cluster_nodes_have_cross_oe(mcool, tmp_path) -> None:
     result = cluster(make_config(mcool, base_tads(tmp_path), tmp_path))
 
@@ -399,6 +487,50 @@ def test_cohesion_matches_direct_submatrix(mcool, tmp_path) -> None:
                     expected_excess,
                     abs=1e-3,
                 )
+
+
+def test_cluster_node_msts_match_stored_excess(mcool, tmp_path) -> None:
+    config = make_config(mcool, four_tads(tmp_path), tmp_path)
+    result = cluster(config)
+    write_outputs(result, config)
+
+    out = tmp_path / "out"
+    with h5py.File(out / MATRIX_FILE, "r") as handle:
+        for chrom in ("chr1", "chr2"):
+            group = handle[chrom]
+            assert isinstance(group, h5py.Group)
+            leaves = result.cis_leaves.filter(pl.col("chrom") == chrom)
+            nodes = result.cis_nodes.filter(pl.col("chrom") == chrom)
+            assert_mst_rows(nodes, leaves, group)
+
+
+def test_ab_node_msts_match_stored_excess(mcool, tmp_path) -> None:
+    track = tmp_path / "track.bedGraph"
+    lines = []
+    for chrom in ("chr1", "chr2"):
+        for index, value in enumerate((1.0, 2.0, 3.0, 4.0)):
+            lines.append(f"{chrom}\t{index * 500}\t{(index + 1) * 500}\t{value}")
+    track.write_text("\n".join(lines) + "\n")
+    config = make_config(
+        mcool,
+        four_tads(tmp_path),
+        tmp_path,
+        ab_feature_track=track,
+    )
+    result = cluster(config)
+    write_outputs(result, config)
+
+    assert result.cis_leaves_ab is not None
+    assert result.cis_nodes_ab is not None
+
+    out = tmp_path / "out"
+    with h5py.File(out / MATRIX_FILE, "r") as handle:
+        for chrom in ("chr1", "chr2"):
+            group = handle[chrom]
+            assert isinstance(group, h5py.Group)
+            leaves = result.cis_leaves_ab.filter(pl.col("chrom") == chrom)
+            nodes = result.cis_nodes_ab.filter(pl.col("chrom") == chrom)
+            assert_mst_rows(nodes, leaves, group)
 
 
 def test_unclustered_rows_have_null_cohesion(tmp_path) -> None:
