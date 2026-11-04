@@ -114,6 +114,44 @@ def test_node_metrics_use_actual_pair_distance_bins() -> None:
     assert excess == pytest.approx(expected_excess)
 
 
+def test_log_oe_excess_matrix_subtracts_distance_baseline() -> None:
+    log_oe = np.array(
+        [
+            [1.0, 2.0, 4.0],
+            [2.0, 3.0, 6.0],
+            [4.0, 6.0, 5.0],
+        ]
+    )
+    context = make_context(log_oe)
+    excess = context.log_oe_excess_matrix()
+
+    expected = log_oe - context.baseline[context.distance_bin]
+    np.fill_diagonal(expected, 0.0)
+    assert np.allclose(excess, expected)
+    assert np.all(np.diag(excess) == 0.0)
+    assert np.allclose(excess, excess.T)
+
+
+def test_log_oe_excess_matrix_matches_full_node_excess() -> None:
+    log_oe = np.array(
+        [
+            [1.0, 2.0, 4.0],
+            [2.0, 3.0, 6.0],
+            [4.0, 6.0, 5.0],
+        ]
+    )
+    context = make_context(log_oe)
+    excess = context.log_oe_excess_matrix()
+
+    upper = np.triu_indices(3, 1)
+    weights = np.array([1.0, 1.0, 2.0])
+    pair_weights = (weights[:, None] * weights[None, :])[upper]
+    weighted = float(np.dot(pair_weights, excess[upper]) / pair_weights.sum())
+    _, node_excess = context.node_metrics(np.array([0, 1, 2], dtype=np.int64))
+
+    assert weighted == pytest.approx(node_excess)
+
+
 def test_singleton_node_has_null_metrics() -> None:
     context = make_context(np.array([[1.0]]), n_working_bins=(1,))
 

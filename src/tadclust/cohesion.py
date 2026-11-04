@@ -53,6 +53,13 @@ class CohesionContext:
             excess = float((values - self.baseline[pair_bins]).mean())
         return cross_oe, excess
 
+    def log_oe_excess_matrix(self) -> np.ndarray:
+        """Return log O/E minus the distance-bin baseline; diagonal is zero."""
+        values = np.array(self.log_oe, dtype=np.float64, copy=True)
+        values -= self.baseline[self.distance_bin]
+        np.fill_diagonal(values, 0.0)
+        return values
+
 
 def build_cohesion_context(
     units: list[SelectedUnit],
