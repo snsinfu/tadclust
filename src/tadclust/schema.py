@@ -94,9 +94,8 @@ def cis_nodes_schema(n_pcs: int, include_ab: bool) -> Schema:
             "node_oe": pl.Float64,
             "cross_oe": pl.Float64,
             "cross_oe_excess": pl.Float64,
-            "mst_bottleneck": pl.Float64,
-            "mst_components_at_zero": pl.Int64,
-            "mst_lcc_frac_at_zero": pl.Float64,
+            "cluster_n_components": pl.Int64,
+            "cluster_lcc_frac": pl.Float64,
             "mst_edges": pl.List(
                 pl.Struct(
                     {
@@ -106,6 +105,7 @@ def cis_nodes_schema(n_pcs: int, include_ab: bool) -> Schema:
                     }
                 )
             ),
+            "mst_bottleneck": pl.Float64,
             "node_internal_sse": pl.Float64,
             "node_split_gain": pl.Float64,
             "stop_reason": pl.String,

@@ -391,8 +391,8 @@ def assert_mst_rows(
             edge_v,
             edge_weight,
         )
-        assert row["mst_components_at_zero"] == components
-        assert row["mst_lcc_frac_at_zero"] == pytest.approx(lcc_frac)
+        assert row["cluster_n_components"] == components
+        assert row["cluster_lcc_frac"] == pytest.approx(lcc_frac)
 
 
 def test_cluster_nodes_have_cross_oe(mcool, tmp_path) -> None:

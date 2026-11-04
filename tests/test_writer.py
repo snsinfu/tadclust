@@ -244,8 +244,8 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     assert nodes.schema["cross_oe"] == pl.Float64
     assert nodes.schema["cross_oe_excess"] == pl.Float64
     assert nodes.schema["mst_bottleneck"] == pl.Float64
-    assert nodes.schema["mst_components_at_zero"] == pl.Int64
-    assert nodes.schema["mst_lcc_frac_at_zero"] == pl.Float64
+    assert nodes.schema["cluster_n_components"] == pl.Int64
+    assert nodes.schema["cluster_lcc_frac"] == pl.Float64
     assert nodes.schema["mst_edges"] == pl.List(
         pl.Struct(
             {

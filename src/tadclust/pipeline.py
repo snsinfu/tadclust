@@ -532,11 +532,10 @@ def _node_oe(result: _ChromosomeResult, local_indices: np.ndarray) -> float | No
     )
 
 
-def _mst_fields(mst: NodeMst, unit_base: int) -> dict[str, Any]:
+def _graph_fields(mst: NodeMst, unit_base: int) -> dict[str, Any]:
     return {
-        "mst_bottleneck": mst.bottleneck,
-        "mst_components_at_zero": mst.components_at_zero,
-        "mst_lcc_frac_at_zero": mst.lcc_frac_at_zero,
+        "cluster_n_components": mst.components_at_zero,
+        "cluster_lcc_frac": mst.lcc_frac_at_zero,
         "mst_edges": [
             {
                 "u": unit_base + int(edge_u),
@@ -550,15 +549,16 @@ def _mst_fields(mst: NodeMst, unit_base: int) -> dict[str, Any]:
                 strict=True,
             )
         ],
+        "mst_bottleneck": mst.bottleneck,
     }
 
 
-def _null_mst_fields() -> dict[str, Any]:
+def _null_graph_fields() -> dict[str, Any]:
     return {
-        "mst_bottleneck": None,
-        "mst_components_at_zero": None,
-        "mst_lcc_frac_at_zero": None,
+        "cluster_n_components": None,
+        "cluster_lcc_frac": None,
         "mst_edges": [],
+        "mst_bottleneck": None,
     }
 
 
@@ -642,7 +642,7 @@ def _cis_node_rows(
                         _node_oe(result, local_indices),
                         cross_oe,
                         cross_oe_excess,
-                        _mst_fields(mst, unit_base),
+                        _graph_fields(mst, unit_base),
                     )
                     if not node.is_leaf:
                         row = dict(base)
@@ -692,7 +692,7 @@ def _cis_node_rows(
                 "node_oe": _node_oe(result, np.array([local_index], dtype=np.int64)),
                 "cross_oe": None,
                 "cross_oe_excess": None,
-                **_null_mst_fields(),
+                **_null_graph_fields(),
             }
             row.update(
                 _leaf_unit_fields(
@@ -710,9 +710,8 @@ def _cis_node_rows(
 
     return pl.DataFrame(rows).with_columns(
         pl.col("pc").cast(pl.Array(pl.Float64, n_pcs)),
-        pl.col("mst_bottleneck").cast(pl.Float64),
-        pl.col("mst_components_at_zero").cast(pl.Int64),
-        pl.col("mst_lcc_frac_at_zero").cast(pl.Float64),
+        pl.col("cluster_n_components").cast(pl.Int64),
+        pl.col("cluster_lcc_frac").cast(pl.Float64),
         pl.col("mst_edges").cast(
             pl.List(
                 pl.Struct(
@@ -724,6 +723,7 @@ def _cis_node_rows(
                 )
             )
         ),
+        pl.col("mst_bottleneck").cast(pl.Float64),
     )
 
 

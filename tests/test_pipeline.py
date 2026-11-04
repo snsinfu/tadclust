@@ -115,14 +115,14 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert branch_nodes["cross_oe"].is_finite().all()
     assert branch_nodes["cross_oe_excess"].is_finite().all()
     assert branch_nodes["mst_bottleneck"].is_finite().all()
-    assert branch_nodes["mst_components_at_zero"].is_not_null().all()
-    assert branch_nodes["mst_lcc_frac_at_zero"].is_finite().all()
+    assert branch_nodes["cluster_n_components"].is_not_null().all()
+    assert branch_nodes["cluster_lcc_frac"].is_finite().all()
     assert (branch_nodes["mst_edges"].list.len() == branch_nodes["n_units"] - 1).all()
     leaf_nodes = result.cis_nodes.filter(pl.col("is_leaf"))
     assert leaf_nodes["cross_oe"].null_count() == leaf_nodes.height
     assert leaf_nodes["mst_bottleneck"].null_count() == leaf_nodes.height
-    assert leaf_nodes["mst_components_at_zero"].null_count() == leaf_nodes.height
-    assert leaf_nodes["mst_lcc_frac_at_zero"].null_count() == leaf_nodes.height
+    assert leaf_nodes["cluster_n_components"].null_count() == leaf_nodes.height
+    assert leaf_nodes["cluster_lcc_frac"].null_count() == leaf_nodes.height
     assert leaf_nodes["mst_edges"].list.len().sum() == 0
     assert_node_references(result.cis_nodes)
 
@@ -856,8 +856,8 @@ def test_cluster_parallel_matches_serial(mcool, tmp_path) -> None:
         "path",
         "is_leaf",
         "mst_bottleneck",
-        "mst_components_at_zero",
-        "mst_lcc_frac_at_zero",
+        "cluster_n_components",
+        "cluster_lcc_frac",
         "mst_edges",
     ]
     assert serial.cis_nodes.select(node_columns).equals(
@@ -934,8 +934,8 @@ def test_zero_contact_cis_unit_is_unclustered(tmp_path) -> None:
     assert node_unclustered["is_leaf"].to_list() == [True, True]
     assert node_unclustered["path"].to_list() == [None, None]
     assert node_unclustered["mst_bottleneck"].null_count() == 2
-    assert node_unclustered["mst_components_at_zero"].null_count() == 2
-    assert node_unclustered["mst_lcc_frac_at_zero"].null_count() == 2
+    assert node_unclustered["cluster_n_components"].null_count() == 2
+    assert node_unclustered["cluster_lcc_frac"].null_count() == 2
     assert node_unclustered["mst_edges"].list.len().sum() == 0
     assert result.qc["summary"]["n_unclustered"] == 2
     assert result.qc["per_chromosome"]["chr1"]["cis"]["n_unclustered"] == 2
