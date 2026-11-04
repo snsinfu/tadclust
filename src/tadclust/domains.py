@@ -23,7 +23,7 @@ class UnitNode:
     chrom: str
     start: int
     end: int
-    tad_table_row: int | None
+    tad_id: int | None
     parent_id: int | None = None
     children: list[int] = field(default_factory=list)
     fine_lo: int = 0
@@ -68,7 +68,7 @@ class SelectedUnit:
     start: int
     end: int
     unit_kind: str
-    tad_table_row: int | None
+    tad_id: int | None
     fine_indices: np.ndarray
     n_working_bins: int
 
@@ -102,7 +102,7 @@ def build_chromosome_tree(
     # Build a TAD tree by scanning a flat, sorted list of interval annotations.
     # Stack is used to keep track of nesting.
     table = tads.rows.filter(pl.col("chrom") == chrom).sort(
-        ["start", "end", "tad_table_row"],
+        ["start", "end", "tad_id"],
         descending=[False, True, False],
     )
     if table.height == 0:
@@ -118,7 +118,7 @@ def build_chromosome_tree(
         chrom=chrom,
         start=0,
         end=chromsize,
-        tad_table_row=None,
+        tad_id=None,
     )
     nodes = {root.node_id: root}
     stack = [root.node_id]
@@ -126,15 +126,15 @@ def build_chromosome_tree(
     for row in table.iter_rows(named=True):
         start = row["start"]
         end = row["end"]
-        tad_table_row = row["tad_table_row"]
-        _check_interval(start, end, chromsize, chrom, tad_table_row)
+        tad_id = row["tad_id"]
+        _check_interval(start, end, chromsize, chrom, tad_id)
 
         node = UnitNode(
             node_id=len(nodes),
             chrom=chrom,
             start=start,
             end=end,
-            tad_table_row=tad_table_row,
+            tad_id=tad_id,
         )
 
         # Close finished nesting levels.
@@ -145,14 +145,14 @@ def build_chromosome_tree(
             if candidate.end > start:
                 raise InputError(
                     f"{chrom}: TAD intervals overlap but are not nested",
-                    row=tad_table_row,
+                    row=tad_id,
                 )
             stack.pop()
 
         if not stack:
             raise InputError(
                 f"{chrom}: TAD interval is outside the chromosome root",
-                row=tad_table_row,
+                row=tad_id,
             )
 
         parent = nodes[stack[-1]]
@@ -247,7 +247,7 @@ def build_flat_tree(
         chrom=chrom,
         start=0,
         end=chromsize,
-        tad_table_row=None,
+        tad_id=None,
         fine_lo=0,
         fine_hi=len(starts),
     )
@@ -261,7 +261,7 @@ def build_flat_tree(
             chrom=chrom,
             start=int(start),
             end=int(end),
-            tad_table_row=None,
+            tad_id=None,
             parent_id=root.node_id,
             fine_lo=index,
             fine_hi=index + 1,
@@ -490,7 +490,7 @@ def selected_units(
                 start=node.start,
                 end=node.end,
                 unit_kind=unit_kind,
-                tad_table_row=node.tad_table_row,
+                tad_id=node.tad_id,
                 fine_indices=indices,
                 n_working_bins=int(
                     sum(tree.fine_units[i].n_working_bins for i in indices)
@@ -513,7 +513,7 @@ def selected_units(
                         start=tree.fine_units[run[0]].start,
                         end=tree.fine_units[run[-1]].end,
                         unit_kind="residual",
-                        tad_table_row=None,
+                        tad_id=None,
                         fine_indices=run,
                         n_working_bins=int(
                             sum(tree.fine_units[i].n_working_bins for i in run)
@@ -677,17 +677,17 @@ def _check_interval(
     end: int,
     chromsize: int,
     chrom: str,
-    tad_table_row: int,
+    tad_id: int,
 ) -> None:
     if start is None or end is None:
         raise InputError(
             f"{chrom}: TAD interval has a missing coordinate",
-            row=tad_table_row,
+            row=tad_id,
         )
     if start < 0 or end > chromsize or end <= start:
         raise InputError(
             f"{chrom}: TAD {start}-{end} is outside [0, {chromsize})",
-            row=tad_table_row,
+            row=tad_id,
         )
 
 
@@ -706,7 +706,7 @@ def _check_siblings(
             if left.end > right.start:
                 raise InputError(
                     f"{chrom}: TAD intervals overlap but are not nested",
-                    row=right.tad_table_row,
+                    row=right.tad_id,
                 )
 
 

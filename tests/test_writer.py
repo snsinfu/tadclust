@@ -35,7 +35,7 @@ CIS_LEAVES_TSV_BASE_COLUMNS = [
     "unit_kind",
     "unit_start",
     "unit_end",
-    "tad_table_row",
+    "tad_id",
     "path_label",
     "depth",
 ]
@@ -219,7 +219,7 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
         "unit_kind",
         "unit_start",
         "unit_end",
-        "tad_table_row",
+        "tad_id",
         "path",
         "path_label",
         "depth",
@@ -293,7 +293,7 @@ def test_uniform_bin_tsv_nulls_use_sentinels(tmp_path) -> None:
     out = tmp_path / "out"
 
     parquet = pl.read_parquet(out / "cis_leaves.parquet")
-    assert parquet["tad_table_row"].null_count() == parquet.height
+    assert parquet["tad_id"].null_count() == parquet.height
 
     for name in ("cis_leaves.tsv", "cis_leaves_ab.tsv"):
         text = (out / name).read_text()
@@ -301,7 +301,7 @@ def test_uniform_bin_tsv_nulls_use_sentinels(tmp_path) -> None:
             assert all(cell != "" for cell in line.split("\t"))
 
     leaves = read_tsv(out / "cis_leaves.tsv")
-    assert leaves["tad_table_row"].to_list() == ["-1"] * leaves.height
+    assert leaves["tad_id"].to_list() == ["-1"] * leaves.height
     unclustered = leaves.filter(pl.col("unit_start").cast(pl.Int64) < 1000)
     assert "root_label" not in leaves.columns
     assert unclustered["path_label"].to_list() == ["NA", "NA"]

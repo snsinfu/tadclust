@@ -31,7 +31,7 @@ def make_unit(chrom, start, end, unit_id=0, n_working_bins=1):
         start=start,
         end=end,
         unit_kind="tad",
-        tad_table_row=None,
+        tad_id=None,
         fine_indices=np.zeros(0, dtype=np.int64),
         n_working_bins=n_working_bins,
     )

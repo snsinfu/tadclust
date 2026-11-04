@@ -84,7 +84,7 @@ Columns in the main table:
 | unit_kind            | tad/residual/bin | (leaf) Type of the unit or (branch) null. |
 | unit_start           | int              | (leaf) Start coord of the unit or (branch) null. |
 | unit_end             | int              | (leaf) End coord of the unit or (branch) null. |
-| tad_table_row        | int              | (leaf) Row index of the TAD table or (branch/non-TAD) null. |
+| tad_id               | int              | (leaf) Row index of the TAD table or (branch/non-TAD) null. |
 | path                 | int[]            | Branches to take to arrive at the node from the root, like \[0,1,0,1,1,1\]. |
 | path_label           | string           | Root:dot-delimited path, like "chr1:0.1.0.1.1.1" and "chr2:B.1.0.0.1". |
 | ab_label             | A/B              | A/B classification (ab_signal <=> 0) of the node. |

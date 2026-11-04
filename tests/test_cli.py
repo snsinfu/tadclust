@@ -358,7 +358,7 @@ def test_cli_uniform_bins_run(mcool, tmp_path) -> None:
 
     leaves = pl.read_parquet(out / "cis_leaves.parquet")
     assert set(leaves["unit_kind"].to_list()) == {"bin"}
-    assert leaves["tad_table_row"].null_count() == leaves.height
+    assert leaves["tad_id"].null_count() == leaves.height
 
 
 def test_cli_uniform_bins_requires_working_binsize(mcool, tmp_path) -> None:

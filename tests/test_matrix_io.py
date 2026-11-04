@@ -29,7 +29,7 @@ def make_unit(
     *,
     unit_id: int,
     n_working_bins: int = 2,
-    tad_table_row: int | None = None,
+    tad_id: int | None = None,
 ) -> SelectedUnit:
     return SelectedUnit(
         unit_id=unit_id,
@@ -37,7 +37,7 @@ def make_unit(
         start=start,
         end=end,
         unit_kind="tad",
-        tad_table_row=tad_table_row,
+        tad_id=tad_id,
         fine_indices=np.zeros(0, dtype=np.int64),
         n_working_bins=n_working_bins,
     )
@@ -79,10 +79,10 @@ def make_context(units, matrices, *, n_bins_chrom: int = 4):
 
 def test_build_cis_matrices_uses_global_unit_order_and_metadata() -> None:
     units_a = [
-        make_unit("chr1", 0, 1000, unit_id=0, tad_table_row=4),
+        make_unit("chr1", 0, 1000, unit_id=0, tad_id=4),
         make_unit("chr1", 1000, 2000, unit_id=1, n_working_bins=3),
     ]
-    units_b = [make_unit("chr2", 0, 500, unit_id=0, tad_table_row=7)]
+    units_b = [make_unit("chr2", 0, 500, unit_id=0, tad_id=7)]
     matrices_a = make_matrices(2)
     matrices_b = make_matrices(1, seed=1)
     matrices = build_cis_matrices(
@@ -115,8 +115,8 @@ def test_build_cis_matrices_uses_global_unit_order_and_metadata() -> None:
     first, second = matrices.groups
     assert first.unit_id.tolist() == [0, 1]
     assert second.unit_id.tolist() == [2]
-    assert first.tad_table_row.tolist() == [4, -1]
-    assert second.tad_table_row.tolist() == [7]
+    assert first.tad_id.tolist() == [4, -1]
+    assert second.tad_id.tolist() == [7]
     assert first.unit_center.tolist() == [500.0, 1500.0]
     assert first.n_working_bins.tolist() == [2, 3]
     assert first.observed.dtype == np.float32
@@ -162,12 +162,12 @@ def test_build_cis_matrices_rejects_wrong_matrix_shape() -> None:
 
 def test_write_cis_matrices_round_trip(tmp_path) -> None:
     units_a = [
-        make_unit("chr1", 0, 1000, unit_id=0, tad_table_row=0),
+        make_unit("chr1", 0, 1000, unit_id=0, tad_id=0),
         make_unit("chr1", 1000, 2000, unit_id=1),
     ]
     matrices_a = make_matrices(2)
     context_a = make_context(units_a, matrices_a)
-    units_b = [make_unit("chr2", 0, 1000, unit_id=0, tad_table_row=1)]
+    units_b = [make_unit("chr2", 0, 1000, unit_id=0, tad_id=1)]
     matrices_b = make_matrices(1, seed=2)
     context_b = make_context(units_b, matrices_b)
     matrices = build_cis_matrices(
@@ -225,7 +225,7 @@ def test_write_cis_matrices_round_trip(tmp_path) -> None:
         assert first.attrs["alpha"] == 0.5
         assert "n_units" not in first.attrs
         assert dataset(first, "unit_id")[()].tolist() == [0, 1]
-        assert dataset(first, "tad_table_row")[()].tolist() == [0, -1]
+        assert dataset(first, "tad_id")[()].tolist() == [0, -1]
         assert dataset(first, "unit_center")[()].tolist() == [500.0, 1500.0]
         for name in (
             "log_oe",

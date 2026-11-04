@@ -113,7 +113,7 @@ def test_cis_matrices_output_and_manifest(mcool, tmp_path) -> None:
         for group in groups.values():
             assert set(group) == set(MATRIX_DATASETS)
             assert "n_units" not in group.attrs
-            assert dataset(group, "tad_table_row").attrs["null_value"] == -1
+            assert dataset(group, "tad_id").attrs["null_value"] == -1
 
         raw = dataset(handle, "manifest")[()]
         if isinstance(raw, bytes):
@@ -275,9 +275,9 @@ def test_cis_matrix_units_match_cis_leaves(mcool, tmp_path) -> None:
                 dataset(group, "n_working_bins")[()],
                 rows["n_working_bins"].to_numpy(),
             )
-            expected_rows = rows["tad_table_row"].fill_null(-1).to_numpy()
+            expected_rows = rows["tad_id"].fill_null(-1).to_numpy()
             assert np.array_equal(
-                dataset(group, "tad_table_row")[()],
+                dataset(group, "tad_id")[()],
                 expected_rows,
             )
             starts = rows["unit_start"].to_numpy()
@@ -346,12 +346,12 @@ def test_cis_matrices_include_residual_units(
                 dataset(group, "unit_id")[()],
                 rows["unit_id"].to_numpy(),
             )
-            tad_rows = dataset(group, "tad_table_row")[()]
+            tad_ids = dataset(group, "tad_id")[()]
             assert np.array_equal(
-                tad_rows,
-                rows["tad_table_row"].fill_null(-1).to_numpy(),
+                tad_ids,
+                rows["tad_id"].fill_null(-1).to_numpy(),
             )
-            assert np.any(tad_rows == -1)
+            assert np.any(tad_ids == -1)
 
 
 def test_cis_matrices_uniform_bins(mcool, tmp_path) -> None:
@@ -370,7 +370,7 @@ def test_cis_matrices_uniform_bins(mcool, tmp_path) -> None:
                 dataset(group, "unit_id")[()],
                 rows["unit_id"].to_numpy(),
             )
-            assert np.all(dataset(group, "tad_table_row")[()] == -1)
+            assert np.all(dataset(group, "tad_id")[()] == -1)
 
 
 def test_existing_outputs_work_without_matrix_file(mcool, tmp_path) -> None:

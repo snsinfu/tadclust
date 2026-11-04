@@ -102,7 +102,7 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert set(
         result.cis_leaves["path_label"].str.split(":").list.first()
     ) == {"chr1", "chr2"}
-    assert result.cis_leaves["tad_table_row"].to_list() == [0, 1, 2, 3]
+    assert result.cis_leaves["tad_id"].to_list() == [0, 1, 2, 3]
     assert "ab_label" not in result.cis_leaves.columns
     assert "trans_path" not in result.cis_leaves.columns
 
@@ -218,7 +218,7 @@ def test_cluster_residuals_are_opt_in(gapped_mcool, gapped_tads, tmp_path) -> No
 
     assert default.cis_leaves.height == 4
     assert set(default.cis_leaves["unit_kind"].to_list()) == {"tad"}
-    assert default.cis_leaves["tad_table_row"].null_count() == 0
+    assert default.cis_leaves["tad_id"].null_count() == 0
     assert default.qc["summary"]["n_residuals"] == 0
     for chromosome_qc in default.qc["per_chromosome"].values():
         assert 0.0 < chromosome_qc["cis"]["coverage_fraction"] < 1.0
@@ -270,7 +270,7 @@ def test_cluster_uniform_bins(mcool, tmp_path) -> None:
 
     assert result.cis_leaves.height == 8
     assert result.cis_leaves["unit_kind"].unique().to_list() == ["bin"]
-    assert result.cis_leaves["tad_table_row"].null_count() == 8
+    assert result.cis_leaves["tad_id"].null_count() == 8
     assert result.qc["summary"]["n_units"] == 8
     assert result.qc["summary"]["n_tads"] == 0
     assert result.qc["summary"]["n_bin_units"] == 8
@@ -369,7 +369,7 @@ def test_hierarchy_roots_selection_skips_dp(monkeypatch, mcool, tmp_path) -> Non
     assert result.cis_leaves.height == 4
     assert result.cis_leaves["unit_start"].to_list() == [0, 1500, 0, 1500]
     assert result.cis_leaves["unit_end"].to_list() == [1500, 2000, 1500, 2000]
-    assert result.cis_leaves["tad_table_row"].to_list() == [0, 3, 4, 7]
+    assert result.cis_leaves["tad_id"].to_list() == [0, 3, 4, 7]
     assert result.params["requested"]["unit_selection"] == "roots"
     for chromosome_qc in result.qc["per_chromosome"].values():
         assert chromosome_qc["cis"]["dp_cut_size"] == 2
@@ -400,7 +400,7 @@ def test_cluster_uniform_bins_parallel_matches_serial(mcool, tmp_path) -> None:
         "unit_start",
         "unit_end",
         "unit_kind",
-        "tad_table_row",
+        "tad_id",
         "n_working_bins",
     ]
     assert serial.cis_leaves.select(columns).equals(parallel.cis_leaves.select(columns))
@@ -760,7 +760,7 @@ def test_feature_track_does_not_change_primary_tree(mcool, tmp_path) -> None:
         "unit_kind",
         "unit_start",
         "unit_end",
-        "tad_table_row",
+        "tad_id",
     ]
     assert without.cis_leaves.select(unit_columns).equals(
         with_track.cis_leaves.select(unit_columns)
@@ -874,7 +874,7 @@ def test_cluster_parallel_matches_serial(mcool, tmp_path) -> None:
         "unit_start",
         "unit_end",
         "unit_kind",
-        "tad_table_row",
+        "tad_id",
         "n_working_bins",
     ]
     assert serial.cis_leaves.select(columns).equals(parallel.cis_leaves.select(columns))
@@ -933,7 +933,7 @@ def test_cluster_gapped_parallel_matches_serial(
         "unit_start",
         "unit_end",
         "unit_kind",
-        "tad_table_row",
+        "tad_id",
         "n_working_bins",
     ]
     assert serial.cis_leaves.select(columns).equals(parallel.cis_leaves.select(columns))

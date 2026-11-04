@@ -30,7 +30,7 @@ def make_unit(
         start=start,
         end=end,
         unit_kind="tad",
-        tad_table_row=unit_id,
+        tad_id=unit_id,
         fine_indices=np.zeros(0, dtype=np.int64),
         n_working_bins=n_working_bins,
     )

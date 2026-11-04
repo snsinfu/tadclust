@@ -84,7 +84,7 @@ def cis_leaves_schema(include_trans: bool, include_ab: bool):
         ("unit_kind", pl.String),
         ("unit_start", pl.Int64),
         ("unit_end", pl.Int64),
-        ("tad_table_row", pl.Int64),
+        ("tad_id", pl.Int64),
         ("path", pl.List(pl.Int64)),
         ("path_label", pl.String),
         ("depth", pl.Int64),
@@ -126,7 +126,7 @@ def cis_nodes_schema(include_ab: bool, n_pcs: int = 3):
         ("unit_kind", pl.String),
         ("unit_start", pl.Int64),
         ("unit_end", pl.Int64),
-        ("tad_table_row", pl.Int64),
+        ("tad_id", pl.Int64),
         ("path", pl.List(pl.Int64)),
         ("path_label", pl.String),
     ]
@@ -177,7 +177,7 @@ CIS_LEAVES_TSV_BASE_COLUMNS = [
     "unit_kind",
     "unit_start",
     "unit_end",
-    "tad_table_row",
+    "tad_id",
     "path_label",
     "depth",
 ]
@@ -205,7 +205,7 @@ CIS_LEAVES_AB_SCHEMA = [
     ("unit_kind", pl.String),
     ("unit_start", pl.Int64),
     ("unit_end", pl.Int64),
-    ("tad_table_row", pl.Int64),
+    ("tad_id", pl.Int64),
     ("path", pl.List(pl.Int64)),
     ("path_label", pl.String),
     ("depth", pl.Int64),
@@ -303,7 +303,7 @@ def test_uniform_bins_golden_schema(mcool, tmp_path) -> None:
 
     leaves = pl.read_parquet(out / "cis_leaves.parquet")
     assert set(leaves["unit_kind"].to_list()) == {"bin"}
-    assert leaves["tad_table_row"].null_count() == leaves.height
+    assert leaves["tad_id"].null_count() == leaves.height
 
     manifest = json.loads((out / "manifest.json").read_text())
     assert manifest["inputs"]["annotation"] is None

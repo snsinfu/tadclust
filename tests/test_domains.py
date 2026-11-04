@@ -79,7 +79,7 @@ def hierarchy_rows():
 def test_build_tree_hierarchy_and_gaps(tmp_path) -> None:
     tree = make_tree(tmp_path, hierarchy_rows())
 
-    by_row = {node.tad_table_row: node for node in tree.nodes.values()}
+    by_row = {node.tad_id: node for node in tree.nodes.values()}
     root = tree.nodes[tree.root_id]
 
     assert by_row[0].parent_id == root.node_id
@@ -116,9 +116,9 @@ def test_whole_chromosome_row_is_root_metadata(tmp_path) -> None:
     )
 
     root = tree.nodes[tree.root_id]
-    assert [tree.nodes[child].tad_table_row for child in root.children] == [1, 2]
+    assert [tree.nodes[child].tad_id for child in root.children] == [1, 2]
     assert {
-        node.tad_table_row
+        node.tad_id
         for node in tree.nodes.values()
         if node.node_id != tree.root_id
     } == {1, 2}
@@ -198,7 +198,7 @@ def test_gaps_before_and_after_children(tmp_path) -> None:
         (600, 800, False),
         (800, 1000, False),
     ]
-    by_row = {node.tad_table_row: node for node in tree.nodes.values()}
+    by_row = {node.tad_id: node for node in tree.nodes.values()}
     assert by_row[0].fine_lo == 1
     assert by_row[0].fine_hi == 4
     assert by_row[1].fine_lo == 2
@@ -286,7 +286,7 @@ def test_antichain_dp_chooses_cheaper_cut(tmp_path) -> None:
     centers = (np.arange(20) + 0.5) * 100.0
     assign_bin_counts(tree, centers)
 
-    by_row = {node.tad_table_row: node.node_id for node in tree.nodes.values()}
+    by_row = {node.tad_id: node.node_id for node in tree.nodes.values()}
     masses = {
         node.node_id: int(
             sum(
@@ -327,7 +327,7 @@ def test_selected_units_tile_the_chromosome(tmp_path) -> None:
     tree = make_tree(tmp_path, hierarchy_rows())
     centers = (np.arange(20) + 0.5) * 100.0
     assign_bin_counts(tree, centers)
-    by_row = {node.tad_table_row: node.node_id for node in tree.nodes.values()}
+    by_row = {node.tad_id: node.node_id for node in tree.nodes.values()}
 
     units, fine_to_unit, unit_map = selected_units(
         tree,
@@ -338,7 +338,7 @@ def test_selected_units_tile_the_chromosome(tmp_path) -> None:
         ("tad", 0, 1000),
         ("tad", 1000, 2000),
     ]
-    assert [unit.tad_table_row for unit in units] == [0, 3]
+    assert [unit.tad_id for unit in units] == [0, 3]
     assert [unit.n_working_bins for unit in units] == [10, 10]
     assert fine_to_unit.tolist() == [0, 0, 0, 1]
     assert unit_map.shape == (4, 2)
@@ -349,7 +349,7 @@ def test_selected_units_include_residual_runs(tmp_path) -> None:
     tree = make_tree(tmp_path, hierarchy_rows())
     centers = (np.arange(20) + 0.5) * 100.0
     assign_bin_counts(tree, centers)
-    by_row = {node.tad_table_row: node.node_id for node in tree.nodes.values()}
+    by_row = {node.tad_id: node.node_id for node in tree.nodes.values()}
 
     units, _, _ = selected_units(
         tree,
@@ -361,14 +361,14 @@ def test_selected_units_include_residual_runs(tmp_path) -> None:
         ("tad", 0, 400),
         ("residual", 400, 2000),
     ]
-    assert units[1].tad_table_row is None
+    assert units[1].tad_id is None
 
 
 def test_selected_units_omit_residual_runs_by_default(tmp_path) -> None:
     tree = make_tree(tmp_path, hierarchy_rows())
     centers = (np.arange(20) + 0.5) * 100.0
     assign_bin_counts(tree, centers)
-    by_row = {node.tad_table_row: node.node_id for node in tree.nodes.values()}
+    by_row = {node.tad_id: node.node_id for node in tree.nodes.values()}
 
     units, fine_to_unit, unit_map = selected_units(tree, [by_row[1]])
 
@@ -485,7 +485,7 @@ def test_select_units_hierarchy_roots_skip_dp(tmp_path, monkeypatch) -> None:
         ("tad", 0, 1000),
         ("tad", 1000, 2000),
     ]
-    assert [unit.tad_table_row for unit in selection.units] == [0, 3]
+    assert [unit.tad_id for unit in selection.units] == [0, 3]
     assert selection.cut_size == 2
     assert selection.objective == 0.0
     assert selection.dp_lambda == 0.0
@@ -532,7 +532,7 @@ def test_select_units_hierarchy_roots_add_residuals(tmp_path) -> None:
         ("tad", 200, 800),
         ("residual", 800, 1000),
     ]
-    assert [unit.tad_table_row for unit in selection.units] == [None, 0, None]
+    assert [unit.tad_id for unit in selection.units] == [None, 0, None]
     assert selection.cut_size == 1
 
 
@@ -564,7 +564,7 @@ def test_select_units_flat_tree_uses_bin_kind_and_reuses_matrices() -> None:
     )
 
     assert [unit.unit_kind for unit in selection.units] == ["bin"] * 4
-    assert [unit.tad_table_row for unit in selection.units] == [None] * 4
+    assert [unit.tad_id for unit in selection.units] == [None] * 4
     assert [unit.start for unit in selection.units] == [0, 500, 1000, 1500]
     assert [unit.end for unit in selection.units] == [500, 1000, 1500, 2000]
     assert selection.fine_to_unit.tolist() == [0, 1, 2, 3]

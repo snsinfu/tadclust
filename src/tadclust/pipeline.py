@@ -484,7 +484,7 @@ def _leaf_unit_fields(
         "unit_start": unit.start,
         "unit_end": unit.end,
         "unit_kind": unit.unit_kind,
-        "tad_table_row": unit.tad_table_row,
+        "tad_id": unit.tad_id,
         "pc": [float(value) for value in result.pcs[local_index, :n_pcs]],
     }
 
@@ -495,7 +495,7 @@ def _null_unit_fields() -> dict[str, Any]:
         "unit_start": None,
         "unit_end": None,
         "unit_kind": None,
-        "tad_table_row": None,
+        "tad_id": None,
     }
 
 

@@ -26,7 +26,7 @@ MATRIX_COMPRESSION = "gzip"
 MATRIX_COMPRESSION_LEVEL = 1
 MATRIX_DATASETS = (
     "unit_id",
-    "tad_table_row",
+    "tad_id",
     "unit_start",
     "unit_end",
     "unit_center",
@@ -57,7 +57,7 @@ class CisMatrixGroup:
 
     chrom: str
     unit_id: np.ndarray
-    tad_table_row: np.ndarray
+    tad_id: np.ndarray
     unit_start: np.ndarray
     unit_end: np.ndarray
     unit_center: np.ndarray
@@ -139,9 +139,9 @@ def build_cis_matrices(
         )
         starts = np.array([unit.start for unit in item.units], dtype=np.int64)
         ends = np.array([unit.end for unit in item.units], dtype=np.int64)
-        tad_rows = np.array(
+        tad_ids = np.array(
             [
-                -1 if unit.tad_table_row is None else unit.tad_table_row
+                -1 if unit.tad_id is None else unit.tad_id
                 for unit in item.units
             ],
             dtype=np.int64,
@@ -167,7 +167,7 @@ def build_cis_matrices(
             CisMatrixGroup(
                 chrom=item.chrom,
                 unit_id=unit_ids,
-                tad_table_row=tad_rows,
+                tad_id=tad_ids,
                 unit_start=starts,
                 unit_end=ends,
                 unit_center=centers,
@@ -212,11 +212,11 @@ def write_cis_matrices(
             group.attrs["distance_bin_edges"] = group_data.distance_bin_edges
 
             group.create_dataset("unit_id", data=group_data.unit_id)
-            tad_rows = group.create_dataset(
-                "tad_table_row",
-                data=group_data.tad_table_row,
+            tad_ids = group.create_dataset(
+                "tad_id",
+                data=group_data.tad_id,
             )
-            tad_rows.attrs["null_value"] = -1
+            tad_ids.attrs["null_value"] = -1
             group.create_dataset("unit_start", data=group_data.unit_start)
             group.create_dataset("unit_end", data=group_data.unit_end)
             group.create_dataset(
