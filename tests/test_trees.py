@@ -275,9 +275,7 @@ def test_binary_tree_paths_and_gain() -> None:
     assert low.n_working_bins == 30
 
     leaves = leaf_by_unit(tree)
-    assert [
-        format_path_label("chr1", leaves[unit].path) for unit in range(4)
-    ] == [
+    assert [format_path_label("chr1", leaves[unit].path) for unit in range(4)] == [
         "chr1:0.0",
         "chr1:0.1",
         "chr1:1.0",

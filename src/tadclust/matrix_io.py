@@ -140,10 +140,7 @@ def build_cis_matrices(
         starts = np.array([unit.start for unit in item.units], dtype=np.int64)
         ends = np.array([unit.end for unit in item.units], dtype=np.int64)
         tad_ids = np.array(
-            [
-                -1 if unit.tad_id is None else unit.tad_id
-                for unit in item.units
-            ],
+            [-1 if unit.tad_id is None else unit.tad_id for unit in item.units],
             dtype=np.int64,
         )
         centers = (starts.astype(np.float64) + ends.astype(np.float64)) / 2.0

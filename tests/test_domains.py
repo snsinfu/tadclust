@@ -118,9 +118,7 @@ def test_whole_chromosome_row_is_root_metadata(tmp_path) -> None:
     root = tree.nodes[tree.root_id]
     assert [tree.nodes[child].tad_id for child in root.children] == [1, 2]
     assert {
-        node.tad_id
-        for node in tree.nodes.values()
-        if node.node_id != tree.root_id
+        node.tad_id for node in tree.nodes.values() if node.node_id != tree.root_id
     } == {1, 2}
     assert [(fine.start, fine.end, fine.is_tad) for fine in tree.fine_units] == [
         (0, 1000, True),
