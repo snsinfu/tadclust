@@ -174,6 +174,8 @@ def test_cis_matrix_contents(mcool, tmp_path, source) -> None:
             assert log_oe_baseline.size == edges.size - 1
             assert np.all(np.isfinite(log_oe_baseline))
             assert np.all(np.diag(log_oe_excess) == 0.0)
+            assert np.all(dc_log_freq >= clip_min)
+            assert np.all(dc_log_freq <= clip_max)
 
             recomputed = log2_ratio(
                 observed.astype(np.float64),

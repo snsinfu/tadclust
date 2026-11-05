@@ -117,13 +117,19 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--clip-min",
         type=float,
         default=-10.0,
-        help="lower bound for clipping log2-transformed contact values before PCA",
+        help=(
+            "lower bound for clipping transformed contact values: log O/E, "
+            "and double-centered log frequency after centering"
+        ),
     )
     advanced.add_argument(
         "--clip-max",
         type=float,
         default=10.0,
-        help="upper bound for clipping log2-transformed contact values before PCA",
+        help=(
+            "upper bound for clipping transformed contact values: log O/E, "
+            "and double-centered log frequency after centering"
+        ),
     )
     advanced.add_argument(
         "--pseudocount-scale",

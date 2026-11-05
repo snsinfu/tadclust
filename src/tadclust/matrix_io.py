@@ -20,7 +20,7 @@ from .matrix import (
 )
 
 MATRIX_FILE = "cis_matrices.h5"
-MATRIX_SCHEMA_VERSION = "2.0"
+MATRIX_SCHEMA_VERSION = "2.1"
 MATRIX_DTYPE = np.float32
 MATRIX_COMPRESSION = "gzip"
 MATRIX_COMPRESSION_LEVEL = 1

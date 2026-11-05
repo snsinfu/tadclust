@@ -235,9 +235,9 @@ def test_pcs_from_log_frequency_double_centers_and_zeroes_diagonal() -> None:
     )
 
     values = np.log2(1.0 + observed / alpha)
-    values = np.clip(values, clip_min, clip_max)
     values = values - values.mean(axis=1, keepdims=True)
     values = values - values.mean(axis=0, keepdims=True) + values.mean()
+    values = np.clip(values, clip_min, clip_max)
     np.fill_diagonal(values, 0.0)
     expected, _, _ = compute_top_pcs(cosine_normalize(values), 2)
 
@@ -288,12 +288,44 @@ def test_double_centered_log_frequency_matches_manual_formula() -> None:
     )
 
     expected = np.log2(1.0 + observed / alpha)
-    expected = np.clip(expected, clip_min, clip_max)
     expected = expected - expected.mean(axis=1, keepdims=True)
     expected = expected - expected.mean(axis=0, keepdims=True) + expected.mean()
+    expected = np.clip(expected, clip_min, clip_max)
     np.fill_diagonal(expected, 0.0)
 
     assert np.allclose(values, expected)
+
+
+def test_double_centered_log_frequency_clips_after_centering() -> None:
+    observed = np.array(
+        [
+            [1.0, 100.0, 1.0],
+            [100.0, 1.0, 1.0],
+            [1.0, 1.0, 1.0],
+        ]
+    )
+    alpha = 1.0
+    clip_min = -0.5
+    clip_max = 2.0
+
+    values = double_centered_log_frequency(
+        observed,
+        alpha,
+        clip_min=clip_min,
+        clip_max=clip_max,
+    )
+
+    expected = np.log2(1.0 + observed / alpha)
+    expected = expected - expected.mean(axis=1, keepdims=True)
+    expected = expected - expected.mean(axis=0, keepdims=True) + expected.mean()
+    expected = np.clip(expected, clip_min, clip_max)
+    np.fill_diagonal(expected, 0.0)
+
+    assert np.allclose(values, expected)
+    assert values[0, 1] == clip_max
+    assert values[0, 2] == clip_min
+    assert np.all(values >= clip_min)
+    assert np.all(values <= clip_max)
 
 
 def test_double_centered_log_frequency_keeps_zero_rows_and_columns() -> None:

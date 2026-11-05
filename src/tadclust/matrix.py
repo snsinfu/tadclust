@@ -300,8 +300,11 @@ def double_centered_log_frequency(
     The log-frequency matrix has no distance-decay null. Symmetric
     double-centering removes additive row/column effects (unit-level contact
     propensity) and the global level without modeling distance. Positive
-    residuals are above that additive null. The diagonal is removed after
-    centering, and rows or columns with no observed contacts stay exactly zero.
+    residuals are above that additive null. Finite log-frequency values are
+    clipped after centering, so the row and column means use the unclipped
+    high-contact tail. Non-finite values are sanitized to the clip bounds
+    before centering. The diagonal is removed after centering, and rows or
+    columns with no observed contacts stay exactly zero.
     """
     if not np.isfinite(alpha) or alpha <= 0.0:
         raise ClusteringError(
@@ -329,7 +332,6 @@ def double_centered_log_frequency(
         posinf=clip_max,
         neginf=clip_min,
     )
-    values = np.clip(values, clip_min, clip_max)
 
     zero_rows = ~np.any(values_in != 0.0, axis=1)
     zero_cols = ~np.any(values_in != 0.0, axis=0)
@@ -337,6 +339,7 @@ def double_centered_log_frequency(
     col_mean = values.mean(axis=0, keepdims=True)
     grand_mean = values.mean()
     values = values - row_mean - col_mean + grand_mean
+    values = np.clip(values, clip_min, clip_max)
     values[zero_rows, :] = 0.0
     values[:, zero_cols] = 0.0
     np.fill_diagonal(values, 0.0)
@@ -352,7 +355,7 @@ def pcs_from_log_frequency(
     clip_max: float,
     label: str = "cis",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Compute PCs from double-centered log-frequency contacts (`frequency` source)."""
+    """Compute PCs from post-clipped double-centered log-frequency contacts (`frequency` source)."""
     values = double_centered_log_frequency(
         observed,
         alpha,
