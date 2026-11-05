@@ -18,7 +18,7 @@ from tadclust.matrix import (
     expected_by_distance,
     log2_ratio,
     orient_pcs_to_feature,
-    pcs_from_cis_source,
+    pcs_from_contact_representation,
     pcs_from_log_frequency,
     pcs_from_log_oe,
     scaled_pseudocount,
@@ -372,7 +372,7 @@ def test_pcs_from_log_frequency_rejects_non_positive_alpha() -> None:
         )
 
 
-def test_pcs_from_cis_source_oe_matches_existing_path() -> None:
+def test_pcs_from_contact_representation_log_oe_matches_existing_path() -> None:
     log_oe = np.array(
         [
             [2.0, 1.0, 0.0],
@@ -391,11 +391,11 @@ def test_pcs_from_cis_source_oe_matches_existing_path() -> None:
         2,
     )
 
-    pcs, _, _ = pcs_from_cis_source(
+    pcs, _, _ = pcs_from_contact_representation(
         np.eye(3),
         log_oe,
         1.0,
-        "oe",
+        "log_oe",
         2,
         clip_min=-10.0,
         clip_max=10.0,
@@ -404,7 +404,7 @@ def test_pcs_from_cis_source_oe_matches_existing_path() -> None:
     assert np.allclose(pcs, expected)
 
 
-def test_pcs_from_cis_source_frequency_matches_log_frequency() -> None:
+def test_pcs_from_contact_representation_dc_log_freq_matches_log_frequency() -> None:
     observed = np.array(
         [
             [10.0, 2.0, 0.0],
@@ -422,11 +422,11 @@ def test_pcs_from_cis_source_frequency_matches_log_frequency() -> None:
         clip_min=-10.0,
         clip_max=10.0,
     )
-    pcs, _, _ = pcs_from_cis_source(
+    pcs, _, _ = pcs_from_contact_representation(
         observed,
         log_oe,
         alpha,
-        "frequency",
+        "dc_log_freq",
         2,
         clip_min=-10.0,
         clip_max=10.0,
@@ -435,9 +435,9 @@ def test_pcs_from_cis_source_frequency_matches_log_frequency() -> None:
     assert np.allclose(pcs, expected)
 
 
-def test_pcs_from_cis_source_rejects_unknown_source() -> None:
+def test_pcs_from_contact_representation_rejects_unknown_representation() -> None:
     with pytest.raises(ClusteringError):
-        pcs_from_cis_source(
+        pcs_from_contact_representation(
             np.eye(2),
             np.zeros((2, 2)),
             1.0,

@@ -9,7 +9,7 @@ from collections.abc import Sequence
 
 from . import __version__
 from .config import (
-    CIS_CLUSTERING_SOURCE_CHOICES,
+    CIS_CONTACT_REPRESENTATION_CHOICES,
     TRANS_NULL_CHOICES,
     UNIT_SELECTION_CHOICES,
     ClusterConfig,
@@ -137,18 +137,19 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=1.0,
         help=(
             "pseudocount scale on the smallest non-zero expected value, "
-            "used by both cis clustering PC sources"
+            "used by both cis contact representations"
         ),
     )
     advanced.add_argument(
-        "--cis-clustering-source",
-        choices=CIS_CLUSTERING_SOURCE_CHOICES,
-        default="oe",
+        "--cis-contact-representation",
+        choices=CIS_CONTACT_REPRESENTATION_CHOICES,
+        default="log_oe",
         help=(
-            "cis clustering PC source: oe (default) uses distance-corrected log O/E "
-            "and favors global/compartment-correlated structure; frequency uses "
-            "double-centered log contact frequency and keeps deep branches local. "
-            "A/B annotation always uses oe; trans always uses oe."
+            "cis contact representation used for clustering: log_oe (default) uses "
+            "distance-corrected log O/E and favors global/compartment-correlated "
+            "structure; dc_log_freq uses double-centered log contact frequency and "
+            "keeps deep branches local. A/B annotation always uses log_oe; trans "
+            "always uses log_oe."
         ),
     )
     advanced.add_argument(
@@ -218,7 +219,7 @@ def _run(raw_args: list[str]) -> None:
         clip_min=args.clip_min,
         clip_max=args.clip_max,
         pseudocount_scale=args.pseudocount_scale,
-        cis_clustering_source=args.cis_clustering_source,
+        cis_contact_representation=args.cis_contact_representation,
         dp_lambda_scale=args.dp_lambda_scale,
         unit_selection=args.unit_selection,
         with_residuals=args.with_residuals,

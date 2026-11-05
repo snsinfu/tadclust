@@ -440,7 +440,7 @@ def test_frequency_source_still_populates_cohesion(mcool, tmp_path) -> None:
             mcool,
             base_tads(tmp_path),
             tmp_path,
-            cis_clustering_source="frequency",
+            cis_contact_representation="dc_log_freq",
         )
     )
 

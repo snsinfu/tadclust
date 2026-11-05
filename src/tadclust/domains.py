@@ -554,12 +554,12 @@ def select_units(
     dp_lambda_scale: float,
     tree_branch_k: int,
     seed: int,
-    pc_source: str = "oe",
+    contact_representation: str = "log_oe",
     unit_kind: str = "tad",
     unit_selection: str = "dp",
     with_residuals: bool = False,
 ) -> UnitSelection:
-    """Select units, aggregate O/E, and compute unit PCs from `pc_source`.
+    """Select units, aggregate O/E, and compute unit PCs from `contact_representation`.
 
     `unit_selection="dp"` chooses an SSE-DP antichain of TAD nodes.
     `unit_selection="roots"` takes the top-level TAD node of each input
@@ -628,7 +628,7 @@ def select_units(
             clip_min=clip_min,
             clip_max=clip_max,
             n_pcs=n_pcs,
-            pc_source=pc_source,
+            contact_representation=contact_representation,
             label=f"units:{tree.chrom}",
         )
     return UnitSelection(

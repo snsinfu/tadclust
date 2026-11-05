@@ -45,7 +45,7 @@ def test_default_config_is_valid(tmp_path) -> None:
     assert config.tree_branch_k == 2
     assert config.with_trans is False
     assert config.with_residuals is False
-    assert config.cis_clustering_source == "oe"
+    assert config.cis_contact_representation == "log_oe"
     assert config.dp_lambda_scale == 1.0
     assert config.unit_selection == "dp"
     assert config.seed == 0
@@ -58,7 +58,7 @@ def test_default_config_is_valid(tmp_path) -> None:
         {"dp_lambda_scale": -1.0},
         {"clip_min": 1.0, "clip_max": 1.0},
         {"distance_bins": 1},
-        {"cis_clustering_source": "bogus"},
+        {"cis_contact_representation": "bogus"},
         {"unit_selection": "bogus"},
         {"tree_branch_k": 1},
         {"tree_pca_dim": 0},
@@ -97,25 +97,27 @@ def test_error_can_be_matched_by_class_and_field(tmp_path) -> None:
             pytest.fail(f"unexpected error: {info.value!r}")
 
 
-def test_frequency_clustering_source_is_valid(tmp_path) -> None:
-    config = make_config(tmp_path, cis_clustering_source="frequency")
+def test_dc_log_freq_contact_representation_is_valid(tmp_path) -> None:
+    config = make_config(tmp_path, cis_contact_representation="dc_log_freq")
 
-    assert config.cis_clustering_source == "frequency"
+    assert config.cis_contact_representation == "dc_log_freq"
 
 
-@pytest.mark.parametrize("source", ["log_oe", "log_frequency"])
-def test_legacy_clustering_source_values_are_rejected(tmp_path, source) -> None:
+@pytest.mark.parametrize("representation", ["oe", "frequency", "log_frequency"])
+def test_legacy_contact_representation_values_are_rejected(
+    tmp_path, representation
+) -> None:
     with pytest.raises(ConfigError) as info:
-        make_config(tmp_path, cis_clustering_source=source)
+        make_config(tmp_path, cis_contact_representation=representation)
 
-    assert info.value.field == "cis_clustering_source"
+    assert info.value.field == "cis_contact_representation"
 
 
-def test_invalid_cis_clustering_source_reports_field(tmp_path) -> None:
+def test_invalid_cis_contact_representation_reports_field(tmp_path) -> None:
     with pytest.raises(ConfigError) as info:
-        make_config(tmp_path, cis_clustering_source="bogus")
+        make_config(tmp_path, cis_contact_representation="bogus")
 
-    assert info.value.field == "cis_clustering_source"
+    assert info.value.field == "cis_contact_representation"
 
 
 def test_roots_unit_selection_is_valid(tmp_path) -> None:

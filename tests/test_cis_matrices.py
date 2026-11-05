@@ -122,13 +122,13 @@ def test_cis_matrices_output_and_manifest(mcool, tmp_path) -> None:
         assert tadclust.read_manifest(matrix_path) == manifest
 
 
-@pytest.mark.parametrize("source", ["oe", "frequency"])
-def test_cis_matrix_contents(mcool, tmp_path, source) -> None:
+@pytest.mark.parametrize("representation", ["log_oe", "dc_log_freq"])
+def test_cis_matrix_contents(mcool, tmp_path, representation) -> None:
     config = make_config(
         mcool,
         base_tads(tmp_path),
         tmp_path,
-        cis_clustering_source=source,
+        cis_contact_representation=representation,
     )
     result = cluster(config)
     write_outputs(result, config)

@@ -14,7 +14,7 @@ from .domains import ChromosomeTree, UnitSelection, select_units
 from .matrix import (
     canonicalize_pc1_sign,
     compute_fine_unit_matrices,
-    pcs_from_cis_source,
+    pcs_from_contact_representation,
 )
 from .mcool import open_cooler
 from .processes import process_context
@@ -164,7 +164,7 @@ def _select_chromosome(
         clip_min=config.clip_min,
         clip_max=config.clip_max,
         n_pcs=config.tree_pca_dim,
-        pc_source=config.cis_clustering_source,
+        contact_representation=config.cis_contact_representation,
     )
     selection = select_units(
         tree,
@@ -176,20 +176,24 @@ def _select_chromosome(
         dp_lambda_scale=config.dp_lambda_scale,
         tree_branch_k=config.tree_branch_k,
         seed=config.seed,
-        pc_source=config.cis_clustering_source,
+        contact_representation=config.cis_contact_representation,
         unit_kind=source.unit_kind,
         unit_selection=config.unit_selection,
         with_residuals=config.with_residuals,
     )
     pcs = canonicalize_pc1_sign(selection.matrices.pcs)
-    # A/B annotation always uses log O/E PCs, independent of the tree source.
+    # A/B annotation always uses log O/E PCs, independent of the tree
+    # contact representation.
     ab_pcs = None
-    if config.ab_feature_track is not None and config.cis_clustering_source != "oe":
-        ab_pcs, _, _ = pcs_from_cis_source(
+    if (
+        config.ab_feature_track is not None
+        and config.cis_contact_representation != "log_oe"
+    ):
+        ab_pcs, _, _ = pcs_from_contact_representation(
             selection.matrices.observed,
             selection.matrices.log_oe,
             selection.matrices.alpha,
-            "oe",
+            "log_oe",
             config.tree_pca_dim,
             clip_min=config.clip_min,
             clip_max=config.clip_max,

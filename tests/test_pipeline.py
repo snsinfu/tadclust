@@ -99,9 +99,10 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert "root_label" not in result.cis_leaves.columns
     assert result.cis_leaves["path_label"].null_count() == 0
     assert result.cis_leaves["path_label"].n_unique() == result.cis_leaves.height
-    assert set(
-        result.cis_leaves["path_label"].str.split(":").list.first()
-    ) == {"chr1", "chr2"}
+    assert set(result.cis_leaves["path_label"].str.split(":").list.first()) == {
+        "chr1",
+        "chr2",
+    }
     assert result.cis_leaves["tad_id"].to_list() == [0, 1, 2, 3]
     assert "ab_label" not in result.cis_leaves.columns
     assert "trans_path" not in result.cis_leaves.columns
@@ -164,7 +165,7 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert not (tmp_path / "out").exists()
 
 
-def test_cluster_oe_source_is_default(mcool, tmp_path) -> None:
+def test_cluster_log_oe_contact_representation_is_default(mcool, tmp_path) -> None:
     tads = base_tads(tmp_path)
     default = cluster(make_config(mcool, tads, tmp_path))
     explicit = cluster(
@@ -173,17 +174,17 @@ def test_cluster_oe_source_is_default(mcool, tmp_path) -> None:
             tads,
             tmp_path,
             output_dir=tmp_path / "explicit",
-            cis_clustering_source="oe",
+            cis_contact_representation="log_oe",
         )
     )
 
-    assert default.params["requested"]["cis_clustering_source"] == "oe"
-    assert explicit.params["requested"]["cis_clustering_source"] == "oe"
+    assert default.params["requested"]["cis_contact_representation"] == "log_oe"
+    assert explicit.params["requested"]["cis_contact_representation"] == "log_oe"
     assert default.cis_nodes.equals(explicit.cis_nodes)
     assert default.cis_leaves.equals(explicit.cis_leaves)
 
 
-def test_cluster_frequency_source(mcool, tmp_path) -> None:
+def test_cluster_dc_log_freq_contact_representation(mcool, tmp_path) -> None:
     tads = base_tads(tmp_path)
     default = cluster(make_config(mcool, tads, tmp_path))
     frequency = cluster(
@@ -192,11 +193,11 @@ def test_cluster_frequency_source(mcool, tmp_path) -> None:
             tads,
             tmp_path,
             output_dir=tmp_path / "frequency",
-            cis_clustering_source="frequency",
+            cis_contact_representation="dc_log_freq",
         )
     )
 
-    assert frequency.params["requested"]["cis_clustering_source"] == "frequency"
+    assert frequency.params["requested"]["cis_contact_representation"] == "dc_log_freq"
     assert frequency.cis_leaves.height == default.cis_leaves.height
     assert frequency.cis_nodes["node_oe"].is_finite().all()
     assert frequency.cis_leaves["node_oe"].is_finite().all()
@@ -451,17 +452,12 @@ def test_cluster_with_trans(three_chrom_mcool, trans_tads, tmp_path) -> None:
     assert "trans_path_label" in result.cis_leaves.columns
     assert "trans_depth" in result.cis_leaves.columns
     assert result.trans_nodes["path_label"].null_count() == 0
-    assert (
-        result.trans_nodes["path_label"].n_unique() == result.trans_nodes.height
-    )
-    assert result.trans_nodes.filter(
-        pl.col("node_id") == 0
-    )["path_label"].to_list() == ["genome"]
+    assert result.trans_nodes["path_label"].n_unique() == result.trans_nodes.height
+    assert result.trans_nodes.filter(pl.col("node_id") == 0)[
+        "path_label"
+    ].to_list() == ["genome"]
     assert set(
-        result.cis_leaves["trans_path_label"]
-        .drop_nulls()
-        .str.split(":")
-        .list.first()
+        result.cis_leaves["trans_path_label"].drop_nulls().str.split(":").list.first()
     ) == {"genome"}
     assert {"chroms", "chrom_unit_counts"}.issubset(result.trans_nodes.columns)
     assert result.qc["trans"] is not None
@@ -509,10 +505,7 @@ def test_cluster_with_trans_gapped_units(
     assert set(result.cis_leaves["unit_kind"].to_list()) == {"tad"}
     assert "trans_root_label" not in result.cis_leaves.columns
     assert set(
-        result.cis_leaves["trans_path_label"]
-        .drop_nulls()
-        .str.split(":")
-        .list.first()
+        result.cis_leaves["trans_path_label"].drop_nulls().str.split(":").list.first()
     ) == {"genome"}
     assert result.qc["trans"]["n_units"] == 6
     assert result.qc["trans"]["pair_count"] == 108
@@ -577,13 +570,10 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
     }
     assert "root_label" not in result.cis_nodes_ab.columns
     assert result.cis_nodes_ab["path_label"].null_count() == 0
-    assert (
-        result.cis_nodes_ab["path_label"].n_unique()
-        == result.cis_nodes_ab.height
-    )
-    ab_root_labels = result.cis_nodes_ab.filter(
-        pl.col("depth") == 0
-    )["path_label"].to_list()
+    assert result.cis_nodes_ab["path_label"].n_unique() == result.cis_nodes_ab.height
+    ab_root_labels = result.cis_nodes_ab.filter(pl.col("depth") == 0)[
+        "path_label"
+    ].to_list()
     assert {"chr1:A", "chr1:B", "chr2:A", "chr2:B"} <= set(ab_root_labels)
 
     ab_qc = result.qc["ab"]
@@ -614,7 +604,7 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
     ]
 
 
-def test_cluster_with_ab_frequency_source(mcool, tmp_path) -> None:
+def test_cluster_with_ab_dc_log_freq_contact_representation(mcool, tmp_path) -> None:
     tads = ab_tads(tmp_path)
     track = ab_track(tmp_path)
     oe_run = cluster(
@@ -633,19 +623,21 @@ def test_cluster_with_ab_frequency_source(mcool, tmp_path) -> None:
             tmp_path,
             output_dir=tmp_path / "frequency",
             ab_feature_track=track,
-            cis_clustering_source="frequency",
+            cis_contact_representation="dc_log_freq",
         )
     )
 
-    assert frequency_run.params["requested"]["cis_clustering_source"] == "frequency"
-    assert frequency_run.params["resolved"]["ab_pca_source"] == "oe"
+    assert (
+        frequency_run.params["requested"]["cis_contact_representation"] == "dc_log_freq"
+    )
+    assert frequency_run.params["resolved"]["ab_pca_source"] == "log_oe"
     assert frequency_run.cis_nodes_ab is not None
     assert frequency_run.cis_leaves_ab is not None
     assert "ab_label" in frequency_run.cis_nodes_ab.columns
     assert set(
-        frequency_run.cis_nodes_ab.filter(pl.col("depth") == 0)[
-            "path_label"
-        ].str.split(":").list.last()
+        frequency_run.cis_nodes_ab.filter(pl.col("depth") == 0)["path_label"]
+        .str.split(":")
+        .list.last()
     ) >= {"A", "B"}
     assert frequency_run.cis_nodes["node_oe"].is_finite().all()
 
@@ -671,7 +663,7 @@ def test_cluster_with_ab_frequency_source(mcool, tmp_path) -> None:
     )
 
 
-def test_cluster_ab_frequency_parallel_matches_serial(mcool, tmp_path) -> None:
+def test_cluster_ab_dc_log_freq_parallel_matches_serial(mcool, tmp_path) -> None:
     tads = ab_tads(tmp_path)
     track = ab_track(tmp_path)
     serial = cluster(
@@ -681,7 +673,7 @@ def test_cluster_ab_frequency_parallel_matches_serial(mcool, tmp_path) -> None:
             tmp_path,
             output_dir=tmp_path / "serial",
             ab_feature_track=track,
-            cis_clustering_source="frequency",
+            cis_contact_representation="dc_log_freq",
             workers=1,
         )
     )
@@ -692,7 +684,7 @@ def test_cluster_ab_frequency_parallel_matches_serial(mcool, tmp_path) -> None:
             tmp_path,
             output_dir=tmp_path / "parallel",
             ab_feature_track=track,
-            cis_clustering_source="frequency",
+            cis_contact_representation="dc_log_freq",
             workers=2,
         )
     )

@@ -8,7 +8,7 @@ from pathlib import Path
 from .errors import ConfigError
 
 TRANS_NULL_CHOICES = ("pair", "grand")
-CIS_CLUSTERING_SOURCE_CHOICES = ("oe", "frequency")
+CIS_CONTACT_REPRESENTATION_CHOICES = ("log_oe", "dc_log_freq")
 UNIT_SELECTION_CHOICES = ("dp", "roots")
 
 
@@ -33,7 +33,7 @@ class ClusterConfig:
     clip_min: float = -10.0
     clip_max: float = 10.0
     pseudocount_scale: float = 1.0
-    cis_clustering_source: str = "oe"
+    cis_contact_representation: str = "log_oe"
     dp_lambda_scale: float = 1.0
     unit_selection: str = "dp"
     with_residuals: bool = False
@@ -110,12 +110,12 @@ class ClusterConfig:
                 "pseudocount_scale must be positive",
                 field="pseudocount_scale",
             )
-        if self.cis_clustering_source not in CIS_CLUSTERING_SOURCE_CHOICES:
+        if self.cis_contact_representation not in CIS_CONTACT_REPRESENTATION_CHOICES:
             raise ConfigError(
-                f"cis_clustering_source must be one of "
-                f"{CIS_CLUSTERING_SOURCE_CHOICES}, "
-                f"got {self.cis_clustering_source!r}",
-                field="cis_clustering_source",
+                f"cis_contact_representation must be one of "
+                f"{CIS_CONTACT_REPRESENTATION_CHOICES}, "
+                f"got {self.cis_contact_representation!r}",
+                field="cis_contact_representation",
             )
         if self.dp_lambda_scale < 0:
             raise ConfigError(

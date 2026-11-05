@@ -267,8 +267,8 @@ def _build_cis_results(
     ab_node_base = 0
 
     for selection in selections:
-        # Tree splits use the configured cis clustering source; A/B annotation
-        # always uses the log O/E PC space.
+        # Tree splits use the configured cis contact representation; A/B
+        # annotation always uses the log O/E PC space.
         cluster_pcs = selection.pcs
         ab_pcs = selection.ab_pcs if selection.ab_pcs is not None else cluster_pcs
         unit_bins = selection.unit_bins
@@ -831,7 +831,7 @@ def _build_params(
             "clip_min": config.clip_min,
             "clip_max": config.clip_max,
             "pseudocount_scale": config.pseudocount_scale,
-            "cis_clustering_source": config.cis_clustering_source,
+            "cis_contact_representation": config.cis_contact_representation,
             "dp_lambda_scale": config.dp_lambda_scale,
             "unit_selection": config.unit_selection,
             "with_residuals": config.with_residuals,
@@ -847,7 +847,9 @@ def _build_params(
             "working_binsize_mode": choice.mode,
             "input_mode": source.mode,
             "chromosomes": list(chromosomes),
-            "ab_pca_source": ("oe" if config.ab_feature_track is not None else None),
+            "ab_pca_source": (
+                "log_oe" if config.ab_feature_track is not None else None
+            ),
         },
     }
 

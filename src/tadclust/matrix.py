@@ -283,7 +283,7 @@ def pcs_from_log_oe(
     *,
     label: str = "cis",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Compute PCs from the cosine-normalized log O/E matrix (`oe` source)."""
+    """Compute PCs from the cosine-normalized log O/E matrix (`log_oe`)."""
     return compute_top_pcs(cosine_normalize(matrix), n_pcs, label=label)
 
 
@@ -295,7 +295,7 @@ def double_centered_log_frequency(
     clip_max: float,
     label: str = "cis",
 ) -> np.ndarray:
-    """Return the double-centered log-frequency matrix used by `frequency`.
+    """Return the double-centered log-frequency matrix used by `dc_log_freq`.
 
     The log-frequency matrix has no distance-decay null. Symmetric
     double-centering removes additive row/column effects (unit-level contact
@@ -355,7 +355,7 @@ def pcs_from_log_frequency(
     clip_max: float,
     label: str = "cis",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Compute PCs from post-clipped double-centered log-frequency contacts (`frequency` source)."""
+    """Compute PCs from post-clipped double-centered log-frequency contacts (`dc_log_freq`)."""
     values = double_centered_log_frequency(
         observed,
         alpha,
@@ -366,23 +366,23 @@ def pcs_from_log_frequency(
     return compute_top_pcs(cosine_normalize(values), n_pcs, label=label)
 
 
-def pcs_from_cis_source(
+def pcs_from_contact_representation(
     observed: np.ndarray,
     log_oe: np.ndarray,
     alpha: float,
-    pc_source: str,
+    contact_representation: str,
     n_pcs: int,
     *,
     clip_min: float,
     clip_max: float,
     label: str = "cis",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Compute cis PCs from the selected PC source (`oe` or `frequency`)."""
-    if pc_source == "oe":
+    """Compute cis PCs from `log_oe` or `dc_log_freq`."""
+    if contact_representation == "log_oe":
         pca_input = np.array(log_oe, dtype=np.float64, copy=True)
         np.fill_diagonal(pca_input, 0.0)
         return pcs_from_log_oe(pca_input, n_pcs, label=label)
-    if pc_source == "frequency":
+    if contact_representation == "dc_log_freq":
         return pcs_from_log_frequency(
             observed,
             alpha,
@@ -392,7 +392,7 @@ def pcs_from_cis_source(
             label=label,
         )
     raise ClusteringError(
-        f"unknown pc_source: {pc_source!r}",
+        f"unknown contact_representation: {contact_representation!r}",
         matrix=label,
     )
 
@@ -455,10 +455,10 @@ def compute_fine_unit_matrices(
     clip_min: float,
     clip_max: float,
     n_pcs: int,
-    pc_source: str = "oe",
+    contact_representation: str = "log_oe",
     balance: bool = True,
 ) -> FineUnitMatrices:
-    """Aggregate cis O/E to fine units and compute PCs from `pc_source`."""
+    """Aggregate cis O/E to fine units and compute PCs from `contact_representation`."""
     if n_fine < 1:
         raise ClusteringError(
             f"{chrom}: no fine units",
@@ -558,11 +558,11 @@ def compute_fine_unit_matrices(
         clip_min=clip_min,
         clip_max=clip_max,
     )
-    pcs, eigenvalues, fractions = pcs_from_cis_source(
+    pcs, eigenvalues, fractions = pcs_from_contact_representation(
         observed_fine,
         log_oe,
         alpha,
-        pc_source,
+        contact_representation,
         n_pcs,
         clip_min=clip_min,
         clip_max=clip_max,
@@ -589,10 +589,10 @@ def compute_unit_matrices(
     clip_min: float,
     clip_max: float,
     n_pcs: int,
-    pc_source: str = "oe",
+    contact_representation: str = "log_oe",
     label: str = "units",
 ) -> UnitMatrices:
-    """Aggregate fine O/E to selected units and compute PCs from `pc_source`."""
+    """Aggregate fine O/E to selected units and compute PCs from `contact_representation`."""
     observed = np.asarray(
         unit_map.T @ observed_fine @ unit_map,
         dtype=np.float64,
@@ -610,11 +610,11 @@ def compute_unit_matrices(
         clip_min=clip_min,
         clip_max=clip_max,
     )
-    pcs, eigenvalues, fractions = pcs_from_cis_source(
+    pcs, eigenvalues, fractions = pcs_from_contact_representation(
         observed,
         log_oe,
         alpha,
-        pc_source,
+        contact_representation,
         n_pcs,
         clip_min=clip_min,
         clip_max=clip_max,
