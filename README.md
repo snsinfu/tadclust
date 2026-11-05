@@ -41,15 +41,14 @@ The TAD table can be any disjoint or hierarchical TAD annotation in the BED3+ fo
 
 ### Options
 
-| option                  | default | description |
-|:------------------------|:--------|:------------|
-| --tree-branch-k  K      | 2       | Split count of recursive k-means. |
-| --with-trans            | no      | Enable trans-chromosomal clustering (experimental and expensive). |
-| --with-residuals        | no      | Fill gaps with `residual` pseudo-domains. |
-| --cis-clustering-source | oe      | Use (oe) log-O/E or (frequency) log-contact frequency for cis clustering. `frequency` retains sequential locality in the resulting tree. |
-| --overwrite             | no      | Allow overwriting existing files in the output directory. |
-| --workers        N      | 1       | Run analysis in parallel using N processes. |
-| --seed           N      | 0       | Random seed for reproducibility. |
+| option           | default | description |
+|:-----------------|:--------|:------------|
+| --tree-branch-k  | 2       | Split count of recursive k-means. |
+| --with-trans     | no      | Enable trans-chromosomal clustering (experimental and expensive). |
+| --with-residuals | no      | Fill gaps with `residual` pseudo-domains. |
+| --overwrite      | no      | Allow overwriting existing files in the output directory. |
+| --workers        | 1       | Run analysis in parallel using N processes. |
+| --seed           | 0       | Random seed for reproducibility. |
 
 ### Output
 
@@ -115,9 +114,9 @@ Notes:
 
 ## Method notes
 
-**TAD-level L2-normalized log-O/E** is diagonalized (without centering; zero is the natural center for log-O/E) to produce principal components in the `oe` mode. This PC feature space is hierarchically clustered like CALDER. The first branch gives a similar result to the conventional compartment analysis, and deeper branches describe subcompartment organization. Because O/E drops information on seqence separation, clustered TADs are not necessarily physically proximal. Deeper branches are generally not informative.
+**TAD-level log-O/E** is diagonalized (without centering; zero is the natural center for log-O/E) to produce principal components in the default `log_oe` mode. This PC feature space is hierarchically clustered like CALDER. The first branch gives a similar result to the conventional compartment analysis, and shallow branches describe subcompartment organization. Because O/E drops information on seqence separation, clustered TADs are not necessarily physically proximal, thus deep branches are generally not informative.
 
-**TAD-level L2-normalized, double-centered log-contact frequency** is diagonalized to produce PCs, and herarchically clustered, in the `frequency` mode. Double-centering here means that the log-contact frequency for a unit pair i, j is centered to the means of the i-th and the j-th units, so baseline frequency excepting for the distance decay is removed. Since it retains distance decay, resulting clusters emphasize sequential proximity, so deeper branches tend to group neighboring TADs. Well-compartmentalized genomes still show a clear A/B split near the root of the tree even in this mode.
+**TAD-level, double-centered log-contact frequency** is diagonalized to produce PCs and herarchically clustered with the `--cis-contact-representation dc_log_freq` flag. Double-centering here means that the log-contact frequency for a unit pair i, j is centered to the means of the i-th and the j-th units, so baseline frequency excepting for the distance decay is removed. Since it retains distance decay, resulting clusters emphasize sequential proximity, so deeper branches tend to group neighboring TADs. Well-compartmentalized genomes still show a clear A/B split near the root of the tree even in this mode.
 
 When **hierarchical TAD annotation** is given (i.e., there are nested intervals), the optimal levels of sub-TAD hierarchies are decided by dynamic programming so that within-TAD variance (among sub-TADs and gaps) is minimized in the feature space. The selected (sub-)TADs are output as leaf units with `unit_kind` = "tad". Besides clustering, this selection of the "most coherent" sub-TADs can be useful on its own.
 
