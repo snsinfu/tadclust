@@ -641,7 +641,7 @@ def test_cluster_with_ab_dc_log_freq_contact_representation(mcool, tmp_path) -> 
     ) >= {"A", "B"}
     assert frequency_run.cis_nodes["node_oe"].is_finite().all()
 
-    # Per-unit A/B annotation must not depend on the tree PC source.
+    # Per-unit A/B annotation must not depend on the tree PC representation.
     for table_name in ("cis_leaves", "cis_leaves_ab"):
         left = getattr(oe_run, table_name)
         right = getattr(frequency_run, table_name)
@@ -656,7 +656,7 @@ def test_cluster_with_ab_dc_log_freq_contact_representation(mcool, tmp_path) -> 
             equal_nan=True,
         )
 
-    # The tree source is not silently changed.
+    # The tree contact representation is not silently changed.
     assert not np.allclose(
         np.vstack(oe_run.cis_leaves["pc"].to_list()),
         np.vstack(frequency_run.cis_leaves["pc"].to_list()),
