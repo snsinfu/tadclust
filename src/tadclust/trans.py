@@ -442,6 +442,7 @@ def build_trans_tree(
     n_pcs: int,
     branch_k: int,
     seed: int,
+    n_init: int = 100,
 ) -> TransTreeResult:
     """Compute trans PCs and build the trans tree."""
     bins = np.asarray(unit_bins, dtype=np.int64)
@@ -469,6 +470,7 @@ def build_trans_tree(
         n_pcs=n_pcs,
         seed=seed,
         branch_k=branch_k,
+        n_init=n_init,
     )
     return TransTreeResult(
         pcs=pcs,

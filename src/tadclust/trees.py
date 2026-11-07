@@ -113,6 +113,7 @@ def build_branching_tree(
     n_pcs: int,
     seed: int,
     branch_k: int,
+    n_init: int = 100,
     branch_label: str | None = None,
 ) -> BranchingTree:
     """Build a full tree by recursively splitting nodes with k-means.
@@ -160,6 +161,7 @@ def build_branching_tree(
             bins,
             n_pcs,
             branch_k,
+            n_init,
             seed,
         )
 
@@ -184,6 +186,7 @@ def _split_recursive(
     unit_bins: np.ndarray,
     n_pcs: int,
     branch_k: int,
+    n_init: int,
     seed: int,
 ) -> None:
     node = nodes[node_id]
@@ -195,6 +198,7 @@ def _split_recursive(
         node.unit_indices,
         n_pcs=n_pcs,
         branch_k=branch_k,
+        n_init=n_init,
         seed=node_seed,
     )
     if parts is None:
@@ -217,6 +221,7 @@ def _split_recursive(
             unit_bins,
             n_pcs,
             branch_k,
+            n_init,
             seed,
         )
 
@@ -227,6 +232,7 @@ def _split_member_units(
     *,
     n_pcs: int,
     branch_k: int,
+    n_init: int,
     seed: int,
 ) -> list[np.ndarray] | None:
     # Small nodes become singletons directly. Larger nodes use k-means, then
@@ -243,6 +249,7 @@ def _split_member_units(
         branch_k,
         n_pcs,
         seed,
+        n_init=n_init,
     )
     unique, inverse = np.unique(labels, return_inverse=True)
     if unique.size < 2:
@@ -359,6 +366,7 @@ def build_cis_forest(
     n_pcs: int,
     branch_k: int,
     seed: int,
+    n_init: int = 100,
     node_base: int = 0,
     clusterable: np.ndarray | None = None,
 ) -> CisForest:
@@ -384,6 +392,7 @@ def build_cis_forest(
         n_pcs=n_pcs,
         seed=seed,
         branch_k=branch_k,
+        n_init=n_init,
     )
     return _make_cis_forest(
         chrom,
@@ -439,6 +448,7 @@ def annotate_ab(
     seed: int,
     *,
     n_pcs: int,
+    n_init: int = 100,
     clusterable: np.ndarray | None = None,
 ) -> AbAnnotation:
     """Assign per-unit A/B labels and continuous signals.
@@ -471,6 +481,7 @@ def annotate_ab(
         seed,
         mask,
         n_pcs,
+        n_init=n_init,
     )
     if partition is None:
         return AbAnnotation(
@@ -528,6 +539,8 @@ def _ab_partition(
     seed: int,
     clusterable: np.ndarray,
     n_pcs: int,
+    *,
+    n_init: int,
 ) -> (
     tuple[
         np.ndarray,
@@ -553,6 +566,7 @@ def _ab_partition(
         min(2, indices.size),
         features.shape[1],
         derive_seed(seed, _AB_SEED_NAMESPACE),
+        n_init=n_init,
     )
     unique, inverse = np.unique(cluster_labels, return_inverse=True)
     if unique.size < 2:
@@ -664,6 +678,7 @@ def build_ab_forest(
     n_pcs: int,
     branch_k: int,
     seed: int,
+    n_init: int = 100,
     node_base: int = 0,
     clusterable: np.ndarray | None = None,
 ) -> CisForest:
@@ -690,6 +705,7 @@ def build_ab_forest(
             n_pcs=n_pcs,
             seed=seed,
             branch_k=branch_k,
+            n_init=n_init,
         )
         if annotation.fallback_reason is not None:
             tree.nodes[tree.root_id].stop_reason = annotation.fallback_reason
@@ -708,6 +724,7 @@ def build_ab_forest(
         n_pcs=n_pcs,
         seed=seed,
         branch_k=branch_k,
+        n_init=n_init,
         branch_label="A",
     )
     b_tree = build_branching_tree(
@@ -716,6 +733,7 @@ def build_ab_forest(
         n_pcs=n_pcs,
         seed=seed,
         branch_k=branch_k,
+        n_init=n_init,
         branch_label="B",
     )
     return _make_cis_forest(

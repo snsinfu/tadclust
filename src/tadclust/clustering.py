@@ -30,7 +30,7 @@ def kmeans_labels(
     k: int,
     n_pcs: int,
     seed: int,
-    n_init: int = 10,
+    n_init: int = 100,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Cluster PC rows and return labels plus cluster centers."""
     values = np.asarray(pcs, dtype=np.float64)

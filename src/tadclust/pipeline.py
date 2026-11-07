@@ -296,6 +296,7 @@ def _build_cis_results(
                 len(selection.unit_selection.units),
                 config.seed,
                 n_pcs=config.tree_pca_dim,
+                n_init=config.kmeans_n_init,
                 clusterable=ab_clusterable,
             )
 
@@ -306,6 +307,7 @@ def _build_cis_results(
             n_pcs=config.tree_pca_dim,
             branch_k=config.tree_branch_k,
             seed=config.seed,
+            n_init=config.kmeans_n_init,
             node_base=cis_node_base,
             clusterable=clusterable,
         )
@@ -327,6 +329,7 @@ def _build_cis_results(
                 n_pcs=config.tree_pca_dim,
                 branch_k=config.tree_branch_k,
                 seed=config.seed,
+                n_init=config.kmeans_n_init,
                 node_base=ab_node_base,
                 clusterable=clusterable,
             )
@@ -429,6 +432,7 @@ def _run_trans(
         n_pcs=config.tree_pca_dim,
         branch_k=config.tree_branch_k,
         seed=config.seed,
+        n_init=config.kmeans_n_init,
     )
     nodes = tree_result.tree.nodes
     LOG.info(

@@ -39,6 +39,7 @@ class ClusterConfig:
     with_residuals: bool = False
     tree_pca_dim: int = 5
     tree_branch_k: int = 2
+    kmeans_n_init: int = 100
     with_trans: bool = False
     trans_null: str = "pair"
     ab_feature_track: str | Path | None = None
@@ -143,6 +144,11 @@ class ClusterConfig:
             raise ConfigError(
                 "tree_branch_k must be at least 2",
                 field="tree_branch_k",
+            )
+        if self.kmeans_n_init < 1:
+            raise ConfigError(
+                "kmeans_n_init must be at least 1",
+                field="kmeans_n_init",
             )
         if self.trans_null not in TRANS_NULL_CHOICES:
             raise ConfigError(
