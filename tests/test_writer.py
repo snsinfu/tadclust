@@ -235,9 +235,15 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     assert nodes.schema["parent_id"] == pl.Int64
     assert nodes.schema["child_ids"] == pl.List(pl.Int64)
     assert nodes.schema["is_leaf"] == pl.Boolean
+    assert nodes.schema["is_root"] == pl.Boolean
+    assert nodes.schema["subtree_height"] == pl.Int64
+    assert nodes.schema["span_start"] == pl.Int64
+    assert nodes.schema["span_end"] == pl.Int64
     assert nodes.schema["node_split_gain"] == pl.Float64
     assert nodes.schema["unit_id"] == pl.Int64
     assert nodes.schema["pc"] == pl.Array(pl.Float64, 2)
+    assert nodes.schema["n_working_bins"] == pl.Int64
+    assert nodes.schema["unit_bp"] == pl.Int64
     assert nodes.schema["node_oe"] == pl.Float64
     assert nodes.schema["cross_oe"] == pl.Float64
     assert nodes.schema["cross_oe_excess"] == pl.Float64

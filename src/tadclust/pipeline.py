@@ -567,6 +567,20 @@ def _null_graph_fields() -> dict[str, Any]:
     }
 
 
+def _genomic_fields(
+    unit_starts: np.ndarray,
+    unit_ends: np.ndarray,
+    local_indices: np.ndarray,
+) -> dict[str, Any]:
+    starts = unit_starts[local_indices]
+    ends = unit_ends[local_indices]
+    return {
+        "span_start": int(starts.min()),
+        "span_end": int(ends.max()),
+        "unit_bp": int((ends - starts).sum()),
+    }
+
+
 def _node_fields(
     chrom: str,
     branch_label: str | None,
@@ -575,6 +589,7 @@ def _node_fields(
     node_oe: float | None,
     cross_oe: float | None,
     cross_oe_excess: float | None,
+    genomic_fields: dict[str, Any],
     mst_fields: dict[str, Any],
 ) -> dict[str, Any]:
     return {
@@ -589,6 +604,9 @@ def _node_fields(
             branch=branch_label,
         ),
         "is_leaf": node.is_leaf,
+        "is_root": node.parent_id is None,
+        "subtree_height": node.subtree_height,
+        **genomic_fields,
         "n_units": len(node.unit_indices),
         "n_working_bins": node.n_working_bins,
         "node_internal_sse": node.sse,
@@ -629,6 +647,16 @@ def _cis_node_rows(
         forest = result.ab_forest if use_ab_forest else result.forest
         annotation = _result_annotation(result, include_composition)
         units = result.selection.units
+        unit_starts = np.fromiter(
+            (unit.start for unit in units),
+            dtype=np.int64,
+            count=len(units),
+        )
+        unit_ends = np.fromiter(
+            (unit.end for unit in units),
+            dtype=np.int64,
+            count=len(units),
+        )
         covered: set[int] = set()
         excess = context.log_oe_excess_matrix()
 
@@ -650,6 +678,7 @@ def _cis_node_rows(
                         _node_oe(result, local_indices),
                         cross_oe,
                         cross_oe_excess,
+                        _genomic_fields(unit_starts, unit_ends, local_indices),
                         _graph_fields(mst, unit_base),
                     )
                     if not node.is_leaf:
@@ -672,6 +701,15 @@ def _cis_node_rows(
                                 n_pcs,
                             )
                         )
+                        row.update(
+                            {
+                                "span_start": int(unit_starts[local_index]),
+                                "span_end": int(unit_ends[local_index]),
+                                "unit_bp": int(
+                                    unit_ends[local_index] - unit_starts[local_index]
+                                ),
+                            }
+                        )
                         if annotation is not None:
                             row.update(_unit_ab_fields(annotation, local_index))
                         rows.append(row)
@@ -682,6 +720,7 @@ def _cis_node_rows(
         for local_index in range(len(units)):
             if local_index in covered:
                 continue
+            unit = units[local_index]
             row: dict[str, Any] = {
                 "chrom": result.chrom,
                 "node_id": None,
@@ -690,8 +729,13 @@ def _cis_node_rows(
                 "path": None,
                 "path_label": None,
                 "is_leaf": True,
+                "is_root": False,
+                "subtree_height": None,
+                "span_start": unit.start,
+                "span_end": unit.end,
                 "n_units": 1,
-                "n_working_bins": units[local_index].n_working_bins,
+                "n_working_bins": unit.n_working_bins,
+                "unit_bp": unit.end - unit.start,
                 "node_internal_sse": None,
                 "node_split_gain": None,
                 "child_ids": [],
@@ -717,6 +761,11 @@ def _cis_node_rows(
 
     return pl.DataFrame(rows).with_columns(
         pl.col("pc").cast(pl.Array(pl.Float64, n_pcs)),
+        pl.col("is_root").cast(pl.Boolean),
+        pl.col("subtree_height").cast(pl.Int64),
+        pl.col("span_start").cast(pl.Int64),
+        pl.col("span_end").cast(pl.Int64),
+        pl.col("unit_bp").cast(pl.Int64),
         pl.col("cluster_n_components").cast(pl.Int64),
         pl.col("cluster_lcc_frac").cast(pl.Float64),
         pl.col("mst_edges").cast(

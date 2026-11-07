@@ -133,6 +133,22 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert leaf_nodes["cluster_n_components"].null_count() == leaf_nodes.height
     assert leaf_nodes["cluster_lcc_frac"].null_count() == leaf_nodes.height
     assert leaf_nodes["mst_edges"].list.len().sum() == 0
+    assert (leaf_nodes["span_start"] == leaf_nodes["unit_start"]).all()
+    assert (leaf_nodes["span_end"] == leaf_nodes["unit_end"]).all()
+    assert (
+        leaf_nodes["unit_bp"] == leaf_nodes["unit_end"] - leaf_nodes["unit_start"]
+    ).all()
+    assert leaf_nodes["subtree_height"].to_list() == [0] * leaf_nodes.height
+    assert leaf_nodes["is_root"].to_list() == [False] * leaf_nodes.height
+
+    roots = result.cis_nodes.filter(pl.col("is_root")).sort("chrom")
+    assert roots.height == 2
+    assert roots["node_id"].is_not_null().all()
+    assert roots["parent_id"].null_count() == roots.height
+    assert roots["span_start"].to_list() == [0, 0]
+    assert roots["span_end"].to_list() == [2000, 2000]
+    assert roots["unit_bp"].to_list() == [2000, 2000]
+    assert roots["subtree_height"].to_list() == [1, 1]
     assert_node_references(result.cis_nodes)
 
     assert result.cis_leaves_ab is None
@@ -231,6 +247,10 @@ def test_cluster_residuals_are_opt_in(gapped_mcool, gapped_tads, tmp_path) -> No
     assert default.qc["summary"]["n_residuals"] == 0
     for chromosome_qc in default.qc["per_chromosome"].values():
         assert 0.0 < chromosome_qc["cis"]["coverage_fraction"] < 1.0
+    default_roots = default.cis_nodes.filter(pl.col("is_root")).sort("chrom")
+    assert default_roots["span_start"].to_list() == [0, 0]
+    assert default_roots["span_end"].to_list() == [2000, 2000]
+    assert default_roots["unit_bp"].to_list() == [2000, 2000]
 
     with_residuals = cluster(
         make_config(
@@ -250,6 +270,10 @@ def test_cluster_residuals_are_opt_in(gapped_mcool, gapped_tads, tmp_path) -> No
     assert with_residuals.qc["summary"]["n_residuals"] == 2
     for chromosome_qc in with_residuals.qc["per_chromosome"].values():
         assert chromosome_qc["cis"]["coverage_fraction"] == 1.0
+    residual_roots = with_residuals.cis_nodes.filter(pl.col("is_root")).sort("chrom")
+    assert residual_roots["span_start"].to_list() == [0, 0]
+    assert residual_roots["span_end"].to_list() == [3000, 3000]
+    assert residual_roots["unit_bp"].to_list() == [3000, 3000]
 
 
 def test_cluster_whole_chromosome_only_requires_residuals(mcool, tmp_path) -> None:
@@ -583,6 +607,10 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
         "path_label"
     ].to_list()
     assert {"chr1:A", "chr1:B", "chr2:A", "chr2:B"} <= set(ab_root_labels)
+    ab_roots = result.cis_nodes_ab.filter(pl.col("is_root"))
+    assert ab_roots.height == 4
+    for chrom in ("chr1", "chr2"):
+        assert ab_roots.filter(pl.col("chrom") == chrom)["unit_bp"].sum() == 2000
 
     ab_qc = result.qc["ab"]
     assert ab_qc is not None
@@ -971,6 +999,12 @@ def test_zero_contact_cis_unit_is_unclustered(tmp_path) -> None:
     assert node_unclustered["cluster_n_components"].null_count() == 2
     assert node_unclustered["cluster_lcc_frac"].null_count() == 2
     assert node_unclustered["mst_edges"].list.len().sum() == 0
+    assert node_unclustered["is_root"].to_list() == [False, False]
+    assert node_unclustered["subtree_height"].to_list() == [None, None]
+    assert node_unclustered["span_start"].to_list() == [0, 500]
+    assert node_unclustered["span_end"].to_list() == [500, 1000]
+    assert node_unclustered["unit_bp"].to_list() == [500, 500]
+    assert result.cis_nodes.filter(pl.col("is_root")).height == 1
     assert result.qc["summary"]["n_unclustered"] == 2
     assert result.qc["per_chromosome"]["chr1"]["cis"]["n_unclustered"] == 2
 
