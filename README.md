@@ -77,8 +77,13 @@ Columns in the main table:
 | node_id              | int              | Unique ID of the node within the table. |
 | parent_id            | int              | Parent's node_id or null. |
 | child_ids            | int[]            | Children's node_ids or empty. |
-| depth                | int              | Depth of the node, 0 = root. |
 | is_leaf              | bool             | (leaf) True or (branch) false. |
+| is_root              | bool             | True for tree roots. |
+| depth                | int              | Depth of the node, 0 = root. |
+| subtree_height       | int              | Edges from the node to its deepest descendant, 0 = leaves. |
+| span_start           | int              | Start coord of the most upstream unit under the node. |
+| span_end             | int              | End coord of the most downstream unit under the node. |
+| unit_bp              | int              | Sum of unit lengths under the node. |
 | unit_id              | int              | (leaf) Unique ID of the clustered leaf unit or (branch) null. |
 | unit_kind            | tad/residual/bin | (leaf) Type of the unit or (branch) null. |
 | unit_start           | int              | (leaf) Start coord of the unit or (branch) null. |
