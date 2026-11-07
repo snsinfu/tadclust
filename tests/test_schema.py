@@ -348,6 +348,7 @@ def test_manifest_contract(mcool, tmp_path) -> None:
     assert manifest["params"]["requested"]["with_residuals"] is False
     assert manifest["params"]["requested"]["cis_contact_representation"] == "log_oe"
     assert manifest["params"]["requested"]["unit_selection"] == "dp"
+    assert manifest["params"]["requested"]["kmeans_n_init"] == 100
     assert manifest["params"]["requested"]["distance_bins"] == 60
     assert manifest["params"]["requested"]["clip_min"] == -10.0
     assert manifest["params"]["requested"]["clip_max"] == 10.0

@@ -43,6 +43,7 @@ def test_package_version() -> None:
 def test_default_config_is_valid(tmp_path) -> None:
     config = make_config(tmp_path)
     assert config.tree_branch_k == 2
+    assert config.kmeans_n_init == 100
     assert config.with_trans is False
     assert config.with_residuals is False
     assert config.cis_contact_representation == "log_oe"
@@ -62,6 +63,7 @@ def test_default_config_is_valid(tmp_path) -> None:
         {"unit_selection": "bogus"},
         {"tree_branch_k": 1},
         {"tree_pca_dim": 0},
+        {"kmeans_n_init": 0},
         {"workers": 0},
         {"seed": -1},
         {"trans_null": "uniform"},

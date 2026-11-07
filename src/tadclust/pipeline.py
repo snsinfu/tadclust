@@ -841,6 +841,7 @@ def _build_params(
             "with_residuals": config.with_residuals,
             "tree_pca_dim": config.tree_pca_dim,
             "tree_branch_k": config.tree_branch_k,
+            "kmeans_n_init": config.kmeans_n_init,
             "with_trans": config.with_trans,
             "trans_null": config.trans_null,
             "workers": config.workers,

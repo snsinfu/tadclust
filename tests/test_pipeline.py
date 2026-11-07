@@ -150,6 +150,7 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
         assert chromosome_qc["cis"]["coverage_fraction"] == 1.0
 
     assert result.params["requested"]["with_residuals"] is False
+    assert result.params["requested"]["kmeans_n_init"] == 100
     assert result.params["resolved"]["working_binsize"] == 500
     assert result.params["resolved"]["working_binsize_mode"] == "explicit"
     assert result.params["resolved"]["input_mode"] == "annotation"
@@ -182,6 +183,13 @@ def test_cluster_log_oe_contact_representation_is_default(mcool, tmp_path) -> No
     assert explicit.params["requested"]["cis_contact_representation"] == "log_oe"
     assert default.cis_nodes.equals(explicit.cis_nodes)
     assert default.cis_leaves.equals(explicit.cis_leaves)
+
+
+def test_cluster_kmeans_n_init_requested(mcool, tmp_path) -> None:
+    tads = base_tads(tmp_path)
+    result = cluster(make_config(mcool, tads, tmp_path, kmeans_n_init=7))
+
+    assert result.params["requested"]["kmeans_n_init"] == 7
 
 
 def test_cluster_dc_log_freq_contact_representation(mcool, tmp_path) -> None:

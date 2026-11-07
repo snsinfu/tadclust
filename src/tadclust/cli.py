@@ -181,6 +181,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="clusters per tree split",
     )
     advanced.add_argument(
+        "--kmeans-n-init",
+        type=int,
+        default=100,
+        help="k-means restarts per split (sklearn n_init; default 100)",
+    )
+    advanced.add_argument(
         "--trans-null",
         choices=TRANS_NULL_CHOICES,
         default="pair",
@@ -225,6 +231,7 @@ def _run(raw_args: list[str]) -> None:
         with_residuals=args.with_residuals,
         tree_pca_dim=args.tree_pca_dim,
         tree_branch_k=args.tree_branch_k,
+        kmeans_n_init=args.kmeans_n_init,
         with_trans=args.with_trans,
         trans_null=args.trans_null,
         ab_feature_track=args.ab_feature_track,
