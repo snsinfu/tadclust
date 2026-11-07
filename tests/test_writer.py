@@ -31,10 +31,10 @@ from tadclust.writer import (
 
 CIS_LEAVES_TSV_BASE_COLUMNS = [
     "chrom",
+    "start",
+    "end",
     "unit_id",
     "unit_kind",
-    "unit_start",
-    "unit_end",
     "tad_id",
     "path_label",
     "depth",
@@ -216,10 +216,10 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     nodes = pl.read_parquet(tmp_path / "out" / "cis_nodes.parquet")
     assert leaves.columns == [
         "chrom",
+        "start",
+        "end",
         "unit_id",
         "unit_kind",
-        "unit_start",
-        "unit_end",
         "tad_id",
         "path",
         "path_label",
@@ -237,8 +237,8 @@ def test_write_cis_only_outputs(mcool, tmp_path) -> None:
     assert nodes.schema["is_leaf"] == pl.Boolean
     assert nodes.schema["is_root"] == pl.Boolean
     assert nodes.schema["subtree_height"] == pl.Int64
-    assert nodes.schema["span_start"] == pl.Int64
-    assert nodes.schema["span_end"] == pl.Int64
+    assert nodes.schema["start"] == pl.Int64
+    assert nodes.schema["end"] == pl.Int64
     assert nodes.schema["node_split_gain"] == pl.Float64
     assert nodes.schema["unit_id"] == pl.Int64
     assert nodes.schema["pc"] == pl.Array(pl.Float64, 2)
@@ -309,7 +309,7 @@ def test_uniform_bin_tsv_nulls_use_sentinels(tmp_path) -> None:
 
     leaves = read_tsv(out / "cis_leaves.tsv")
     assert leaves["tad_id"].to_list() == ["-1"] * leaves.height
-    unclustered = leaves.filter(pl.col("unit_start").cast(pl.Int64) < 1000)
+    unclustered = leaves.filter(pl.col("start").cast(pl.Int64) < 1000)
     assert "root_label" not in leaves.columns
     assert unclustered["path_label"].to_list() == ["NA", "NA"]
     assert unclustered["depth"].to_list() == ["-1", "-1"]
@@ -317,7 +317,7 @@ def test_uniform_bin_tsv_nulls_use_sentinels(tmp_path) -> None:
     assert unclustered["ab_signal"].to_list() == ["NaN", "NaN"]
 
     leaves_ab = read_tsv(out / "cis_leaves_ab.tsv")
-    unclustered_ab = leaves_ab.filter(pl.col("unit_start").cast(pl.Int64) < 1000)
+    unclustered_ab = leaves_ab.filter(pl.col("start").cast(pl.Int64) < 1000)
     assert unclustered_ab["ab_label"].to_list() == ["NA", "NA"]
     assert unclustered_ab["ab_signal"].to_list() == ["NaN", "NaN"]
 

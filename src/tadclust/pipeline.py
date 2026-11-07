@@ -485,8 +485,6 @@ def _leaf_unit_fields(
     unit = result.selection.units[local_index]
     return {
         "unit_id": unit_id,
-        "unit_start": unit.start,
-        "unit_end": unit.end,
         "unit_kind": unit.unit_kind,
         "tad_id": unit.tad_id,
         "pc": [float(value) for value in result.pcs[local_index, :n_pcs]],
@@ -496,8 +494,6 @@ def _leaf_unit_fields(
 def _null_unit_fields() -> dict[str, Any]:
     return {
         "unit_id": None,
-        "unit_start": None,
-        "unit_end": None,
         "unit_kind": None,
         "tad_id": None,
     }
@@ -575,8 +571,8 @@ def _genomic_fields(
     starts = unit_starts[local_indices]
     ends = unit_ends[local_indices]
     return {
-        "span_start": int(starts.min()),
-        "span_end": int(ends.max()),
+        "start": int(starts.min()),
+        "end": int(ends.max()),
         "unit_bp": int((ends - starts).sum()),
     }
 
@@ -703,8 +699,8 @@ def _cis_node_rows(
                         )
                         row.update(
                             {
-                                "span_start": int(unit_starts[local_index]),
-                                "span_end": int(unit_ends[local_index]),
+                                "start": int(unit_starts[local_index]),
+                                "end": int(unit_ends[local_index]),
                                 "unit_bp": int(
                                     unit_ends[local_index] - unit_starts[local_index]
                                 ),
@@ -731,8 +727,8 @@ def _cis_node_rows(
                 "is_leaf": True,
                 "is_root": False,
                 "subtree_height": None,
-                "span_start": unit.start,
-                "span_end": unit.end,
+                "start": unit.start,
+                "end": unit.end,
                 "n_units": 1,
                 "n_working_bins": unit.n_working_bins,
                 "unit_bp": unit.end - unit.start,
@@ -763,8 +759,8 @@ def _cis_node_rows(
         pl.col("pc").cast(pl.Array(pl.Float64, n_pcs)),
         pl.col("is_root").cast(pl.Boolean),
         pl.col("subtree_height").cast(pl.Int64),
-        pl.col("span_start").cast(pl.Int64),
-        pl.col("span_end").cast(pl.Int64),
+        pl.col("start").cast(pl.Int64),
+        pl.col("end").cast(pl.Int64),
         pl.col("unit_bp").cast(pl.Int64),
         pl.col("cluster_n_components").cast(pl.Int64),
         pl.col("cluster_lcc_frac").cast(pl.Float64),

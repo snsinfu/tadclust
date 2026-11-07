@@ -133,11 +133,7 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert leaf_nodes["cluster_n_components"].null_count() == leaf_nodes.height
     assert leaf_nodes["cluster_lcc_frac"].null_count() == leaf_nodes.height
     assert leaf_nodes["mst_edges"].list.len().sum() == 0
-    assert (leaf_nodes["span_start"] == leaf_nodes["unit_start"]).all()
-    assert (leaf_nodes["span_end"] == leaf_nodes["unit_end"]).all()
-    assert (
-        leaf_nodes["unit_bp"] == leaf_nodes["unit_end"] - leaf_nodes["unit_start"]
-    ).all()
+    assert (leaf_nodes["unit_bp"] == leaf_nodes["end"] - leaf_nodes["start"]).all()
     assert leaf_nodes["subtree_height"].to_list() == [0] * leaf_nodes.height
     assert leaf_nodes["is_root"].to_list() == [False] * leaf_nodes.height
 
@@ -145,8 +141,8 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert roots.height == 2
     assert roots["node_id"].is_not_null().all()
     assert roots["parent_id"].null_count() == roots.height
-    assert roots["span_start"].to_list() == [0, 0]
-    assert roots["span_end"].to_list() == [2000, 2000]
+    assert roots["start"].to_list() == [0, 0]
+    assert roots["end"].to_list() == [2000, 2000]
     assert roots["unit_bp"].to_list() == [2000, 2000]
     assert roots["subtree_height"].to_list() == [1, 1]
     assert_node_references(result.cis_nodes)
@@ -248,8 +244,8 @@ def test_cluster_residuals_are_opt_in(gapped_mcool, gapped_tads, tmp_path) -> No
     for chromosome_qc in default.qc["per_chromosome"].values():
         assert 0.0 < chromosome_qc["cis"]["coverage_fraction"] < 1.0
     default_roots = default.cis_nodes.filter(pl.col("is_root")).sort("chrom")
-    assert default_roots["span_start"].to_list() == [0, 0]
-    assert default_roots["span_end"].to_list() == [2000, 2000]
+    assert default_roots["start"].to_list() == [0, 0]
+    assert default_roots["end"].to_list() == [2000, 2000]
     assert default_roots["unit_bp"].to_list() == [2000, 2000]
 
     with_residuals = cluster(
@@ -271,8 +267,8 @@ def test_cluster_residuals_are_opt_in(gapped_mcool, gapped_tads, tmp_path) -> No
     for chromosome_qc in with_residuals.qc["per_chromosome"].values():
         assert chromosome_qc["cis"]["coverage_fraction"] == 1.0
     residual_roots = with_residuals.cis_nodes.filter(pl.col("is_root")).sort("chrom")
-    assert residual_roots["span_start"].to_list() == [0, 0]
-    assert residual_roots["span_end"].to_list() == [3000, 3000]
+    assert residual_roots["start"].to_list() == [0, 0]
+    assert residual_roots["end"].to_list() == [3000, 3000]
     assert residual_roots["unit_bp"].to_list() == [3000, 3000]
 
 
@@ -400,8 +396,8 @@ def test_hierarchy_roots_selection_skips_dp(monkeypatch, mcool, tmp_path) -> Non
     )
 
     assert result.cis_leaves.height == 4
-    assert result.cis_leaves["unit_start"].to_list() == [0, 1500, 0, 1500]
-    assert result.cis_leaves["unit_end"].to_list() == [1500, 2000, 1500, 2000]
+    assert result.cis_leaves["start"].to_list() == [0, 1500, 0, 1500]
+    assert result.cis_leaves["end"].to_list() == [1500, 2000, 1500, 2000]
     assert result.cis_leaves["tad_id"].to_list() == [0, 3, 4, 7]
     assert result.params["requested"]["unit_selection"] == "roots"
     for chromosome_qc in result.qc["per_chromosome"].values():
@@ -430,8 +426,8 @@ def test_cluster_uniform_bins_parallel_matches_serial(mcool, tmp_path) -> None:
     columns = [
         "unit_id",
         "chrom",
-        "unit_start",
-        "unit_end",
+        "start",
+        "end",
         "unit_kind",
         "tad_id",
         "n_working_bins",
@@ -786,8 +782,8 @@ def test_feature_track_does_not_change_primary_tree(mcool, tmp_path) -> None:
     unit_columns = [
         "unit_id",
         "unit_kind",
-        "unit_start",
-        "unit_end",
+        "start",
+        "end",
         "tad_id",
     ]
     assert without.cis_leaves.select(unit_columns).equals(
@@ -899,8 +895,8 @@ def test_cluster_parallel_matches_serial(mcool, tmp_path) -> None:
     columns = [
         "unit_id",
         "chrom",
-        "unit_start",
-        "unit_end",
+        "start",
+        "end",
         "unit_kind",
         "tad_id",
         "n_working_bins",
@@ -958,8 +954,8 @@ def test_cluster_gapped_parallel_matches_serial(
     columns = [
         "unit_id",
         "chrom",
-        "unit_start",
-        "unit_end",
+        "start",
+        "end",
         "unit_kind",
         "tad_id",
         "n_working_bins",
@@ -981,9 +977,9 @@ def test_zero_contact_cis_unit_is_unclustered(tmp_path) -> None:
     )
     result = cluster(make_uniform_config(mcool, tmp_path))
 
-    leaves = result.cis_leaves.sort("unit_start")
-    unclustered = leaves.filter(pl.col("unit_start") < 1000)
-    clustered = leaves.filter(pl.col("unit_start") >= 1000)
+    leaves = result.cis_leaves.sort("start")
+    unclustered = leaves.filter(pl.col("start") < 1000)
+    clustered = leaves.filter(pl.col("start") >= 1000)
     assert unclustered["path"].to_list() == [None, None]
     assert unclustered["path_label"].to_list() == [None, None]
     assert "root_label" not in leaves.columns
@@ -1001,8 +997,8 @@ def test_zero_contact_cis_unit_is_unclustered(tmp_path) -> None:
     assert node_unclustered["mst_edges"].list.len().sum() == 0
     assert node_unclustered["is_root"].to_list() == [False, False]
     assert node_unclustered["subtree_height"].to_list() == [None, None]
-    assert node_unclustered["span_start"].to_list() == [0, 500]
-    assert node_unclustered["span_end"].to_list() == [500, 1000]
+    assert node_unclustered["start"].to_list() == [0, 500]
+    assert node_unclustered["end"].to_list() == [500, 1000]
     assert node_unclustered["unit_bp"].to_list() == [500, 500]
     assert result.cis_nodes.filter(pl.col("is_root")).height == 1
     assert result.qc["summary"]["n_unclustered"] == 2
@@ -1028,9 +1024,9 @@ def test_zero_contact_ab_unit_is_unclustered(tmp_path) -> None:
     result = cluster(make_uniform_config(mcool, tmp_path, ab_feature_track=track))
 
     assert result.cis_leaves_ab is not None
-    leaves = result.cis_leaves_ab.sort("unit_start")
-    unclustered = leaves.filter(pl.col("unit_start") < 1000)
-    clustered = leaves.filter(pl.col("unit_start") >= 1000)
+    leaves = result.cis_leaves_ab.sort("start")
+    unclustered = leaves.filter(pl.col("start") < 1000)
+    clustered = leaves.filter(pl.col("start") >= 1000)
     assert unclustered["path"].to_list() == [None, None]
     assert unclustered["path_label"].to_list() == [None, None]
     assert unclustered["ab_label"].to_list() == [None, None]

@@ -18,10 +18,10 @@ def cis_leaves_schema(
     """Return the per-unit cis leaf table schema."""
     schema: Schema = {
         "chrom": pl.String,
+        "start": pl.Int64,
+        "end": pl.Int64,
         "unit_id": pl.Int64,
         "unit_kind": pl.String,
-        "unit_start": pl.Int64,
-        "unit_end": pl.Int64,
         "tad_id": pl.Int64,
         "path": pl.List(pl.Int64),
         "path_label": pl.String,
@@ -57,9 +57,13 @@ def cis_nodes_schema(n_pcs: int, include_ab: bool) -> Schema:
 
     Leaf nodes are flattened to one row per member unit, so every column of
     `cis_leaves` (except trans columns) is also a `cis_nodes` column.
+    `start`/`end` bound the units under the node; on leaf/unit rows they are
+    the unit interval.
     """
     schema: Schema = {
         "chrom": pl.String,
+        "start": pl.Int64,
+        "end": pl.Int64,
         "node_id": pl.Int64,
         "parent_id": pl.Int64,
         "child_ids": pl.List(pl.Int64),
@@ -67,13 +71,9 @@ def cis_nodes_schema(n_pcs: int, include_ab: bool) -> Schema:
         "is_root": pl.Boolean,
         "depth": pl.Int64,
         "subtree_height": pl.Int64,
-        "span_start": pl.Int64,
-        "span_end": pl.Int64,
         "unit_bp": pl.Int64,
         "unit_id": pl.Int64,
         "unit_kind": pl.String,
-        "unit_start": pl.Int64,
-        "unit_end": pl.Int64,
         "tad_id": pl.Int64,
         "path": pl.List(pl.Int64),
         "path_label": pl.String,
@@ -120,10 +120,10 @@ def cis_leaves_ab_schema() -> Schema:
     """Return the A/B-rooted cis leaf table schema."""
     return {
         "chrom": pl.String,
+        "start": pl.Int64,
+        "end": pl.Int64,
         "unit_id": pl.Int64,
         "unit_kind": pl.String,
-        "unit_start": pl.Int64,
-        "unit_end": pl.Int64,
         "tad_id": pl.Int64,
         "path": pl.List(pl.Int64),
         "path_label": pl.String,

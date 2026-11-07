@@ -80,10 +80,10 @@ def tsv_columns(path: Path):
 def cis_leaves_schema(include_trans: bool, include_ab: bool):
     schema = [
         ("chrom", pl.String),
+        ("start", pl.Int64),
+        ("end", pl.Int64),
         ("unit_id", pl.Int64),
         ("unit_kind", pl.String),
-        ("unit_start", pl.Int64),
-        ("unit_end", pl.Int64),
         ("tad_id", pl.Int64),
         ("path", pl.List(pl.Int64)),
         ("path_label", pl.String),
@@ -117,6 +117,8 @@ def cis_leaves_schema(include_trans: bool, include_ab: bool):
 def cis_nodes_schema(include_ab: bool, n_pcs: int = 3):
     schema = [
         ("chrom", pl.String),
+        ("start", pl.Int64),
+        ("end", pl.Int64),
         ("node_id", pl.Int64),
         ("parent_id", pl.Int64),
         ("child_ids", pl.List(pl.Int64)),
@@ -124,13 +126,9 @@ def cis_nodes_schema(include_ab: bool, n_pcs: int = 3):
         ("is_root", pl.Boolean),
         ("depth", pl.Int64),
         ("subtree_height", pl.Int64),
-        ("span_start", pl.Int64),
-        ("span_end", pl.Int64),
         ("unit_bp", pl.Int64),
         ("unit_id", pl.Int64),
         ("unit_kind", pl.String),
-        ("unit_start", pl.Int64),
-        ("unit_end", pl.Int64),
         ("tad_id", pl.Int64),
         ("path", pl.List(pl.Int64)),
         ("path_label", pl.String),
@@ -178,10 +176,10 @@ def cis_nodes_schema(include_ab: bool, n_pcs: int = 3):
 
 CIS_LEAVES_TSV_BASE_COLUMNS = [
     "chrom",
+    "start",
+    "end",
     "unit_id",
     "unit_kind",
-    "unit_start",
-    "unit_end",
     "tad_id",
     "path_label",
     "depth",
@@ -206,10 +204,10 @@ CIS_LEAVES_AB_TSV_COLUMNS = CIS_LEAVES_TSV_BASE_COLUMNS + CIS_LEAVES_AB_COLUMNS
 
 CIS_LEAVES_AB_SCHEMA = [
     ("chrom", pl.String),
+    ("start", pl.Int64),
+    ("end", pl.Int64),
     ("unit_id", pl.Int64),
     ("unit_kind", pl.String),
-    ("unit_start", pl.Int64),
-    ("unit_end", pl.Int64),
     ("tad_id", pl.Int64),
     ("path", pl.List(pl.Int64)),
     ("path_label", pl.String),

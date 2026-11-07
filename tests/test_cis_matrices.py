@@ -267,11 +267,11 @@ def test_cis_matrix_units_match_cis_leaves(mcool, tmp_path) -> None:
             )
             assert np.array_equal(
                 dataset(group, "unit_start")[()],
-                rows["unit_start"].to_numpy(),
+                rows["start"].to_numpy(),
             )
             assert np.array_equal(
                 dataset(group, "unit_end")[()],
-                rows["unit_end"].to_numpy(),
+                rows["end"].to_numpy(),
             )
             assert np.array_equal(
                 dataset(group, "n_working_bins")[()],
@@ -282,8 +282,8 @@ def test_cis_matrix_units_match_cis_leaves(mcool, tmp_path) -> None:
                 dataset(group, "tad_id")[()],
                 expected_rows,
             )
-            starts = rows["unit_start"].to_numpy()
-            ends = rows["unit_end"].to_numpy()
+            starts = rows["start"].to_numpy()
+            ends = rows["end"].to_numpy()
             assert np.allclose(
                 dataset(group, "unit_center")[()],
                 (starts + ends) / 2.0,
