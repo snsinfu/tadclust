@@ -275,6 +275,7 @@ def test_single_unit_is_root_leaf() -> None:
     assert root.unit_indices.tolist() == [0]
     assert root.n_working_bins == 5
     assert root.split_gain is None
+    assert root.subtree_height == 0
     assert len(tree.nodes) == 1
 
 
@@ -296,6 +297,7 @@ def test_binary_tree_paths_and_gain() -> None:
     assert root.centroid.tolist() == [0.0]
     assert root.sse == 20.0
     assert root.split_gain == pytest.approx(0.8)
+    assert root.subtree_height == 2
     assert len(root.children) == 2
 
     low = tree.nodes[root.children[0]]
@@ -310,8 +312,11 @@ def test_binary_tree_paths_and_gain() -> None:
     assert low.centroid.tolist() == [-2.0]
     assert high.n_working_bins == 70
     assert low.n_working_bins == 30
+    assert high.subtree_height == 1
+    assert low.subtree_height == 1
 
     leaves = leaf_by_unit(tree)
+    assert all(leaves[unit].subtree_height == 0 for unit in range(4))
     assert [format_path_label("chr1", leaves[unit].path) for unit in range(4)] == [
         "chr1:0.0",
         "chr1:0.1",

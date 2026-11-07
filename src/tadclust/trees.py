@@ -22,6 +22,7 @@ class TreeNode:
     parent_id: int | None
     children: list[int] = field(default_factory=list)
     depth: int = 0
+    subtree_height: int = 0
     path: list[int] = field(default_factory=list)
     unit_indices: np.ndarray = field(
         default_factory=lambda: np.zeros(0, dtype=np.int64)
@@ -166,6 +167,7 @@ def build_branching_tree(
         )
 
     _leaf_lookup(nodes, n_units)
+    _assign_subtree_heights(nodes)
     return BranchingTree(
         nodes=nodes,
         root_id=root_id,
@@ -356,6 +358,17 @@ def _leaf_lookup(
     if np.any(leaf_of_unit < 0):
         raise ClusteringError("tree left some units unassigned")
     return leaf_of_unit
+
+
+def _assign_subtree_heights(nodes: list[TreeNode]) -> None:
+    """Set the height of every subtree from its node to its deepest leaf."""
+    # Node ids increase with creation order, so reversed order is post-order.
+    for node in reversed(nodes):
+        node.subtree_height = (
+            0
+            if not node.children
+            else 1 + max(nodes[child].subtree_height for child in node.children)
+        )
 
 
 def build_cis_forest(
