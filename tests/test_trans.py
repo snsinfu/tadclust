@@ -367,6 +367,45 @@ def test_build_trans_tree_positive(three_chrom_mcool) -> None:
     assert result.unit_indices.tolist() == [0, 1, 2]
 
 
+def test_build_trans_tree_forwards_kmeans_n_init(
+    monkeypatch, three_chrom_mcool
+) -> None:
+    import tadclust.trans as trans_module
+
+    seen: list[int] = []
+    original = trans_module.build_branching_tree
+
+    def capture(*args, **kwargs):
+        seen.append(kwargs["n_init"])
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(trans_module, "build_branching_tree", capture)
+
+    cooler_object = open_cooler(three_chrom_mcool, 500)
+    inputs = one_unit_inputs(("chr1", "chr2", "chr3"))
+    trans = trans_matrix(
+        three_chrom_mcool,
+        500,
+        cooler_object,
+        inputs,
+        pseudocount=1.0,
+        clip_min=-10.0,
+        clip_max=10.0,
+        null="grand",
+    )
+
+    build_trans_tree(
+        trans,
+        np.array([4, 4, 4], dtype=np.int64),
+        n_pcs=2,
+        branch_k=2,
+        seed=0,
+        n_init=7,
+    )
+
+    assert seen == [7]
+
+
 def test_build_trans_tree_excludes_uninformative_units() -> None:
     info = TransInfo(
         null="pair",

@@ -15,6 +15,7 @@ from tadclust.trees import (
     annotate_ab,
     annotate_cis_forest,
     build_ab_forest,
+    build_branching_tree,
     build_cis_forest,
 )
 
@@ -272,6 +273,52 @@ def test_build_ab_forest_two_roots() -> None:
     annotate_cis_forest(forest, annotation, features, n_pcs=1)
     assert forest.trees[0].nodes[0].ab_label == "A"
     assert forest.trees[1].nodes[0].ab_label == "B"
+
+
+def test_ab_builders_forward_kmeans_n_init(monkeypatch) -> None:
+    seen: list[int] = []
+
+    def capture_labels(pcs, k, n_pcs, seed, n_init=100):
+        seen.append(n_init)
+        values = np.asarray(pcs)[:, 0]
+        labels = (values > np.median(values)).astype(np.int64)
+        centers = np.vstack(
+            [
+                values[labels == 0].mean(),
+                values[labels == 1].mean(),
+            ]
+        )[:, None]
+        return labels, centers
+
+    pcs = np.array([[-2.0], [-1.0], [1.0], [2.0]])
+    rank = np.array([0.0, 0.1, 0.9, 1.0])
+    features = ab_feature_matrix(pcs, rank, 1)
+
+    monkeypatch.setattr("tadclust.trees.kmeans_labels", capture_labels)
+    annotate_ab(features, rank, 4, 0, n_pcs=1, n_init=7)
+    assert seen == [7]
+
+    original = build_branching_tree
+
+    def capture_tree(*args, **kwargs):
+        seen.append(kwargs["n_init"])
+        return original(*args, **kwargs)
+
+    annotation = annotate_ab(features, rank, 4, 0, n_pcs=1)
+    seen.clear()
+    monkeypatch.setattr("tadclust.trees.build_branching_tree", capture_tree)
+    build_ab_forest(
+        "chr1",
+        pcs,
+        np.ones(4, dtype=np.int64),
+        annotation=annotation,
+        n_pcs=1,
+        branch_k=2,
+        seed=0,
+        n_init=7,
+    )
+    assert seen
+    assert set(seen) == {7}
 
 
 def test_build_ab_forest_degenerate_fallback() -> None:

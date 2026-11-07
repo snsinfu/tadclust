@@ -103,6 +103,43 @@ def test_base_seed_still_changes_node_seeds(monkeypatch) -> None:
     assert first != seeds
 
 
+def test_tree_builders_forward_kmeans_n_init(monkeypatch) -> None:
+    seen: list[int] = []
+
+    def capture(pcs, k, n_pcs, seed, n_init=100):
+        seen.append(n_init)
+        values = np.asarray(pcs)[:, 0]
+        labels = (values > np.median(values)).astype(np.int64)
+        centers = np.vstack(
+            [
+                values[labels == 0].mean(),
+                values[labels == 1].mean(),
+            ]
+        )[:, None]
+        return labels, centers
+
+    monkeypatch.setattr("tadclust.trees.kmeans_labels", capture)
+    pcs = np.arange(8, dtype=np.float64).reshape(-1, 1)
+    bins = np.ones(8, dtype=np.int64)
+
+    build_branching_tree(pcs, bins, n_pcs=1, seed=0, branch_k=2, n_init=7)
+    assert seen
+    assert set(seen) == {7}
+
+    seen.clear()
+    build_cis_forest(
+        "chr1",
+        pcs,
+        bins,
+        n_pcs=1,
+        branch_k=2,
+        seed=0,
+        n_init=7,
+    )
+    assert seen
+    assert set(seen) == {7}
+
+
 def test_feature_orientation_must_not_change_primary_tree() -> None:
     rng = np.random.default_rng(0)
     n = 128
