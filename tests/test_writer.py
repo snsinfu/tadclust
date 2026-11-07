@@ -367,9 +367,7 @@ def test_write_ab_and_trans_outputs(
     assert "ab_label" in leaves.columns
     assert "ab_margin" not in leaves.columns
     assert "ab_score" not in leaves.columns
-    assert {"ab_label", "ab_signal", "ab_frac_a", "ab_frac_b", "ab_purity"} <= set(
-        nodes.columns
-    )
+    assert {"ab_label", "ab_signal", "ab_frac_a", "ab_frac_b"} <= set(nodes.columns)
     assert "ab_margin" not in nodes.columns
     assert "ab_score" not in nodes.columns
     assert "ab_signal" in leaves_ab.columns

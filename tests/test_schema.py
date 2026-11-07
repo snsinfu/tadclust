@@ -140,7 +140,6 @@ def cis_nodes_schema(include_ab: bool, n_pcs: int = 3):
                 ("ab_signal", pl.Float64),
                 ("ab_frac_a", pl.Float64),
                 ("ab_frac_b", pl.Float64),
-                ("ab_purity", pl.Float64),
             ]
         )
     schema.extend(

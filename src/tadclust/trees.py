@@ -35,7 +35,6 @@ class TreeNode:
     ab_label: str | None = None
     ab_frac_a: float | None = None
     ab_frac_b: float | None = None
-    ab_purity: float | None = None
     ab_signal: float | None = None
 
     @property
@@ -669,11 +668,9 @@ def annotate_cis_forest(
                 frac_b = n_b / n_total
                 node.ab_frac_a = frac_a
                 node.ab_frac_b = frac_b
-                node.ab_purity = max(frac_a, frac_b)
             else:
                 node.ab_frac_a = None
                 node.ab_frac_b = None
-                node.ab_purity = None
 
             # The node label follows the signed centroid signal. Nodes exactly
             # on the boundary stay unlabeled; fractions tell consumers whether

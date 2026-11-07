@@ -510,7 +510,6 @@ def _unit_ab_fields(
         "ab_signal": None if np.isnan(signal) else float(signal),
         "ab_frac_a": None if label is None else 1.0 if label == "A" else 0.0,
         "ab_frac_b": None if label is None else 1.0 if label == "B" else 0.0,
-        "ab_purity": None if label is None else 1.0,
     }
 
 
@@ -520,7 +519,6 @@ def _node_ab_fields(node: TreeNode) -> dict[str, Any]:
         "ab_signal": node.ab_signal,
         "ab_frac_a": node.ab_frac_a,
         "ab_frac_b": node.ab_frac_b,
-        "ab_purity": node.ab_purity,
     }
 
 

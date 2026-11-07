@@ -206,7 +206,6 @@ def test_annotate_cis_forest_composition() -> None:
     assert root.ab_label is None
     assert root.ab_frac_a == 0.5
     assert root.ab_frac_b == 0.5
-    assert root.ab_purity == 0.5
 
     for node in forest.trees[0].nodes:
         assert node.ab_label is None
@@ -243,7 +242,6 @@ def test_annotate_cis_forest_fractions_include_unlabeled_units() -> None:
     root = forest.trees[0].nodes[forest.trees[0].root_id]
     assert root.ab_frac_a == pytest.approx(0.25)
     assert root.ab_frac_b == pytest.approx(0.5)
-    assert root.ab_purity == pytest.approx(0.5)
 
 
 def test_build_ab_forest_two_roots() -> None:
@@ -450,7 +448,6 @@ def test_node_label_follows_signal_without_mixed_threshold() -> None:
     root = forest.trees[0].nodes[forest.trees[0].root_id]
     assert root.ab_frac_a == pytest.approx(0.75)
     assert root.ab_frac_b == pytest.approx(0.25)
-    assert root.ab_purity == pytest.approx(0.75)
     assert root.ab_signal is not None
     assert root.ab_signal > 0
     assert root.ab_label == "A"
