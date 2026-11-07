@@ -90,7 +90,7 @@ Columns in the main table:
 | path                 | int[]                | Branches to take to arrive at the node from the root, like \[0,1,0,1,1,1\]. |
 | path_label           | string               | Root:dot-delimited path, like "chr1:0.1.0.1.1.1" and "chr2:B.1.0.0.1". |
 | ab_label             | A/B                  | A/B classification (ab_signal <=> 0) of the node. |
-| ab_signal            | float                | A/B compartment-like signal for the node. |
+| ab_signal            | float                | A/B compartment signal for the node. |
 | ab_frac_a            | float                | Fraction of A leaves under the node. |
 | ab_frac_b            | float                | Fraction of B leaves under the node. |
 | pc                   | float[]              | (leaf) PC feature vector or (branch) centroid. |
