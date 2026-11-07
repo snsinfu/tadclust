@@ -154,17 +154,16 @@ def build_branching_tree(
     # Split order does not change the final full tree: every node is split
     # independently. Depth-first recursion keeps node ids deterministic without
     # a priority queue.
-    if n_units > 1:
-        _split_recursive(
-            nodes,
-            root_id,
-            values,
-            bins,
-            n_pcs,
-            branch_k,
-            n_init,
-            seed,
-        )
+    _split_recursive(
+        nodes,
+        root_id,
+        values,
+        bins,
+        n_pcs,
+        branch_k,
+        n_init,
+        seed,
+    )
 
     _leaf_lookup(nodes, n_units)
     _assign_subtree_heights(nodes)
@@ -192,6 +191,10 @@ def _split_recursive(
     seed: int,
 ) -> None:
     node = nodes[node_id]
+    if node.unit_indices.size <= 1:
+        node.stop_reason = "singleton"
+        return
+
     # Seed from the member set, not the path: feature-track orientation can
     # reverse child order while leaving the k-means objective unchanged.
     node_seed = _node_seed(seed, node.unit_indices)
@@ -239,7 +242,8 @@ def _split_member_units(
 ) -> list[np.ndarray] | None:
     # Small nodes become singletons directly. Larger nodes use k-means, then
     # sort children by ascending mean PC1 so paths do not depend on k-means
-    # label order.
+    # label order. The caller reports a one-unit node as "singleton" and a
+    # failed k-means split as "degenerate".
     if unit_indices.size <= 1:
         return None
     if unit_indices.size <= branch_k:

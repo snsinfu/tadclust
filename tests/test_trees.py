@@ -379,6 +379,56 @@ def test_singleton_split_orders_by_pc1() -> None:
     assert root.split_gain == pytest.approx(1.0)
 
 
+def test_singleton_leaves_stop_reason_singleton() -> None:
+    pcs = np.arange(4, dtype=float).reshape(-1, 1)
+    tree = build_branching_tree(
+        pcs,
+        np.ones(4, dtype=np.int64),
+        n_pcs=1,
+        seed=0,
+        branch_k=2,
+    )
+
+    leaves = [node for node in tree.nodes if node.is_leaf]
+    internal = [node for node in tree.nodes if not node.is_leaf]
+    assert leaves
+    assert {node.stop_reason for node in leaves} == {"singleton"}
+    assert {node.stop_reason for node in internal} == {None}
+
+
+def test_two_units_with_branch_k_three_are_singletons() -> None:
+    pcs = np.array([[0.0], [1.0]])
+    tree = build_branching_tree(
+        pcs,
+        np.ones(2, dtype=np.int64),
+        n_pcs=1,
+        seed=0,
+        branch_k=3,
+    )
+
+    root = tree.nodes[tree.root_id]
+    assert not root.is_leaf
+    assert root.stop_reason is None
+    assert [tree.nodes[child].stop_reason for child in root.children] == [
+        "singleton",
+        "singleton",
+    ]
+
+
+def test_single_unit_root_is_singleton() -> None:
+    tree = build_branching_tree(
+        np.array([[0.0]]),
+        np.ones(1, dtype=np.int64),
+        n_pcs=1,
+        seed=0,
+        branch_k=2,
+    )
+
+    root = tree.nodes[tree.root_id]
+    assert root.is_leaf
+    assert root.stop_reason == "singleton"
+
+
 def test_degenerate_split_stops(monkeypatch) -> None:
     def degenerate(pcs, k, n_pcs, seed, n_init=10):
         return np.zeros(len(pcs), dtype=np.int64), np.zeros((1, 1))
