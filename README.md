@@ -71,44 +71,44 @@ Main output is `cis_nodes.parquet` which contains full tree nodes for all chromo
 
 Columns in the main table:
 
-| column               | type             | description |
-|:---------------------|:-----------------|:------------|
-| chrom                | string           | The chromosome the node belongs to. |
-| node_id              | int              | Unique ID of the node within the table. |
-| parent_id            | int              | Parent's node_id or null. |
-| child_ids            | int[]            | Children's node_ids or empty. |
-| is_leaf              | bool             | (leaf) True or (branch) false. |
-| is_root              | bool             | True for tree roots. |
-| depth                | int              | Depth of the node, 0 = root. |
-| subtree_height       | int              | Edges from the node to its deepest descendant, 0 = leaves. |
-| span_start           | int              | Start coord of the most upstream unit under the node. |
-| span_end             | int              | End coord of the most downstream unit under the node. |
-| unit_bp              | int              | Sum of unit lengths under the node. |
-| unit_id              | int              | (leaf) Unique ID of the clustered leaf unit or (branch) null. |
-| unit_kind            | tad/residual/bin | (leaf) Type of the unit or (branch) null. |
-| unit_start           | int              | (leaf) Start coord of the unit or (branch) null. |
-| unit_end             | int              | (leaf) End coord of the unit or (branch) null. |
-| tad_id               | int              | (leaf) Row index of the TAD table or (branch/non-TAD) null. |
-| path                 | int[]            | Branches to take to arrive at the node from the root, like \[0,1,0,1,1,1\]. |
-| path_label           | string           | Root:dot-delimited path, like "chr1:0.1.0.1.1.1" and "chr2:B.1.0.0.1". |
-| ab_label             | A/B              | A/B classification (ab_signal <=> 0) of the node. |
-| ab_signal            | float            | A/B compartment-like signal for the node. |
-| ab_frac_a            | float            | Fraction of A leaves under the node. |
-| ab_frac_b            | float            | Fraction of B leaves under the node. |
-| ab_purity            | float            | Max(ab_frac_a, ab_frac_b). |
-| pc                   | float[]          | (leaf) PC feature vector or (branch) centroid. |
-| n_units              | int              | Number of units under the node. |
-| n_working_bins       | int              | Number of working bins covered by the units under the node. |
-| node_oe              | float            | Mean log2 O/E over all units and unit pairs under the node. |
-| cross_oe             | float            | The pairwise component of node_oe. |
-| cross_oe_excess      | float            | cross_oe with distance-dependent baseline subtracted. |
-| cluster_n_components | int              | Number of connected components formed by the units under the node (adjacent <=> excess log-O/E > 0). |
-| cluster_lcc_frac     | float            | Fraction of the largest connected component. |
-| mst_edges            | {u,v,weight}[]   | MaxST of the units under the node. |
-| mst_bottleneck       | float            | Minimum weight (excess log-O/E) in the MaxST. |
-| node_internal_sse    | float            | Feature-space SSE of leaves under the node. |
-| node_split_gain      | float            | Relative SSE reduction of splitting at this node. |
-| stop_reason          | degenerate       | Reason of abruptly stopped splitting or null. |
+| column               | type                 | description |
+|:---------------------|:---------------------|:------------|
+| chrom                | string               | The chromosome the node belongs to. |
+| node_id              | int                  | Unique ID of the node within the table. |
+| parent_id            | int                  | Parent's node_id or null. |
+| child_ids            | int[]                | Children's node_ids or empty. |
+| is_leaf              | bool                 | (leaf) True or (branch) false. |
+| is_root              | bool                 | True for tree roots. |
+| depth                | int                  | Depth of the node, 0 = root. |
+| subtree_height       | int                  | Edges from the node to its deepest descendant, 0 = leaves. |
+| span_start           | int                  | Start coord of the most upstream unit under the node. |
+| span_end             | int                  | End coord of the most downstream unit under the node. |
+| unit_bp              | int                  | Sum of unit lengths under the node. |
+| unit_id              | int                  | (leaf) Unique ID of the clustered leaf unit or (branch) null. |
+| unit_kind            | tad/residual/bin     | (leaf) Type of the unit or (branch) null. |
+| unit_start           | int                  | (leaf) Start coord of the unit or (branch) null. |
+| unit_end             | int                  | (leaf) End coord of the unit or (branch) null. |
+| tad_id               | int                  | (leaf) Row index of the TAD table or (branch/non-TAD) null. |
+| path                 | int[]                | Branches to take to arrive at the node from the root, like \[0,1,0,1,1,1\]. |
+| path_label           | string               | Root:dot-delimited path, like "chr1:0.1.0.1.1.1" and "chr2:B.1.0.0.1". |
+| ab_label             | A/B                  | A/B classification (ab_signal <=> 0) of the node. |
+| ab_signal            | float                | A/B compartment-like signal for the node. |
+| ab_frac_a            | float                | Fraction of A leaves under the node. |
+| ab_frac_b            | float                | Fraction of B leaves under the node. |
+| ab_purity            | float                | Max(ab_frac_a, ab_frac_b). |
+| pc                   | float[]              | (leaf) PC feature vector or (branch) centroid. |
+| n_units              | int                  | Number of units under the node. |
+| n_working_bins       | int                  | Number of working bins covered by the units under the node. |
+| node_oe              | float                | Mean log2 O/E over all units and unit pairs under the node. |
+| cross_oe             | float                | The pairwise component of node_oe. |
+| cross_oe_excess      | float                | cross_oe with distance-dependent baseline subtracted. |
+| cluster_n_components | int                  | Number of connected components formed by the units under the node (adjacent <=> excess log-O/E > 0). |
+| cluster_lcc_frac     | float                | Fraction of the largest connected component. |
+| mst_edges            | {u,v,weight}[]       | MaxST of the units under the node. |
+| mst_bottleneck       | float                | Minimum weight (excess log-O/E) in the MaxST. |
+| node_internal_sse    | float                | Feature-space SSE of leaves under the node. |
+| node_split_gain      | float                | Relative SSE reduction of splitting at this node. |
+| stop_reason          | singleton/degenerate | Reason of stopped splitting. |
 
 Notes:
 
