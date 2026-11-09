@@ -23,12 +23,12 @@ from .tads import TadTable, check_against_chromsizes, read_tads
 
 
 @dataclass(frozen=True)
-class AnnotationSource:
-    """Chromosome units derived from a laminar annotation table."""
+class TadTableSource:
+    """Chromosome units derived from a laminar TAD table."""
 
     table: TadTable
     path: str
-    mode: ClassVar[str] = "annotation"
+    mode: ClassVar[str] = "tad_table"
     unit_kind: ClassVar[str] = "tad"
 
     @property
@@ -95,16 +95,16 @@ class UniformBinSource:
         return tree, np.arange(tree.n_fine, dtype=np.int64)
 
 
-type CisSource = AnnotationSource | UniformBinSource
+type CisSource = TadTableSource | UniformBinSource
 
 
-def make_source(annotation_path: str | Path | None) -> CisSource:
-    """Build the phase-1 source for an annotation path or uniform bins."""
-    if annotation_path is None:
+def make_source(tad_table_path: str | Path | None) -> CisSource:
+    """Build the phase-1 source for a TAD table path or uniform bins."""
+    if tad_table_path is None:
         return UniformBinSource()
-    return AnnotationSource(
-        table=read_tads(annotation_path),
-        path=str(annotation_path),
+    return TadTableSource(
+        table=read_tads(tad_table_path),
+        path=str(tad_table_path),
     )
 
 

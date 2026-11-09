@@ -218,7 +218,7 @@ def _run(raw_args: list[str]) -> None:
 
     config = ClusterConfig(
         mcool_path=args.mcool,
-        annotation_path=args.tad_table,
+        tad_table_path=args.tad_table,
         output_dir=args.output_dir,
         working_binsize=args.working_binsize,
         distance_bins=args.distance_bins,

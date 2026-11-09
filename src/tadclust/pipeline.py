@@ -100,7 +100,7 @@ class _TransRun:
 
 
 def _make_source(config: ClusterConfig) -> CisSource:
-    return make_source(config.annotation_path)
+    return make_source(config.tad_table_path)
 
 
 def cluster(config: ClusterConfig) -> ClusterResult:
@@ -212,12 +212,12 @@ def cluster(config: ClusterConfig) -> ClusterResult:
         qc=_build_qc(results, trans_run, config, is_ab),
         inputs={
             "mcool": str(config.mcool_path),
-            "annotation": (
-                str(config.annotation_path)
-                if config.annotation_path is not None
+            "tad_table": (
+                str(config.tad_table_path)
+                if config.tad_table_path is not None
                 else None
             ),
-            "annotation_format": source.input_format,
+            "tad_table_format": source.input_format,
             "ab_feature_track": (
                 str(config.ab_feature_track)
                 if config.ab_feature_track is not None

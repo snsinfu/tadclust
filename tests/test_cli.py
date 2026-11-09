@@ -374,7 +374,7 @@ def test_cli_uniform_bins_run(mcool, tmp_path) -> None:
     out = tmp_path / "out"
     manifest = json.loads((out / "manifest.json").read_text())
     assert manifest["params"]["resolved"]["input_mode"] == "uniform_bins"
-    assert manifest["inputs"]["annotation"] is None
+    assert manifest["inputs"]["tad_table"] is None
     assert manifest["qc"]["summary"]["n_bin_units"] == 8
     assert manifest["qc"]["summary"]["n_tads"] == 0
 
@@ -394,7 +394,7 @@ def test_cli_uniform_bins_requires_working_binsize(mcool, tmp_path) -> None:
 
     with pytest.raises(SystemExit) as info:
         main(args)
-    assert "working_binsize is required when annotation_path is omitted" in str(
+    assert "working_binsize is required when tad_table_path is omitted" in str(
         info.value
     )
 

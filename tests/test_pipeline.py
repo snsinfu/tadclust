@@ -14,7 +14,7 @@ import tadclust.domains as domains_module
 from tadclust.config import ClusterConfig
 from tadclust.errors import ClusteringError, InputError
 from tadclust.pipeline import cluster
-from tadclust.sources import AnnotationSource
+from tadclust.sources import TadTableSource
 from tadclust.trees import AbAnnotation
 
 
@@ -49,7 +49,7 @@ def ab_track(tmp_path):
 def make_config(mcool, tads, tmp_path, **overrides):
     values = {
         "mcool_path": mcool,
-        "annotation_path": tads,
+        "tad_table_path": tads,
         "output_dir": tmp_path / "out",
         "working_binsize": 500,
         "tree_pca_dim": 2,
@@ -62,7 +62,7 @@ def make_config(mcool, tads, tmp_path, **overrides):
 def make_uniform_config(mcool, tmp_path, **overrides):
     values = {
         "mcool_path": mcool,
-        "annotation_path": None,
+        "tad_table_path": None,
         "output_dir": tmp_path / "out",
         "working_binsize": 500,
         "tree_pca_dim": 2,
@@ -166,10 +166,10 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert result.params["requested"]["kmeans_n_init"] == 100
     assert result.params["resolved"]["working_binsize"] == 500
     assert result.params["resolved"]["working_binsize_mode"] == "explicit"
-    assert result.params["resolved"]["input_mode"] == "annotation"
+    assert result.params["resolved"]["input_mode"] == "tad_table"
     assert result.params["resolved"]["chromosomes"] == ["chr1", "chr2"]
     assert result.inputs["mcool"] == str(mcool)
-    assert result.inputs["annotation_format"] == "tsv"
+    assert result.inputs["tad_table_format"] == "tsv"
     assert result.inputs["ab_feature_track"] is None
     assert result.output_files == [
         "cis_leaves.parquet",
@@ -307,8 +307,8 @@ def test_cluster_uniform_bins(mcool, tmp_path) -> None:
     assert result.qc["summary"]["n_bin_units"] == 8
     assert result.qc["summary"]["n_residuals"] == 0
     assert result.params["resolved"]["input_mode"] == "uniform_bins"
-    assert result.inputs["annotation"] is None
-    assert result.inputs["annotation_format"] is None
+    assert result.inputs["tad_table"] is None
+    assert result.inputs["tad_table_format"] is None
     assert result.params["requested"]["with_residuals"] is False
     assert result.params["resolved"]["working_binsize"] == 500
     assert result.params["resolved"]["working_binsize_mode"] == "explicit"
@@ -463,7 +463,7 @@ def test_cis_worker_ignores_sigint(monkeypatch, mcool, tmp_path) -> None:
         parallel._WORKER_LIMITER = None
 
     assert calls == [True]
-    assert isinstance(worker_source, AnnotationSource)
+    assert isinstance(worker_source, TadTableSource)
 
 
 def test_cluster_with_trans(three_chrom_mcool, trans_tads, tmp_path) -> None:

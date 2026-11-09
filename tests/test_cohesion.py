@@ -238,7 +238,7 @@ def four_tads(tmp_path):
 def make_config(mcool, tads, tmp_path, **overrides):
     values = {
         "mcool_path": mcool,
-        "annotation_path": tads,
+        "tad_table_path": tads,
         "output_dir": tmp_path / "out",
         "working_binsize": 500,
         "tree_pca_dim": 2,
@@ -545,7 +545,7 @@ def test_unclustered_rows_have_null_cohesion(tmp_path) -> None:
     )
     config = ClusterConfig(
         mcool_path=mcool,
-        annotation_path=None,
+        tad_table_path=None,
         output_dir=tmp_path / "out",
         working_binsize=500,
         tree_pca_dim=2,

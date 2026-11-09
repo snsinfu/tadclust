@@ -55,7 +55,7 @@ def write_parquet_tads(tmp_path, rows, name="tads.parquet", metadata=None):
 def make_config(mcool, tads, tmp_path, **overrides):
     values = {
         "mcool_path": mcool,
-        "annotation_path": tads,
+        "tad_table_path": tads,
         "output_dir": tmp_path / "out",
         "working_binsize": 500,
         "tree_pca_dim": 3,
@@ -68,7 +68,7 @@ def make_config(mcool, tads, tmp_path, **overrides):
 def make_uniform_config(mcool, tmp_path, **overrides):
     values = {
         "mcool_path": mcool,
-        "annotation_path": None,
+        "tad_table_path": None,
         "output_dir": tmp_path / "out",
         "working_binsize": 500,
         "tree_pca_dim": 3,
@@ -317,8 +317,8 @@ def test_uniform_bins_golden_schema(mcool, tmp_path) -> None:
     assert leaves["tad_id"].null_count() == leaves.height
 
     manifest = json.loads((out / "manifest.json").read_text())
-    assert manifest["inputs"]["annotation"] is None
-    assert manifest["inputs"]["annotation_format"] is None
+    assert manifest["inputs"]["tad_table"] is None
+    assert manifest["inputs"]["tad_table_format"] is None
     assert manifest["params"]["resolved"]["input_mode"] == "uniform_bins"
     assert manifest["params"]["requested"]["with_residuals"] is False
     assert manifest["qc"]["summary"]["n_bin_units"] == 8
@@ -351,8 +351,8 @@ def test_manifest_contract(mcool, tmp_path) -> None:
     assert manifest["created_utc"].endswith("Z")
     assert manifest["inputs"] == {
         "mcool": str(mcool),
-        "annotation": str(tads),
-        "annotation_format": "tsv",
+        "tad_table": str(tads),
+        "tad_table_format": "tsv",
         "ab_feature_track": None,
     }
     assert manifest["cli"] is None
@@ -496,7 +496,7 @@ def test_parquet_annotation_matches_tsv(mcool, tmp_path) -> None:
     tsv_result = cluster(make_config(mcool, tsv, tmp_path))
     parquet_result = cluster(make_config(mcool, parquet, tmp_path))
 
-    assert parquet_result.inputs["annotation_format"] == "parquet"
+    assert parquet_result.inputs["tad_table_format"] == "parquet"
     assert parquet_result.cis_leaves.height == tsv_result.cis_leaves.height
     assert (
         parquet_result.cis_leaves["tad_id"].to_list()
@@ -536,8 +536,8 @@ def test_parquet_annotation_metadata_is_not_copied(mcool, tmp_path) -> None:
 
     assert result.inputs == {
         "mcool": str(mcool),
-        "annotation": str(parquet),
-        "annotation_format": "parquet",
+        "tad_table": str(parquet),
+        "tad_table_format": "parquet",
         "ab_feature_track": None,
     }
 
@@ -545,7 +545,7 @@ def test_parquet_annotation_metadata_is_not_copied(mcool, tmp_path) -> None:
 
     out = tmp_path / "out"
     manifest = json.loads((out / "manifest.json").read_text())
-    assert manifest["inputs"]["annotation_format"] == "parquet"
+    assert manifest["inputs"]["tad_table_format"] == "parquet"
     assert "custom" not in manifest["inputs"]
 
     output_metadata = pl.read_parquet_metadata(out / "cis_nodes.parquet")
@@ -565,5 +565,5 @@ def test_parquet_annotation_parallel_workers(mcool, tmp_path) -> None:
 
     result = cluster(make_config(mcool, parquet, tmp_path, workers=2))
 
-    assert result.inputs["annotation_format"] == "parquet"
+    assert result.inputs["tad_table_format"] == "parquet"
     assert result.qc["summary"]["n_units"] == 4

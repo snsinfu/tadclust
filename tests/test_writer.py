@@ -115,7 +115,7 @@ def ab_track(tmp_path):
 def make_config(mcool, tads, tmp_path, **overrides):
     values = {
         "mcool_path": mcool,
-        "annotation_path": tads,
+        "tad_table_path": tads,
         "output_dir": tmp_path / "out",
         "working_binsize": 500,
         "tree_pca_dim": 2,
@@ -292,7 +292,7 @@ def test_uniform_bin_tsv_nulls_use_sentinels(tmp_path) -> None:
         mcool,
         None,
         tmp_path,
-        annotation_path=None,
+        tad_table_path=None,
         ab_feature_track=track,
     )
     result = cluster(config)

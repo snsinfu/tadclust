@@ -127,7 +127,7 @@ def _init_worker(
     ignore_sigint()
     _WORKER_LIMITER = threadpool_limits(limits=1)
     _WORKER_CONFIG = config
-    _WORKER_SOURCE = make_source(config.annotation_path)
+    _WORKER_SOURCE = make_source(config.tad_table_path)
     _WORKER_SIZES = sizes
     _WORKER_COOLER = open_cooler(config.mcool_path, resolution)
 

@@ -47,7 +47,7 @@ def ab_track(tmp_path):
 def make_config(mcool, tads, tmp_path, **overrides):
     values = {
         "mcool_path": mcool,
-        "annotation_path": tads,
+        "tad_table_path": tads,
         "output_dir": tmp_path / "out",
         "working_binsize": 500,
         "tree_pca_dim": 2,
@@ -60,7 +60,7 @@ def make_config(mcool, tads, tmp_path, **overrides):
 def make_uniform_config(mcool, tmp_path, **overrides):
     values = {
         "mcool_path": mcool,
-        "annotation_path": None,
+        "tad_table_path": None,
         "output_dir": tmp_path / "out",
         "working_binsize": 500,
         "tree_pca_dim": 2,

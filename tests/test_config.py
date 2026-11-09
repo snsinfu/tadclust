@@ -16,7 +16,7 @@ def make_config(tmp_path, **overrides):
     annotation.write_text("")
     values = {
         "mcool_path": mcool,
-        "annotation_path": annotation,
+        "tad_table_path": annotation,
         "output_dir": tmp_path / "out",
     }
     values.update(overrides)
@@ -28,7 +28,7 @@ def make_uniform_config(tmp_path, **overrides):
     mcool.write_text("")
     values = {
         "mcool_path": mcool,
-        "annotation_path": None,
+        "tad_table_path": None,
         "output_dir": tmp_path / "out",
         "working_binsize": 500,
     }
@@ -77,7 +77,7 @@ def test_invalid_config_raises_config_error(tmp_path, overrides) -> None:
 def test_uniform_config_is_valid(tmp_path) -> None:
     config = make_uniform_config(tmp_path)
 
-    assert config.annotation_path is None
+    assert config.tad_table_path is None
     assert config.working_binsize == 500
 
 
@@ -146,7 +146,7 @@ def test_missing_inputs_are_rejected(tmp_path) -> None:
     with pytest.raises(ConfigError) as info:
         ClusterConfig(
             mcool_path=tmp_path / "missing.mcool",
-            annotation_path=tmp_path / "missing.tsv",
+            tad_table_path=tmp_path / "missing.tsv",
             output_dir=tmp_path / "out",
         )
 

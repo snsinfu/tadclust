@@ -17,13 +17,13 @@ class ClusterConfig:
     """All inputs and technical parameters for one clustering run.
 
     Paths are stored exactly as supplied. The mcool path must exist. When the
-    annotation path is supplied it must exist. When it is omitted, uniform
+    TAD table path is supplied it must exist. When it is omitted, uniform
     working-resolution mcool bins are used and working_binsize is required.
     The output directory is created by the writer.
     """
 
     mcool_path: str | Path
-    annotation_path: str | Path | None
+    tad_table_path: str | Path | None
     output_dir: str | Path
     chromosomes: list[str] | None = None
     working_binsize: int | None = None
@@ -53,19 +53,16 @@ class ClusterConfig:
                 notes=("check the mcool_path supplied to ClusterConfig",),
                 field="mcool_path",
             )
-        if (
-            self.annotation_path is not None
-            and not Path(self.annotation_path).is_file()
-        ):
+        if self.tad_table_path is not None and not Path(self.tad_table_path).is_file():
             raise ConfigError(
-                f"annotation not found: {self.annotation_path}",
-                notes=("check the annotation_path supplied to ClusterConfig",),
-                field="annotation_path",
+                f"TAD table not found: {self.tad_table_path}",
+                notes=("check the tad_table_path supplied to ClusterConfig",),
+                field="tad_table_path",
             )
 
-        if self.annotation_path is None and self.working_binsize is None:
+        if self.tad_table_path is None and self.working_binsize is None:
             raise ConfigError(
-                "working_binsize is required when annotation_path is omitted",
+                "working_binsize is required when tad_table_path is omitted",
                 field="working_binsize",
             )
 
@@ -129,9 +126,9 @@ class ClusterConfig:
                 f"got {self.unit_selection!r}",
                 field="unit_selection",
             )
-        if self.annotation_path is None and self.unit_selection == "roots":
+        if self.tad_table_path is None and self.unit_selection == "roots":
             raise ConfigError(
-                "unit_selection='roots' requires an annotation table",
+                "unit_selection='roots' requires a TAD table",
                 notes=("uniform-bin mode has no TAD hierarchy to take roots from",),
                 field="unit_selection",
             )
