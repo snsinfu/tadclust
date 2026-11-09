@@ -10,7 +10,7 @@ from conftest import write_tads, write_track
 
 import tadclust
 from tadclust.config import ClusterConfig
-from tadclust.metadata import MANIFEST_VERSION
+from tadclust.metadata import MANIFEST_VERSION, METADATA_KEY
 from tadclust.pipeline import cluster
 from tadclust.writer import SCHEMA_VERSION, write_outputs
 
@@ -41,6 +41,15 @@ def ab_track(tmp_path):
         for index, value in enumerate((1.0, 2.0, 3.0, 4.0)):
             rows.append((chrom, index * 500, (index + 1) * 500, value))
     return write_track(tmp_path, rows)
+
+
+def write_parquet_tads(tmp_path, rows, name="tads.parquet", metadata=None):
+    path = tmp_path / name
+    pl.DataFrame(rows, schema=["chrom", "start", "end"], orient="row").write_parquet(
+        path,
+        metadata=metadata,
+    )
+    return path
 
 
 def make_config(mcool, tads, tmp_path, **overrides):
@@ -472,3 +481,87 @@ def test_ab_leaves_derived_from_ab_nodes(mcool, tmp_path) -> None:
     )
     expected = result.cis_leaves_ab.select(leaf_columns).sort("unit_id")
     assert derived.equals(expected)
+
+
+def test_parquet_annotation_matches_tsv(mcool, tmp_path) -> None:
+    rows = [
+        ("chr1", 0, 1000),
+        ("chr1", 1000, 2000),
+        ("chr2", 0, 1000),
+        ("chr2", 1000, 2000),
+    ]
+    tsv = write_tads(tmp_path, rows, name="tads.tsv")
+    parquet = write_parquet_tads(tmp_path, rows, name="tads.parquet")
+
+    tsv_result = cluster(make_config(mcool, tsv, tmp_path))
+    parquet_result = cluster(make_config(mcool, parquet, tmp_path))
+
+    assert parquet_result.inputs["annotation_format"] == "parquet"
+    assert parquet_result.cis_leaves.height == tsv_result.cis_leaves.height
+    assert parquet_result.cis_leaves["tad_id"].to_list() == tsv_result.cis_leaves[
+        "tad_id"
+    ].to_list()
+    assert parquet_result.cis_leaves["start"].to_list() == tsv_result.cis_leaves[
+        "start"
+    ].to_list()
+    assert parquet_result.cis_nodes.equals(tsv_result.cis_nodes)
+
+
+def test_parquet_annotation_metadata_is_not_copied(mcool, tmp_path) -> None:
+    rows = [
+        ("chr1", 0, 1000),
+        ("chr1", 1000, 2000),
+        ("chr2", 0, 1000),
+        ("chr2", 1000, 2000),
+    ]
+    input_metadata = {
+        "custom": "keep-out",
+        "tadclust": json.dumps(
+            {
+                "metadata_version": "1.0",
+                "manifest": {"upstream": "marker"},
+            }
+        ),
+    }
+    parquet = write_parquet_tads(
+        tmp_path,
+        rows,
+        name="tads.parquet",
+        metadata=input_metadata,
+    )
+    config = make_config(mcool, parquet, tmp_path)
+    result = cluster(config)
+
+    assert result.inputs == {
+        "mcool": str(mcool),
+        "annotation": str(parquet),
+        "annotation_format": "parquet",
+        "ab_feature_track": None,
+    }
+
+    write_outputs(result, config)
+
+    out = tmp_path / "out"
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert manifest["inputs"]["annotation_format"] == "parquet"
+    assert "custom" not in manifest["inputs"]
+
+    output_metadata = pl.read_parquet_metadata(out / "cis_nodes.parquet")
+    assert "custom" not in output_metadata
+    assert METADATA_KEY in output_metadata
+    assert "upstream" not in output_metadata[METADATA_KEY]
+
+
+def test_parquet_annotation_parallel_workers(mcool, tmp_path) -> None:
+    rows = [
+        ("chr1", 0, 1000),
+        ("chr1", 1000, 2000),
+        ("chr2", 0, 1000),
+        ("chr2", 1000, 2000),
+    ]
+    parquet = write_parquet_tads(tmp_path, rows, name="tads.parquet")
+
+    result = cluster(make_config(mcool, parquet, tmp_path, workers=2))
+
+    assert result.inputs["annotation_format"] == "parquet"
+    assert result.qc["summary"]["n_units"] == 4

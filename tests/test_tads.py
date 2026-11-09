@@ -19,6 +19,12 @@ def write_text(tmp_path, text, name="domains.tsv"):
     return path
 
 
+def write_parquet_table(tmp_path, table, name="domains.parquet", metadata=None):
+    path = tmp_path / name
+    table.write_parquet(path, metadata=metadata)
+    return path
+
+
 def test_headed_table_keeps_only_three_columns(tmp_path) -> None:
     path = write_text(
         tmp_path,
@@ -38,6 +44,7 @@ def test_headed_table_keeps_only_three_columns(tmp_path) -> None:
     assert tads.rows["start"].to_list() == [0, 100]
     assert tads.chroms == ["chr1"]
     assert tads.lengths.tolist() == [100, 100]
+    assert tads.format == "tsv"
 
 
 def test_headed_columns_can_be_reordered(tmp_path) -> None:
@@ -235,3 +242,192 @@ def test_tad_table_can_be_constructed_directly() -> None:
 
     assert tads.chroms == ["chr1"]
     assert tads.lengths.tolist() == [100]
+    assert tads.format == "tsv"
+
+
+def test_parquet_headed_table_keeps_only_three_columns(tmp_path) -> None:
+    path = write_parquet_table(
+        tmp_path,
+        pl.DataFrame(
+            {
+                "chrom": ["chr1", "chr1"],
+                "start": [0, 100],
+                "end": [100, 200],
+                "level": [1, 2],
+                "score": [5.0, 6.0],
+            }
+        ),
+    )
+
+    tads = read_tads(path)
+
+    assert tads.format == "parquet"
+    assert tads.rows.columns == ["chrom", "start", "end", "tad_id"]
+    assert tads.rows.schema == {
+        "chrom": pl.String,
+        "start": pl.Int64,
+        "end": pl.Int64,
+        "tad_id": pl.Int64,
+    }
+    assert tads.rows["tad_id"].to_list() == [0, 1]
+    assert tads.rows["start"].to_list() == [0, 100]
+
+
+def test_parquet_columns_can_be_reordered(tmp_path) -> None:
+    path = write_parquet_table(
+        tmp_path,
+        pl.DataFrame(
+            {
+                "start": [0],
+                "end": [100],
+                "chrom": ["chr1"],
+            }
+        ),
+    )
+
+    tads = read_tads(path)
+
+    assert tads.rows.row(0, named=True) == {
+        "chrom": "chr1",
+        "start": 0,
+        "end": 100,
+        "tad_id": 0,
+    }
+
+
+@pytest.mark.parametrize("missing", ["chrom", "start", "end"])
+def test_parquet_missing_columns_are_rejected(tmp_path, missing) -> None:
+    columns = {
+        "chrom": ["chr1"],
+        "start": [0],
+        "end": [100],
+    }
+    del columns[missing]
+    path = write_parquet_table(tmp_path, pl.DataFrame(columns))
+
+    with pytest.raises(InputError) as info:
+        read_tads(path)
+
+    assert missing in str(info.value)
+
+
+@pytest.mark.parametrize("column", ["start", "end"])
+@pytest.mark.parametrize("value", [0.0, 100.0, 100.5])
+def test_parquet_float_coordinates_are_rejected(tmp_path, column, value) -> None:
+    columns = {
+        "chrom": ["chr1"],
+        "start": [0],
+        "end": [100],
+    }
+    columns[column] = [value]
+    path = write_parquet_table(tmp_path, pl.DataFrame(columns))
+
+    with pytest.raises(InputError) as info:
+        read_tads(path)
+
+    assert "must be integers" in str(info.value)
+
+
+@pytest.mark.parametrize(
+    ("start", "end"),
+    [
+        (-1, 100),
+        (100, 100),
+        (200, 100),
+    ],
+)
+def test_parquet_invalid_intervals_are_rejected(tmp_path, start, end) -> None:
+    path = write_parquet_table(
+        tmp_path,
+        pl.DataFrame({"chrom": ["chr1"], "start": [start], "end": [end]}),
+    )
+
+    with pytest.raises(InputError):
+        read_tads(path)
+
+
+def test_parquet_duplicate_intervals_are_rejected(tmp_path) -> None:
+    path = write_parquet_table(
+        tmp_path,
+        pl.DataFrame(
+            {
+                "chrom": ["chr1", "chr1"],
+                "start": [0, 0],
+                "end": [100, 100],
+            }
+        ),
+    )
+
+    with pytest.raises(InputError) as info:
+        read_tads(path)
+
+    assert "duplicate" in str(info.value)
+
+
+def test_parquet_out_of_bounds_is_rejected(tmp_path) -> None:
+    path = write_parquet_table(
+        tmp_path,
+        pl.DataFrame({"chrom": ["chr1"], "start": [900], "end": [1100]}),
+    )
+    tads = read_tads(path)
+
+    with pytest.raises(InputError) as info:
+        check_against_chromsizes(tads, {"chr1": 1000})
+
+    assert "exceeds chromosome size" in str(info.value)
+
+
+def test_pq_suffix_is_detected(tmp_path) -> None:
+    path = write_parquet_table(
+        tmp_path,
+        pl.DataFrame({"chrom": ["chr1"], "start": [0], "end": [100]}),
+        name="domains.pq",
+    )
+
+    assert read_tads(path).format == "parquet"
+
+
+def test_extensionless_parquet_is_detected(tmp_path) -> None:
+    path = write_parquet_table(
+        tmp_path,
+        pl.DataFrame({"chrom": ["chr1"], "start": [0], "end": [100]}),
+        name="domains.dat",
+    )
+
+    assert read_tads(path).format == "parquet"
+
+
+def test_empty_parquet_is_rejected(tmp_path) -> None:
+    path = write_parquet_table(
+        tmp_path,
+        pl.DataFrame(
+            schema={
+                "chrom": pl.String,
+                "start": pl.Int64,
+                "end": pl.Int64,
+            }
+        ),
+    )
+
+    with pytest.raises(InputError) as info:
+        read_tads(path)
+
+    assert "empty" in str(info.value)
+
+
+def test_parquet_metadata_is_ignored(tmp_path) -> None:
+    path = write_parquet_table(
+        tmp_path,
+        pl.DataFrame({"chrom": ["chr1"], "start": [0], "end": [100]}),
+        metadata={"custom": "value", "tadclust": "not used as input"},
+    )
+
+    tads = read_tads(path)
+
+    assert tads.format == "parquet"
+    assert tads.rows.row(0, named=True) == {
+        "chrom": "chr1",
+        "start": 0,
+        "end": 100,
+        "tad_id": 0,
+    }
