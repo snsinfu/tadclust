@@ -37,7 +37,7 @@ $ tadclust \
   --ab-feature-track active_signal.bedGraph
 ```
 
-The TAD table can be any disjoint or hierarchical TAD annotation in the BED3+ format, or a TSV with `chrom, start, end` columns. TADCLUST selects an optimal set of sub-TADs for clustering if the annotation is hierarchical. `--ab-feature-track` is any 4-column, BedGraph-like table or BED5+ where the annotated score is larger in the A compartment (like ATAC, H4ac, and gene density). It is used to define the A/B compartment boundary, to enable A/B annotation of TADs and cluster nodes.
+The TAD table can be any disjoint or hierarchical TAD annotation in the BED3+ format, or a TSV or a Parquet with `chrom, start, end` columns. TADCLUST selects an optimal set of sub-TADs for clustering if the annotation is hierarchical. `--ab-feature-track` is any 4-column, BedGraph-like table or BED5+ where the annotated score is larger in the A compartment (like ATAC, H4ac, and gene density). It is used to define the A/B compartment boundary, to enable A/B annotation of TADs and cluster nodes.
 
 ### Options
 

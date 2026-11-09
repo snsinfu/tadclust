@@ -39,7 +39,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     source.add_argument(
         "--tad-table",
         default=None,
-        help="tab-separated chrom/start/end TAD table",
+        help="tab-separated or parquet chrom/start/end TAD table",
     )
     source.add_argument(
         "--uniform-bins",

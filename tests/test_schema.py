@@ -498,12 +498,14 @@ def test_parquet_annotation_matches_tsv(mcool, tmp_path) -> None:
 
     assert parquet_result.inputs["annotation_format"] == "parquet"
     assert parquet_result.cis_leaves.height == tsv_result.cis_leaves.height
-    assert parquet_result.cis_leaves["tad_id"].to_list() == tsv_result.cis_leaves[
-        "tad_id"
-    ].to_list()
-    assert parquet_result.cis_leaves["start"].to_list() == tsv_result.cis_leaves[
-        "start"
-    ].to_list()
+    assert (
+        parquet_result.cis_leaves["tad_id"].to_list()
+        == tsv_result.cis_leaves["tad_id"].to_list()
+    )
+    assert (
+        parquet_result.cis_leaves["start"].to_list()
+        == tsv_result.cis_leaves["start"].to_list()
+    )
     assert parquet_result.cis_nodes.equals(tsv_result.cis_nodes)
 
 
