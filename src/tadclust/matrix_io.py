@@ -20,7 +20,7 @@ from .matrix import (
 )
 
 MATRIX_FILE = "cis_matrices.h5"
-MATRIX_SCHEMA_VERSION = "2.1"
+MATRIX_SCHEMA_VERSION = "2.2"
 MATRIX_DTYPE = np.float32
 MATRIX_COMPRESSION = "gzip"
 MATRIX_COMPRESSION_LEVEL = 1
@@ -38,6 +38,7 @@ MATRIX_DATASETS = (
     "log_oe_excess",
     "log_oe_baseline",
 )
+MATRIX_AB_DATASETS = ("ab_pc",)
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,7 @@ class CisMatrixInput:
     matrices: UnitMatrices
     n_bins_chrom: int
     cohesion: CohesionContext
+    ab_pc: np.ndarray | None = None
 
 
 @dataclass(frozen=True)
@@ -70,6 +72,7 @@ class CisMatrixGroup:
     dc_log_freq: np.ndarray
     log_oe_excess: np.ndarray
     log_oe_baseline: np.ndarray
+    ab_pc: np.ndarray | None = None
 
 
 @dataclass(frozen=True)
@@ -133,6 +136,23 @@ def build_cis_matrices(
                 matrix="log_oe_baseline",
             )
 
+        ab_pc = None
+        if item.ab_pc is not None:
+            ab_pc = np.asarray(item.ab_pc, dtype=MATRIX_DTYPE)
+            if ab_pc.ndim != 2 or ab_pc.shape[0] != n_units or ab_pc.shape[1] == 0:
+                raise ClusteringError(
+                    f"{item.chrom}: ab_pc has shape {ab_pc.shape}, "
+                    f"expected ({n_units}, dim)",
+                    chrom=item.chrom,
+                    matrix="ab_pc",
+                )
+            if not np.all(np.isfinite(ab_pc)):
+                raise ClusteringError(
+                    f"{item.chrom}: ab_pc contains non-finite values",
+                    chrom=item.chrom,
+                    matrix="ab_pc",
+                )
+
         unit_ids = np.array(
             [unit_base + index for index in range(n_units)],
             dtype=np.int64,
@@ -177,6 +197,7 @@ def build_cis_matrices(
                 dc_log_freq=np.asarray(dc_log_freq, dtype=MATRIX_DTYPE),
                 log_oe_excess=log_oe_excess,
                 log_oe_baseline=np.asarray(context.baseline, dtype=np.float64),
+                ab_pc=ab_pc,
             )
         )
         unit_base += n_units
@@ -243,6 +264,15 @@ def write_cis_matrices(
                 "log_oe_baseline",
                 data=group_data.log_oe_baseline,
             )
+            if group_data.ab_pc is not None:
+                group.create_dataset(
+                    "ab_pc",
+                    data=group_data.ab_pc,
+                    compression=MATRIX_COMPRESSION,
+                    compression_opts=MATRIX_COMPRESSION_LEVEL,
+                    shuffle=True,
+                )
+                group.attrs["ab_pc_dim"] = int(group_data.ab_pc.shape[1])
 
         handle.create_dataset(
             "manifest",

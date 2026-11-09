@@ -9,12 +9,17 @@ import h5py
 import numpy as np
 import polars as pl
 import pytest
-from conftest import write_tads
+from conftest import write_tads, write_track
 
 import tadclust
 from tadclust.config import ClusterConfig
 from tadclust.matrix import double_centered_log_frequency, log2_ratio
-from tadclust.matrix_io import MATRIX_DATASETS, MATRIX_FILE, MATRIX_SCHEMA_VERSION
+from tadclust.matrix_io import (
+    MATRIX_AB_DATASETS,
+    MATRIX_DATASETS,
+    MATRIX_FILE,
+    MATRIX_SCHEMA_VERSION,
+)
 from tadclust.pipeline import cluster
 from tadclust.writer import write_outputs
 
@@ -29,6 +34,14 @@ def base_tads(tmp_path):
             ("chr2", 1000, 2000),
         ],
     )
+
+
+def ab_track(tmp_path):
+    rows = []
+    for chrom in ("chr1", "chr2"):
+        for index, value in enumerate((1.0, 2.0, 3.0, 4.0)):
+            rows.append((chrom, index * 500, (index + 1) * 500, value))
+    return write_track(tmp_path, rows)
 
 
 def make_config(mcool, tads, tmp_path, **overrides):
@@ -288,6 +301,55 @@ def test_cis_matrix_units_match_cis_leaves(mcool, tmp_path) -> None:
                 dataset(group, "unit_center")[()],
                 (starts + ends) / 2.0,
             )
+
+
+@pytest.mark.parametrize("representation", ["log_oe", "dc_log_freq"])
+def test_cis_matrices_ab_pc(mcool, tmp_path, representation) -> None:
+    config = make_config(
+        mcool,
+        base_tads(tmp_path),
+        tmp_path,
+        ab_feature_track=ab_track(tmp_path),
+        cis_contact_representation=representation,
+    )
+    result = cluster(config)
+    write_outputs(result, config)
+
+    out = tmp_path / "out"
+    leaves = read_leaves(out)
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert manifest["matrices"]["datasets"] == [
+        *MATRIX_DATASETS,
+        *MATRIX_AB_DATASETS,
+    ]
+
+    with h5py.File(out / MATRIX_FILE, "r") as handle:
+        for chrom, group in chrom_groups(handle).items():
+            assert set(group) == set(MATRIX_DATASETS) | set(MATRIX_AB_DATASETS)
+            values = dataset(group, "ab_pc")[()]
+            rows = leaf_rows(leaves, chrom)
+            assert values.shape == (rows.height, 2)
+            assert values.dtype == np.float32
+            assert group.attrs["ab_pc_dim"] == 2
+
+            model = result.qc["per_chromosome"][chrom]["ab_pc"]
+            midpoint = np.asarray(model["midpoint"], dtype=np.float64)
+            gradient = np.asarray(model["signal_gradient"], dtype=np.float64)
+            expected = (values.astype(np.float64) - midpoint) @ gradient
+            observed = rows["ab_signal"].to_numpy()
+            finite = np.isfinite(observed)
+            assert finite.any()
+            np.testing.assert_allclose(
+                expected[finite],
+                observed[finite],
+                atol=1e-5,
+            )
+
+            pc = np.vstack(rows["pc"].to_list())
+            if representation == "log_oe":
+                np.testing.assert_allclose(values, pc, atol=1e-6)
+            else:
+                assert not np.allclose(values, pc)
 
 
 def test_cis_matrices_match_serial_and_parallel(mcool, tmp_path) -> None:

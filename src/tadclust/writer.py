@@ -14,6 +14,7 @@ from . import __version__
 from .config import ClusterConfig
 from .errors import OutputError
 from .matrix_io import (
+    MATRIX_AB_DATASETS,
     MATRIX_DATASETS,
     MATRIX_FILE,
     MATRIX_SCHEMA_VERSION,
@@ -61,6 +62,7 @@ def write_outputs(
 
     include_trans = "trans_path" in result.cis_leaves.columns
     include_ab = result.cis_leaves_ab is not None
+    has_ab_pc = any(group.ab_pc is not None for group in result.cis_matrices.groups)
     staged: list[tuple[Path, Path]] = []
 
     manifest = {
@@ -76,7 +78,10 @@ def write_outputs(
             "file": MATRIX_FILE,
             "schema_version": MATRIX_SCHEMA_VERSION,
             "storage": result.cis_matrices.storage,
-            "datasets": list(MATRIX_DATASETS),
+            "datasets": [
+                *MATRIX_DATASETS,
+                *(MATRIX_AB_DATASETS if has_ab_pc else ()),
+            ],
         },
         "output_files": [*result.output_files, "manifest.json"],
     }

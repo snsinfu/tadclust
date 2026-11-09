@@ -477,6 +477,11 @@ def _build_cis_matrices(
             matrices=result.selection.matrices,
             n_bins_chrom=result.tree.n_bins_chrom,
             cohesion=context,
+            ab_pc=(
+                result.ab_pc
+                if result.annotation is not None and result.ab_pc.shape[1] > 0
+                else None
+            ),
         )
         for result, context in zip(results, cohesion_contexts, strict=True)
     ]

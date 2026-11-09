@@ -160,6 +160,28 @@ def test_build_cis_matrices_rejects_wrong_matrix_shape() -> None:
         )
 
 
+def test_build_cis_matrices_rejects_wrong_ab_pc_shape() -> None:
+    unit = make_unit("chr1", 0, 1000, unit_id=0)
+    matrices = make_matrices(1)
+    with pytest.raises(ClusteringError):
+        build_cis_matrices(
+            [
+                CisMatrixInput(
+                    "chr1",
+                    [unit],
+                    matrices,
+                    n_bins_chrom=4,
+                    cohesion=make_context([unit], matrices),
+                    ab_pc=np.zeros((2, 2)),
+                )
+            ],
+            working_binsize=WORKING_BINSIZE,
+            distance_bins=60,
+            clip_min=-10.0,
+            clip_max=10.0,
+        )
+
+
 def test_write_cis_matrices_round_trip(tmp_path) -> None:
     units_a = [
         make_unit("chr1", 0, 1000, unit_id=0, tad_id=0),
