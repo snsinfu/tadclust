@@ -1,24 +1,28 @@
-"""Shared reader for tab-separated BED-like tables."""
+"""Shared reader for TSV and parquet BED-like tables."""
 
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TextIO
+from typing import Literal, TextIO
 
 import polars as pl
 
 type SchemaFactory = Callable[[bool, int], dict[str, type]]
+type TableFormat = Literal["tsv", "parquet"]
+
+_PARQUET_SUFFIXES = frozenset({".parquet", ".pq"})
 
 
 @dataclass(frozen=True)
 class BedlikeTable:
-    """A parsed table plus the header and width inferred from its first line."""
+    """A parsed table plus its source format, header, and width."""
 
     table: pl.DataFrame
     has_header: bool
     width: int
+    format: TableFormat = "tsv"
 
 
 def read_bedlike(
@@ -28,13 +32,20 @@ def read_bedlike(
     schema_overrides: dict[str, type] | SchemaFactory,
     skip_track_headers: bool = False,
 ) -> BedlikeTable:
-    """Read a tab-separated table, inferring header presence and width.
+    """Read a TSV or parquet table, inferring header presence and width.
 
-    Leading blank, comment, and (optionally) track/browser lines are skipped.
-    Callers provide the schema, either directly or as a function of whether a
-    header was found and how many columns the first line has.
+    TSV input skips leading blank, comment, and (optionally) track/browser
+    lines. Callers provide the TSV schema, either directly or as a function of
+    whether a header was found and how many columns the first line has.
+
+    Parquet input always has named columns, so `header_names`,
+    `schema_overrides`, and `skip_track_headers` do not apply. Parquet
+    file-level metadata is ignored.
     """
     source = Path(path)
+    if _is_parquet(source):
+        return _read_parquet(source)
+
     with source.open("r", encoding="utf-8", newline="") as handle:
         sample, skip_lines = _sample_lines(handle, skip_track_headers)
         if not sample:
@@ -66,6 +77,27 @@ def read_bedlike(
         table=table,
         has_header=has_header,
         width=width,
+    )
+
+
+def _is_parquet(source: Path) -> bool:
+    if source.suffix.lower() in _PARQUET_SUFFIXES:
+        return True
+
+    try:
+        with source.open("rb") as handle:
+            return handle.read(4) == b"PAR1"
+    except OSError:
+        return False
+
+
+def _read_parquet(source: Path) -> BedlikeTable:
+    table = pl.read_parquet(source)
+    return BedlikeTable(
+        table=table,
+        has_header=True,
+        width=table.width,
+        format="parquet",
     )
 
 
