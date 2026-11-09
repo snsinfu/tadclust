@@ -192,6 +192,16 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default="pair",
         help="trans null model",
     )
+    advanced.add_argument(
+        "--tad-table-metadata-key",
+        action="append",
+        default=None,
+        metavar="KEY",
+        help=(
+            "copy this parquet TAD-table file-level metadata key into the "
+            "manifest; repeatable"
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -219,6 +229,7 @@ def _run(raw_args: list[str]) -> None:
     config = ClusterConfig(
         mcool_path=args.mcool,
         tad_table_path=args.tad_table,
+        tad_table_metadata_keys=tuple(args.tad_table_metadata_key or ()),
         output_dir=args.output_dir,
         working_binsize=args.working_binsize,
         distance_bins=args.distance_bins,

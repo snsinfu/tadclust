@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -40,19 +41,34 @@ def parquet_metadata(
     }
 
 
+def read_parquet_key_values(
+    path: str | Path,
+    keys: Sequence[str],
+) -> dict[str, str]:
+    """Copy named file-level key-value metadata from a parquet file.
+
+    Values are returned verbatim. Every explicitly requested key is allowed,
+    including `ARROW:schema` and `tadclust`. Missing keys are an error.
+    """
+    unique_keys = list(dict.fromkeys(keys))
+    metadata = _read_parquet_metadata(path)
+    missing = [key for key in unique_keys if key not in metadata]
+    if missing:
+        available = ", ".join(sorted(metadata)) or "(none)"
+        raise MetadataError(
+            f"parquet metadata key(s) not found: {', '.join(missing)}",
+            notes=(f"available keys: {available}",),
+            path=str(path),
+        )
+    return {key: metadata[key] for key in unique_keys}
+
+
 def read_manifest(path: str | Path) -> dict[str, Any]:
     """Read the run manifest embedded in a tadclust parquet or HDF5 file."""
     if Path(path).suffix.lower() in {".h5", ".hdf5"}:
         return _read_hdf5_manifest(path)
 
-    try:
-        metadata = pl.read_parquet_metadata(path)
-    except Exception as exc:
-        raise MetadataError(
-            f"cannot read parquet metadata: {path}",
-            notes=("check that the path is a readable parquet file",),
-            path=str(path),
-        ) from exc
+    metadata = _read_parquet_metadata(path)
 
     raw = metadata.get(METADATA_KEY)
     if raw is None:
@@ -80,6 +96,17 @@ def read_manifest(path: str | Path) -> dict[str, Any]:
         )
 
     return manifest
+
+
+def _read_parquet_metadata(path: str | Path) -> dict[str, str]:
+    try:
+        return pl.read_parquet_metadata(path)
+    except Exception as exc:
+        raise MetadataError(
+            f"cannot read parquet metadata: {path}",
+            notes=("check that the path is a readable parquet file",),
+            path=str(path),
+        ) from exc
 
 
 def _read_hdf5_manifest(path: str | Path) -> dict[str, Any]:

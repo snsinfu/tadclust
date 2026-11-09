@@ -19,12 +19,14 @@ class ClusterConfig:
     Paths are stored exactly as supplied. The mcool path must exist. When the
     TAD table path is supplied it must exist. When it is omitted, uniform
     working-resolution mcool bins are used and working_binsize is required.
-    The output directory is created by the writer.
+    `tad_table_metadata_keys` copies named parquet file-level metadata keys into
+    the manifest. The output directory is created by the writer.
     """
 
     mcool_path: str | Path
     tad_table_path: str | Path | None
     output_dir: str | Path
+    tad_table_metadata_keys: tuple[str, ...] = ()
     chromosomes: list[str] | None = None
     working_binsize: int | None = None
     tad_size_percentile: float = 10.0
@@ -64,6 +66,23 @@ class ClusterConfig:
             raise ConfigError(
                 "working_binsize is required when tad_table_path is omitted",
                 field="working_binsize",
+            )
+
+        if isinstance(self.tad_table_metadata_keys, str):
+            raise ConfigError(
+                "tad_table_metadata_keys must be a sequence of keys, not a string",
+                field="tad_table_metadata_keys",
+            )
+        if any(not key for key in self.tad_table_metadata_keys):
+            raise ConfigError(
+                "tad_table_metadata_keys must contain non-empty strings",
+                field="tad_table_metadata_keys",
+            )
+        if self.tad_table_metadata_keys and self.tad_table_path is None:
+            raise ConfigError(
+                "tad_table_metadata_keys requires a TAD table",
+                notes=("metadata copying applies to parquet TAD-table input",),
+                field="tad_table_metadata_keys",
             )
 
         if self.chromosomes is not None:

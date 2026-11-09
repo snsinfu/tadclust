@@ -105,6 +105,25 @@ def test_cli_default_tree_branch_k() -> None:
     assert args.quiet is False
 
 
+def test_cli_tad_table_metadata_keys() -> None:
+    args = parse_args(
+        [
+            "--mcool",
+            "test.mcool",
+            "--tad-table",
+            "domains.tsv",
+            "--output-dir",
+            "out",
+            "--tad-table-metadata-key",
+            "custom",
+            "--tad-table-metadata-key",
+            "tadclust",
+        ]
+    )
+
+    assert args.tad_table_metadata_key == ["custom", "tadclust"]
+
+
 def test_cli_kmeans_n_init() -> None:
     args = parse_args(
         [

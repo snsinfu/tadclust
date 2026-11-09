@@ -16,7 +16,7 @@ from .clustering import informative_mask
 from .cohesion import CohesionContext, build_cohesion_context
 from .config import ClusterConfig
 from .domains import ChromosomeTree, UnitSelection
-from .errors import ClusteringError
+from .errors import ClusteringError, InputError
 from .matrix import area_weighted_mean_oe, orient_pcs_to_feature
 from .matrix_io import CisMatrices, CisMatrixInput, build_cis_matrices
 from .mcool import (
@@ -26,6 +26,7 @@ from .mcool import (
     list_resolutions,
     open_cooler,
 )
+from .metadata import read_parquet_key_values
 from .mst import NodeMst, maximum_spanning_tree
 from .parallel import ChromosomeSelection, run_cis_parallel, run_cis_serial
 from .schema import cis_leaves_ab_schema, cis_leaves_schema
@@ -71,7 +72,7 @@ class ClusterResult:
     cis_matrices: CisMatrices
     params: dict[str, Any]
     qc: dict[str, Any]
-    inputs: dict[str, str | None]
+    inputs: dict[str, str | dict[str, str] | None]
     output_files: list[str]
 
 
@@ -103,10 +104,31 @@ def _make_source(config: ClusterConfig) -> CisSource:
     return make_source(config.tad_table_path)
 
 
+def _tad_table_metadata(
+    config: ClusterConfig,
+    source: CisSource,
+) -> dict[str, str] | None:
+    keys = tuple(dict.fromkeys(config.tad_table_metadata_keys))
+    if not keys:
+        return None
+    if config.tad_table_path is None or source.input_format != "parquet":
+        raise InputError(
+            "TAD table metadata copy requires a parquet TAD table",
+            path=(
+                str(config.tad_table_path)
+                if config.tad_table_path is not None
+                else None
+            ),
+            notes=("--tad-table-metadata-key applies only to parquet input",),
+        )
+    return read_parquet_key_values(config.tad_table_path, keys)
+
+
 def cluster(config: ClusterConfig) -> ClusterResult:
     """Run cis selection, optional A/B, and optional trans clustering."""
     resolutions = list_resolutions(config.mcool_path)
     source = _make_source(config)
+    tad_table_metadata = _tad_table_metadata(config, source)
     choice = choose_resolution(
         resolutions,
         source.resolution_lengths(),
@@ -218,6 +240,7 @@ def cluster(config: ClusterConfig) -> ClusterResult:
                 else None
             ),
             "tad_table_format": source.input_format,
+            "tad_table_metadata": tad_table_metadata,
             "ab_feature_track": (
                 str(config.ab_feature_track)
                 if config.ab_feature_track is not None
@@ -900,6 +923,7 @@ def _build_params(
             "cis_contact_representation": config.cis_contact_representation,
             "dp_lambda_scale": config.dp_lambda_scale,
             "unit_selection": config.unit_selection,
+            "tad_table_metadata_keys": list(config.tad_table_metadata_keys),
             "with_residuals": config.with_residuals,
             "tree_pca_dim": config.tree_pca_dim,
             "tree_branch_k": config.tree_branch_k,

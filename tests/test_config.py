@@ -142,6 +142,36 @@ def test_roots_unit_selection_rejects_uniform_bins(tmp_path) -> None:
     assert info.value.field == "unit_selection"
 
 
+def test_tad_table_metadata_keys_are_valid(tmp_path) -> None:
+    config = make_config(
+        tmp_path,
+        tad_table_metadata_keys=("tadclust", "custom"),
+    )
+
+    assert config.tad_table_metadata_keys == ("tadclust", "custom")
+
+
+def test_empty_tad_table_metadata_key_is_rejected(tmp_path) -> None:
+    with pytest.raises(ConfigError) as info:
+        make_config(tmp_path, tad_table_metadata_keys=("",))
+
+    assert info.value.field == "tad_table_metadata_keys"
+
+
+def test_string_tad_table_metadata_keys_are_rejected(tmp_path) -> None:
+    with pytest.raises(ConfigError) as info:
+        make_config(tmp_path, tad_table_metadata_keys="custom")
+
+    assert info.value.field == "tad_table_metadata_keys"
+
+
+def test_tad_table_metadata_keys_require_tad_table(tmp_path) -> None:
+    with pytest.raises(ConfigError) as info:
+        make_uniform_config(tmp_path, tad_table_metadata_keys=("custom",))
+
+    assert info.value.field == "tad_table_metadata_keys"
+
+
 def test_missing_inputs_are_rejected(tmp_path) -> None:
     with pytest.raises(ConfigError) as info:
         ClusterConfig(

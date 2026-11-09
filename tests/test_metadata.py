@@ -10,7 +10,12 @@ import pytest
 
 import tadclust
 from tadclust.errors import MetadataError
-from tadclust.metadata import METADATA_KEY, parquet_metadata, read_manifest
+from tadclust.metadata import (
+    METADATA_KEY,
+    parquet_metadata,
+    read_manifest,
+    read_parquet_key_values,
+)
 
 
 def test_parquet_metadata_round_trip(tmp_path) -> None:
@@ -46,6 +51,48 @@ def test_read_manifest_requires_tadclust_metadata(tmp_path) -> None:
 
     assert error.value.path == str(path)
     assert "no embedded tadclust metadata" in error.value.message
+
+
+def test_read_parquet_key_values_copies_named_keys(tmp_path) -> None:
+    path = tmp_path / "input.parquet"
+    upstream = json.dumps({"metadata_version": "1.0", "manifest": {"x": 1}})
+    pl.DataFrame({"x": [1]}).write_parquet(
+        path,
+        metadata={"custom": "value", "tadclust": upstream},
+    )
+
+    values = read_parquet_key_values(
+        path,
+        ("custom", "tadclust", "ARROW:schema", "custom"),
+    )
+
+    assert values["custom"] == "value"
+    assert values["tadclust"] == upstream
+    assert values["ARROW:schema"] == pl.read_parquet_metadata(path)["ARROW:schema"]
+
+
+def test_read_parquet_key_values_rejects_missing_key(tmp_path) -> None:
+    path = tmp_path / "input.parquet"
+    pl.DataFrame({"x": [1]}).write_parquet(path, metadata={"custom": "value"})
+
+    with pytest.raises(MetadataError) as error:
+        read_parquet_key_values(path, ("missing",))
+
+    assert error.value.path == str(path)
+    assert "not found" in error.value.message
+    assert "available keys" in "\n".join(error.value.__notes__)
+    assert "custom" in "\n".join(error.value.__notes__)
+
+
+def test_read_parquet_key_values_wraps_unreadable_file(tmp_path) -> None:
+    path = tmp_path / "not-parquet.parquet"
+    path.write_text("not parquet")
+
+    with pytest.raises(MetadataError) as error:
+        read_parquet_key_values(path, ("custom",))
+
+    assert error.value.path == str(path)
+    assert "cannot read parquet metadata" in error.value.message
 
 
 def test_read_manifest_rejects_invalid_json(tmp_path) -> None:

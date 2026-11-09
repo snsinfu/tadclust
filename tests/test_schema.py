@@ -6,10 +6,12 @@ import json
 from pathlib import Path
 
 import polars as pl
+import pytest
 from conftest import write_tads, write_track
 
 import tadclust
 from tadclust.config import ClusterConfig
+from tadclust.errors import InputError
 from tadclust.metadata import MANIFEST_VERSION, METADATA_KEY
 from tadclust.pipeline import cluster
 from tadclust.writer import SCHEMA_VERSION, write_outputs
@@ -353,6 +355,7 @@ def test_manifest_contract(mcool, tmp_path) -> None:
         "mcool": str(mcool),
         "tad_table": str(tads),
         "tad_table_format": "tsv",
+        "tad_table_metadata": None,
         "ab_feature_track": None,
     }
     assert manifest["cli"] is None
@@ -538,6 +541,7 @@ def test_parquet_annotation_metadata_is_not_copied(mcool, tmp_path) -> None:
         "mcool": str(mcool),
         "tad_table": str(parquet),
         "tad_table_format": "parquet",
+        "tad_table_metadata": None,
         "ab_feature_track": None,
     }
 
@@ -567,3 +571,80 @@ def test_parquet_annotation_parallel_workers(mcool, tmp_path) -> None:
 
     assert result.inputs["tad_table_format"] == "parquet"
     assert result.qc["summary"]["n_units"] == 4
+
+
+def test_tad_table_metadata_opt_in(mcool, tmp_path) -> None:
+    rows = [
+        ("chr1", 0, 1000),
+        ("chr1", 1000, 2000),
+        ("chr2", 0, 1000),
+        ("chr2", 1000, 2000),
+    ]
+    upstream = json.dumps(
+        {
+            "metadata_version": "1.0",
+            "manifest": {"upstream": "marker"},
+        }
+    )
+    input_metadata = {
+        "custom": "keep",
+        "tadclust": upstream,
+    }
+    keys = ("custom", "tadclust", "ARROW:schema")
+    parquet = write_parquet_tads(
+        tmp_path,
+        rows,
+        name="tads.parquet",
+        metadata=input_metadata,
+    )
+    config = make_config(
+        mcool,
+        parquet,
+        tmp_path,
+        tad_table_metadata_keys=keys,
+    )
+    result = cluster(config)
+
+    copied = result.inputs["tad_table_metadata"]
+    assert isinstance(copied, dict)
+    assert copied["custom"] == "keep"
+    assert copied["tadclust"] == upstream
+    assert copied["ARROW:schema"]
+
+    assert config.tad_table_metadata_keys == keys
+    assert result.params["requested"]["tad_table_metadata_keys"] == list(keys)
+
+    write_outputs(result, config)
+
+    out = tmp_path / "out"
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert manifest["inputs"]["tad_table_metadata"] == copied
+
+    output_metadata = pl.read_parquet_metadata(out / "cis_nodes.parquet")
+    assert "custom" not in output_metadata
+    envelope = json.loads(output_metadata[METADATA_KEY])
+    assert envelope["manifest"]["inputs"]["tad_table_metadata"] == copied
+
+
+def test_tad_table_metadata_requires_parquet(mcool, tmp_path) -> None:
+    tads = write_tads(
+        tmp_path,
+        [
+            ("chr1", 0, 1000),
+            ("chr1", 1000, 2000),
+            ("chr2", 0, 1000),
+            ("chr2", 1000, 2000),
+        ],
+        name="tads.tsv",
+    )
+    config = make_config(
+        mcool,
+        tads,
+        tmp_path,
+        tad_table_metadata_keys=("custom",),
+    )
+
+    with pytest.raises(InputError) as info:
+        cluster(config)
+
+    assert "requires a parquet TAD table" in str(info.value)
