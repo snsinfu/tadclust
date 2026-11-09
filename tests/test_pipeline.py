@@ -15,6 +15,7 @@ from tadclust.config import ClusterConfig
 from tadclust.errors import ClusteringError, InputError
 from tadclust.pipeline import cluster
 from tadclust.sources import AnnotationSource
+from tadclust.trees import AbAnnotation
 
 
 def base_tads(tmp_path):
@@ -625,6 +626,17 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
             "n_nodes_a",
             "n_nodes_b",
         }
+        model = chromosome_qc["ab_pc"]
+        assert set(model) == {
+            "dim",
+            "centroid_a",
+            "centroid_b",
+            "midpoint",
+            "signal_gradient",
+            "std_centroid_separation",
+        }
+        assert model["dim"] == 2
+        assert model["std_centroid_separation"] > 0.0
     assert result.output_files == [
         "cis_leaves.parquet",
         "cis_leaves.tsv",
@@ -634,6 +646,73 @@ def test_cluster_with_ab(mcool, tmp_path) -> None:
         "cis_leaves_ab.tsv",
         "cis_nodes_ab.parquet",
     ]
+
+
+def test_ab_pc_model_reconstructs_signal(mcool, tmp_path) -> None:
+    result = cluster(
+        make_config(
+            mcool,
+            ab_tads(tmp_path),
+            tmp_path,
+            ab_feature_track=ab_track(tmp_path),
+        )
+    )
+
+    leaves = result.cis_leaves
+    for chrom, chromosome_qc in result.qc["per_chromosome"].items():
+        model = chromosome_qc["ab_pc"]
+        centroid_a = np.asarray(model["centroid_a"], dtype=np.float64)
+        centroid_b = np.asarray(model["centroid_b"], dtype=np.float64)
+        midpoint = np.asarray(model["midpoint"], dtype=np.float64)
+        gradient = np.asarray(model["signal_gradient"], dtype=np.float64)
+        np.testing.assert_allclose(
+            midpoint,
+            (centroid_a + centroid_b) / 2.0,
+            atol=1e-12,
+        )
+
+        rows = leaves.filter(pl.col("chrom") == chrom).sort("unit_id")
+        pc = np.vstack(rows["pc"].to_list())
+        expected = (pc - midpoint) @ gradient
+        observed = rows["ab_signal"].to_numpy()
+        finite = np.isfinite(observed)
+        assert finite.any()
+        np.testing.assert_allclose(expected[finite], observed[finite], atol=1e-10)
+
+
+def test_ab_pc_model_degenerate(monkeypatch, mcool, tmp_path) -> None:
+    def degenerate_annotation(features, feature_rank, n_units, seed, **kwargs):
+        return AbAnnotation(
+            labels=np.full(n_units, None, dtype=object),
+            feature_rank=np.asarray(feature_rank, dtype=np.float64),
+            fallback=True,
+            fallback_reason="ab_degenerate",
+            signals=np.full(n_units, np.nan),
+            a_indices=np.zeros(0, dtype=np.int64),
+            b_indices=np.zeros(0, dtype=np.int64),
+        )
+
+    monkeypatch.setattr("tadclust.pipeline.annotate_ab", degenerate_annotation)
+    result = cluster(
+        make_config(
+            mcool,
+            ab_tads(tmp_path),
+            tmp_path,
+            ab_feature_track=ab_track(tmp_path),
+        )
+    )
+
+    for chromosome_qc in result.qc["per_chromosome"].values():
+        model = chromosome_qc["ab_pc"]
+        assert model["dim"] == 2
+        for key in (
+            "centroid_a",
+            "centroid_b",
+            "midpoint",
+            "signal_gradient",
+            "std_centroid_separation",
+        ):
+            assert model[key] is None
 
 
 def test_cluster_with_ab_dc_log_freq_contact_representation(mcool, tmp_path) -> None:
@@ -686,6 +765,21 @@ def test_cluster_with_ab_dc_log_freq_contact_representation(mcool, tmp_path) -> 
             left["ab_signal"].to_numpy(),
             right["ab_signal"].to_numpy(),
             equal_nan=True,
+        )
+
+    # The A/B model is always in the log O/E PC space.
+    for chrom in oe_run.qc["per_chromosome"]:
+        oe_model = oe_run.qc["per_chromosome"][chrom]["ab_pc"]
+        frequency_model = frequency_run.qc["per_chromosome"][chrom]["ab_pc"]
+        for key in (
+            "centroid_a",
+            "centroid_b",
+            "midpoint",
+            "signal_gradient",
+        ):
+            np.testing.assert_allclose(oe_model[key], frequency_model[key])
+        assert oe_model["std_centroid_separation"] == pytest.approx(
+            frequency_model["std_centroid_separation"]
         )
 
     # The tree contact representation is not silently changed.

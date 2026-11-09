@@ -85,6 +85,9 @@ class _ChromosomeResult:
     forest: CisForest
     annotation: AbAnnotation | None
     ab_forest: CisForest | None
+    ab_pc: np.ndarray
+    ab_pc_mean: np.ndarray
+    ab_pc_std: np.ndarray
     n_uncovered: int
     clusterable: np.ndarray
 
@@ -274,6 +277,9 @@ def _build_cis_results(
         unit_bins = selection.unit_bins
         annotation = None
         n_uncovered = 0
+        ab_pc = np.zeros((len(selection.unit_selection.units), 0), dtype=np.float64)
+        ab_pc_mean = np.zeros(0, dtype=np.float64)
+        ab_pc_std = np.zeros(0, dtype=np.float64)
 
         if track is None:
             pcs = cluster_pcs
@@ -290,6 +296,10 @@ def _build_cis_results(
             clusterable = informative_mask(pcs, config.tree_pca_dim)
             ab_clusterable = informative_mask(ab_pcs, config.tree_pca_dim)
             features = ab_feature_matrix(ab_pcs, feature_rank, config.tree_pca_dim)
+            ab_pc_dim = features.shape[1] - 1
+            ab_pc = np.asarray(ab_pcs[:, :ab_pc_dim], dtype=np.float64)
+            ab_pc_mean = ab_pc.mean(axis=0)
+            ab_pc_std = ab_pc.std(axis=0)
             annotation = annotate_ab(
                 features,
                 feature_rank,
@@ -378,6 +388,9 @@ def _build_cis_results(
                 forest=forest,
                 annotation=annotation,
                 ab_forest=ab_forest,
+                ab_pc=ab_pc,
+                ab_pc_mean=ab_pc_mean,
+                ab_pc_std=ab_pc_std,
                 n_uncovered=n_uncovered,
                 clusterable=clusterable,
             )
@@ -918,7 +931,7 @@ def _build_qc(
     for chrom, cis in cis_per_chromosome.items():
         entry: dict[str, Any] = {"cis": cis}
         if ab_per_chromosome is not None:
-            entry["ab"] = ab_per_chromosome[chrom]
+            entry.update(ab_per_chromosome[chrom])
         per_chromosome[chrom] = entry
 
     return {
@@ -1031,22 +1044,25 @@ def _ab_qc(
             n_chroms_split += 1
 
         per_chromosome[result.chrom] = {
-            "n_a": n_a,
-            "n_b": n_b,
-            "n_uncovered": result.n_uncovered,
-            "fallback": annotation.fallback,
-            "fallback_reason": annotation.fallback_reason,
-            "feature_rank_mean_a": (
-                float(feature_rank[a_mask].mean()) if a_mask.any() else None
-            ),
-            "feature_rank_mean_b": (
-                float(feature_rank[b_mask].mean()) if b_mask.any() else None
-            ),
-            "n_roots": len(ab_forest.trees),
-            "primary_forest": {
-                "n_nodes_a": chrom_nodes_a,
-                "n_nodes_b": chrom_nodes_b,
+            "ab": {
+                "n_a": n_a,
+                "n_b": n_b,
+                "n_uncovered": result.n_uncovered,
+                "fallback": annotation.fallback,
+                "fallback_reason": annotation.fallback_reason,
+                "feature_rank_mean_a": (
+                    float(feature_rank[a_mask].mean()) if a_mask.any() else None
+                ),
+                "feature_rank_mean_b": (
+                    float(feature_rank[b_mask].mean()) if b_mask.any() else None
+                ),
+                "n_roots": len(ab_forest.trees),
+                "primary_forest": {
+                    "n_nodes_a": chrom_nodes_a,
+                    "n_nodes_b": chrom_nodes_b,
+                },
             },
+            "ab_pc": _ab_pc_qc(result),
         }
 
     summary = {
@@ -1060,6 +1076,57 @@ def _ab_qc(
         },
     }
     return summary, per_chromosome
+
+
+def _ab_pc_qc(result: _ChromosomeResult) -> dict[str, Any]:
+    """Return the A/B model in the oriented log O/E PC space."""
+    annotation = result.annotation
+    if annotation is None:
+        raise ClusteringError(f"{result.chrom}: missing A/B result")
+
+    dim = int(result.ab_pc.shape[1])
+    null_model = {
+        "dim": dim,
+        "centroid_a": None,
+        "centroid_b": None,
+        "midpoint": None,
+        "signal_gradient": None,
+        "std_centroid_separation": None,
+    }
+    if annotation.fallback:
+        return null_model
+
+    std_a = np.asarray(annotation.a_centroid_pc, dtype=np.float64)
+    std_b = np.asarray(annotation.b_centroid_pc, dtype=np.float64)
+    mean = np.asarray(result.ab_pc_mean, dtype=np.float64)
+    scale = np.asarray(result.ab_pc_std, dtype=np.float64)
+    if std_a.size == 0 or std_a.shape != std_b.shape or std_a.shape != mean.shape:
+        return null_model
+    if std_a.shape != scale.shape:
+        return null_model
+
+    delta = std_a - std_b
+    separation = float(np.linalg.norm(delta))
+    if not np.isfinite(separation) or separation <= 0.0:
+        return null_model
+
+    std_gradient = delta / separation
+    std_midpoint = (std_a + std_b) / 2.0
+    signal_gradient = np.divide(
+        std_gradient,
+        scale,
+        out=np.zeros_like(std_gradient),
+        where=scale > 0.0,
+    )
+
+    return {
+        "dim": dim,
+        "centroid_a": (mean + scale * std_a).tolist(),
+        "centroid_b": (mean + scale * std_b).tolist(),
+        "midpoint": (mean + scale * std_midpoint).tolist(),
+        "signal_gradient": signal_gradient.tolist(),
+        "std_centroid_separation": separation,
+    }
 
 
 def _trans_qc(
