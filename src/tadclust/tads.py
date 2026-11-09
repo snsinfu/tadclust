@@ -1,9 +1,9 @@
 """Minimal TAD input.
 
-A TAD table is a tab-separated table that stores chrom, start, and end
+A TAD table is a TSV or parquet table that stores chrom, start, and end
 triples. A headed table may name the columns chrom, start, and end in any
-order. A headerless BED-style table uses its first three columns. Every other
-column is dropped.
+order. A headerless TSV uses its first three columns. Every other column is
+dropped. Parquet file-level metadata is ignored.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
-from .bedlike import read_bedlike
+from .bedlike import TableFormat, read_bedlike
 from .errors import InputError
 
 REQUIRED_COLUMNS = ("chrom", "start", "end")
@@ -31,6 +31,7 @@ class TadTable:
     """A validated chrom/start/end table with an input row reference."""
 
     rows: pl.DataFrame
+    format: TableFormat = "tsv"
 
     @property
     def chroms(self) -> list[str]:
@@ -42,11 +43,12 @@ class TadTable:
 
 
 def read_tads(path: str | Path) -> TadTable:
-    """Read and validate a tab-separated chrom/start/end TAD table.
+    """Read and validate a TSV or parquet chrom/start/end TAD table.
 
-    The table may be headed with chrom, start, and end columns or headerless
-    with those three columns first. Lines starting with # are ignored. Extra
-    columns are dropped.
+    TSV input may be headed with chrom, start, and end columns or headerless
+    with those three columns first. Parquet input matches the three columns by
+    name. Extra columns are dropped. Lines starting with # are ignored in TSV
+    input. Parquet file-level metadata is ignored.
     """
     source = Path(path)
     if not source.is_file():
@@ -69,8 +71,13 @@ def read_tads(path: str | Path) -> TadTable:
             notes=("the table must be non-empty and parseable",),
         ) from exc
 
-    table = _select_and_validate(bedlike.table, bedlike.has_header, source)
-    return TadTable(rows=table)
+    table = _select_and_validate(
+        bedlike.table,
+        bedlike.has_header,
+        source,
+        source_format=bedlike.format,
+    )
+    return TadTable(rows=table, format=bedlike.format)
 
 
 def check_against_chromsizes(
@@ -129,6 +136,35 @@ def _make_schema(has_header: bool, width: int) -> dict[str, type]:
     }
 
 
+def _normalize_parquet_columns(table: pl.DataFrame, path: Path) -> pl.DataFrame:
+    try:
+        table = table.with_columns(pl.col("chrom").cast(pl.String))
+    except Exception as exc:
+        raise InputError(
+            "TAD chromosome column must be text",
+            path=str(path),
+        ) from exc
+
+    for name in ("start", "end"):
+        if not table.schema[name].is_integer():
+            raise InputError(
+                "TAD start and end must be integers",
+                path=str(path),
+                notes=("parquet coordinate columns must use an integer type",),
+            )
+
+    try:
+        return table.with_columns(
+            pl.col("start").cast(pl.Int64),
+            pl.col("end").cast(pl.Int64),
+        )
+    except Exception as exc:
+        raise InputError(
+            "TAD start and end must fit in 64-bit integers",
+            path=str(path),
+        ) from exc
+
+
 def _add_tad_id(table: pl.DataFrame) -> pl.DataFrame:
     return table.with_row_index(name="tad_id").with_columns(
         pl.col("tad_id").cast(pl.Int64)
@@ -139,6 +175,8 @@ def _select_and_validate(
     table: pl.DataFrame,
     has_header: bool,
     path: Path,
+    *,
+    source_format: TableFormat = "tsv",
 ) -> pl.DataFrame:
     if table.height == 0:
         raise InputError(
@@ -154,6 +192,8 @@ def _select_and_validate(
                 path=str(path),
             )
         table = table.select(*REQUIRED_COLUMNS)
+        if source_format == "parquet":
+            table = _normalize_parquet_columns(table, path)
     else:
         if table.width < 3:
             raise InputError(

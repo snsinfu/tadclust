@@ -9,6 +9,7 @@ from typing import ClassVar
 import cooler
 import numpy as np
 
+from .bedlike import TableFormat
 from .domains import (
     ChromosomeTree,
     assign_bin_counts,
@@ -29,6 +30,10 @@ class AnnotationSource:
     path: str
     mode: ClassVar[str] = "annotation"
     unit_kind: ClassVar[str] = "tad"
+
+    @property
+    def input_format(self) -> TableFormat:
+        return self.table.format
 
     def resolution_lengths(self) -> np.ndarray:
         return self.table.lengths
@@ -61,6 +66,10 @@ class UniformBinSource:
 
     mode: ClassVar[str] = "uniform_bins"
     unit_kind: ClassVar[str] = "bin"
+
+    @property
+    def input_format(self) -> None:
+        return None
 
     def resolution_lengths(self) -> None:
         return None
