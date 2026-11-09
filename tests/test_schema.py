@@ -309,6 +309,7 @@ def test_uniform_bins_golden_schema(mcool, tmp_path) -> None:
 
     manifest = json.loads((out / "manifest.json").read_text())
     assert manifest["inputs"]["annotation"] is None
+    assert manifest["inputs"]["annotation_format"] is None
     assert manifest["params"]["resolved"]["input_mode"] == "uniform_bins"
     assert manifest["params"]["requested"]["with_residuals"] is False
     assert manifest["qc"]["summary"]["n_bin_units"] == 8
@@ -342,6 +343,7 @@ def test_manifest_contract(mcool, tmp_path) -> None:
     assert manifest["inputs"] == {
         "mcool": str(mcool),
         "annotation": str(tads),
+        "annotation_format": "tsv",
         "ab_feature_track": None,
     }
     assert manifest["cli"] is None

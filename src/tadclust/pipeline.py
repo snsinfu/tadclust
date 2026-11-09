@@ -217,6 +217,7 @@ def cluster(config: ClusterConfig) -> ClusterResult:
                 if config.annotation_path is not None
                 else None
             ),
+            "annotation_format": source.input_format,
             "ab_feature_track": (
                 str(config.ab_feature_track)
                 if config.ab_feature_track is not None

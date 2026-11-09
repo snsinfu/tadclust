@@ -169,6 +169,7 @@ def test_cluster_cis_only(mcool, tmp_path) -> None:
     assert result.params["resolved"]["input_mode"] == "annotation"
     assert result.params["resolved"]["chromosomes"] == ["chr1", "chr2"]
     assert result.inputs["mcool"] == str(mcool)
+    assert result.inputs["annotation_format"] == "tsv"
     assert result.inputs["ab_feature_track"] is None
     assert result.output_files == [
         "cis_leaves.parquet",
@@ -307,6 +308,7 @@ def test_cluster_uniform_bins(mcool, tmp_path) -> None:
     assert result.qc["summary"]["n_residuals"] == 0
     assert result.params["resolved"]["input_mode"] == "uniform_bins"
     assert result.inputs["annotation"] is None
+    assert result.inputs["annotation_format"] is None
     assert result.params["requested"]["with_residuals"] is False
     assert result.params["resolved"]["working_binsize"] == 500
     assert result.params["resolved"]["working_binsize_mode"] == "explicit"
